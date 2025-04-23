@@ -8,6 +8,7 @@ import { AuthProvider } from "@/components/auth/AuthProvider"
 import Index from "./pages/Index"
 import Auth from "./pages/Auth"
 import Drive from "./pages/Drive"
+import Chat from "./pages/Chat"
 import NotFound from "./pages/NotFound"
 
 const queryClient = new QueryClient()
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/drive" element={<Drive />} />
+            <Route path="/chat" element={<Chat />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
