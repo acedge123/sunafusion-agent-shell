@@ -3,9 +3,13 @@ import React from "react";
 import { 
   Settings,
   MoreVertical,
-  MinusCircle
+  MinusCircle,
+  LogOut  // Import the log-out icon from lucide-react
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +33,29 @@ const AgentHeader: React.FC<AgentHeaderProps> = ({
   onMinimize,
   className 
 }) => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out."
+      });
+      
+      navigate("/auth");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Logout Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred"
+      });
+    }
+  };
+
   return (
     <header className={`flex items-center justify-between p-4 bg-background border-b ${className}`}>
       <div className="flex items-center gap-2">
@@ -65,6 +92,10 @@ const AgentHeader: React.FC<AgentHeaderProps> = ({
               <span>Settings</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Logout</span>
+            </DropdownMenuItem>
             <DropdownMenuItem>Clear conversation</DropdownMenuItem>
             <DropdownMenuItem>Export conversation</DropdownMenuItem>
           </DropdownMenuContent>
