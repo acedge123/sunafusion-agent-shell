@@ -42,13 +42,17 @@ serve(async (req) => {
     }
     const userId = userData.user.id
 
+    // Get the user's provider tokens if available
+    const { data: sessionData } = await supabase.auth.getSession(token)
+    const providerToken = sessionData?.session?.provider_token
+
     // Initialize results array to store information from different sources
     const results = []
     
     // 1. Search Google Drive if requested
     if (include_drive) {
       try {
-        const driveResults = await searchGoogleDrive(supabase, userId, query)
+        const driveResults = await searchGoogleDrive(supabase, userId, query, providerToken)
         results.push({
           source: "google_drive",
           results: driveResults
@@ -100,20 +104,27 @@ serve(async (req) => {
 })
 
 // Function to search Google Drive
-async function searchGoogleDrive(supabase, userId, query) {
-  // Get the user's Google Drive access token
-  const { data: accessData, error: accessError } = await supabase
-    .from('google_drive_access')
-    .select('access_token')
-    .eq('user_id', userId)
-    .maybeSingle()
+async function searchGoogleDrive(supabase, userId, query, providerToken) {
+  let accessToken = providerToken;
 
-  if (accessError) {
-    throw new Error(`Failed to get Google Drive access: ${accessError.message}`)
-  }
+  // If no provider token is available, fall back to stored token
+  if (!accessToken) {
+    // Get the user's Google Drive access token
+    const { data: accessData, error: accessError } = await supabase
+      .from('google_drive_access')
+      .select('access_token')
+      .eq('user_id', userId)
+      .maybeSingle()
 
-  if (!accessData?.access_token) {
-    throw new Error('No Google Drive access token found')
+    if (accessError) {
+      throw new Error(`Failed to get Google Drive access: ${accessError.message}`)
+    }
+
+    if (!accessData?.access_token) {
+      throw new Error('No Google Drive access token found')
+    }
+    
+    accessToken = accessData.access_token;
   }
 
   // Call Google Drive API to search for files
@@ -125,7 +136,7 @@ async function searchGoogleDrive(supabase, userId, query) {
   
   const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
     headers: {
-      'Authorization': `Bearer ${accessData.access_token}`
+      'Authorization': `Bearer ${accessToken}`
     }
   })
 
@@ -144,7 +155,7 @@ async function searchGoogleDrive(supabase, userId, query) {
         try {
           const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
             headers: {
-              'Authorization': `Bearer ${accessData.access_token}`
+              'Authorization': `Bearer ${accessToken}`
             }
           })
           

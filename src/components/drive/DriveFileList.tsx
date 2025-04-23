@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Loader2, Search, LogIn } from "lucide-react"
@@ -16,16 +17,20 @@ export const DriveFileList = () => {
 
   const initiateGoogleAuth = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('drive-ai-assistant', {
-        body: {
-          action: "getAuthUrl"
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          scopes: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
+          redirectTo: `${window.location.origin}/drive`
         }
-      })
-
-      if (error) throw error
+      });
       
-      // Open Google's auth page in a new window
-      window.location.href = data.url
+      if (error) throw error;
+      
+      // The user will be redirected to Google's auth page
+      if (data.url) {
+        window.location.href = data.url;
+      }
     } catch (error) {
       toast({
         variant: "destructive",
