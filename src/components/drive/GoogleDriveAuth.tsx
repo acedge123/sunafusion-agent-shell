@@ -26,9 +26,9 @@ export const GoogleDriveAuth = () => {
       })
 
       if (error) {
-        console.error("OAuth error:", error)
+        console.error("Full OAuth error object:", error)
         
-        // Check for common auth errors
+        // Detailed error handling
         if (error.message.includes("provider is not enabled")) {
           toast({
             variant: "destructive",
@@ -39,10 +39,14 @@ export const GoogleDriveAuth = () => {
           toast({
             variant: "destructive",
             title: "Connection Refused",
-            description: `Google refused the connection. Make sure ${window.location.origin} is added as an authorized origin in Google Cloud Console.`
+            description: `Google refused the connection. Verify that ${window.location.origin} is correctly added as an authorized origin in Google Cloud Console.`
           })
         } else {
-          throw error
+          toast({
+            variant: "destructive",
+            title: "Authorization Error",
+            description: error.message || "Failed to initiate Google authorization"
+          })
         }
         return
       }
@@ -96,6 +100,9 @@ export const GoogleDriveAuth = () => {
         </p>
         <p>
           Add this URL as an authorized JavaScript origin in Google Cloud Console
+        </p>
+        <p>
+          Redirect URL for Google Cloud: <code className="bg-muted px-1 rounded text-xs">{`${window.location.origin}/drive`}</code>
         </p>
       </div>
     </div>
