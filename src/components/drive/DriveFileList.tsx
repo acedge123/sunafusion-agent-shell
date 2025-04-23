@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Loader2, Search, LogIn } from "lucide-react"
@@ -37,10 +38,11 @@ export const DriveFileList = () => {
 
   const checkGoogleAuth = async () => {
     try {
-      const { data: accessData } = await supabase
+      const { data: accessData, error } = await supabase
         .from('google_drive_access')
         .select('access_token')
-        .single()
+        .eq('user_id', supabase.auth.getUser().then(({ data }) => data.user?.id))
+        .maybeSingle()
 
       setIsAuthenticated(!!accessData?.access_token)
     } catch (error) {
