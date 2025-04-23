@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Loader2, Search, LogIn } from "lucide-react"
@@ -38,15 +37,21 @@ export const DriveFileList = () => {
 
   const checkGoogleAuth = async () => {
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        setIsAuthenticated(false);
+        return;
+      }
+      
       const { data: accessData, error } = await supabase
         .from('google_drive_access')
         .select('access_token')
-        .eq('user_id', supabase.auth.getUser().then(({ data }) => data.user?.id))
-        .maybeSingle()
+        .eq('user_id', userData.user.id)
+        .maybeSingle();
 
-      setIsAuthenticated(!!accessData?.access_token)
+      setIsAuthenticated(!!accessData?.access_token);
     } catch (error) {
-      setIsAuthenticated(false)
+      setIsAuthenticated(false);
     }
   }
 
@@ -57,28 +62,34 @@ export const DriveFileList = () => {
   const fetchFiles = async () => {
     setLoading(true)
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) {
+        throw new Error("User not authenticated");
+      }
+      
       const { data: accessData } = await supabase
         .from('google_drive_access')
         .select('access_token')
-        .single()
+        .eq('user_id', userData.user.id)
+        .single();
 
       if (accessData?.access_token) {
         const response = await fetch('https://www.googleapis.com/drive/v3/files?fields=files(id,name,mimeType)', {
           headers: {
             'Authorization': `Bearer ${accessData.access_token}`
           }
-        })
-        const data = await response.json()
-        setFiles(data.files || [])
+        });
+        const data = await response.json();
+        setFiles(data.files || []);
       }
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
         description: "Failed to fetch files"
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -136,7 +147,6 @@ export const DriveFileList = () => {
         description: "The agent has processed your query successfully."
       })
 
-      // Redirect to the Chat page with the result
       window.location.href = `/chat?query=${encodeURIComponent(batchQuery)}&result=${encodeURIComponent(JSON.stringify(response.data))}`
     } catch (error) {
       toast({
