@@ -3,13 +3,16 @@ import { Button } from "@/components/ui/button"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { LogIn, Loader2 } from "lucide-react"
+import { LogIn, Loader2, ExternalLink } from "lucide-react"
 import { useState } from "react"
 
 export const GoogleDriveAuth = () => {
   const [isAuthorizing, setIsAuthorizing] = useState(false)
   const { toast } = useToast()
   const { user } = useAuth()
+  
+  // Production domain to display in guidance
+  const productionDomain = "www.gigagencygroup.com"
 
   const initiateGoogleAuth = async () => {
     setIsAuthorizing(true)
@@ -17,11 +20,14 @@ export const GoogleDriveAuth = () => {
       console.log("Starting Google authorization flow")
       console.log("Current origin:", window.location.origin)
       
+      const redirectUrl = `${window.location.origin}/drive`
+      console.log("Redirect URL:", redirectUrl)
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           scopes: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
-          redirectTo: `${window.location.origin}/drive`,
+          redirectTo: redirectUrl
         }
       })
 
@@ -39,7 +45,7 @@ export const GoogleDriveAuth = () => {
           toast({
             variant: "destructive",
             title: "Connection Refused",
-            description: `Google refused the connection. Verify that ${window.location.origin} is correctly added as an authorized origin in Google Cloud Console.`
+            description: `Google refused the connection. Verify that both ${window.location.origin} and ${productionDomain} are correctly added as authorized origins in Google Cloud Console.`
           })
         } else {
           toast({
@@ -99,10 +105,27 @@ export const GoogleDriveAuth = () => {
           Current URL: <code className="bg-muted px-1 rounded text-xs">{window.location.origin}</code>
         </p>
         <p>
-          Add this URL as an authorized JavaScript origin in Google Cloud Console
+          Production URL: <code className="bg-muted px-1 rounded text-xs">https://{productionDomain}</code>
         </p>
         <p>
-          Redirect URL for Google Cloud: <code className="bg-muted px-1 rounded text-xs">{`${window.location.origin}/drive`}</code>
+          Add both URLs as authorized JavaScript origins in Google Cloud Console
+        </p>
+        <p>
+          Redirect URLs for Google Cloud: 
+        </p>
+        <ul className="list-disc list-inside pl-2">
+          <li><code className="bg-muted px-1 rounded text-xs">{`${window.location.origin}/drive`}</code></li>
+          <li><code className="bg-muted px-1 rounded text-xs">{`https://${productionDomain}/drive`}</code></li>
+        </ul>
+        <p className="pt-2">
+          <a 
+            href="https://console.cloud.google.com/apis/credentials" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center text-blue-500 hover:underline"
+          >
+            Open Google Cloud Console <ExternalLink className="ml-1 h-3 w-3" />
+          </a>
         </p>
       </div>
     </div>
