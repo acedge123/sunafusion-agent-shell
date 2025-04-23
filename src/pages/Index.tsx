@@ -1,14 +1,15 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { v4 as uuidv4 } from "uuid";
-import { useToast } from "@/components/ui/use-toast";
-import AgentHeader from "@/components/agent/AgentHeader";
-import ChatContainer, { Message } from "@/components/chat/ChatContainer";
-import ChatInput from "@/components/chat/ChatInput";
-import { sendMessage } from "@/services/api";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/components/auth/AuthProvider";
-import { Loader2 } from "lucide-react";
+import React, { useState } from "react"
+import { Link } from "react-router-dom"
+import { v4 as uuidv4 } from "uuid"
+import { useToast } from "@/components/ui/use-toast"
+import AgentHeader from "@/components/agent/AgentHeader"
+import ChatContainer, { Message } from "@/components/chat/ChatContainer"
+import ChatInput from "@/components/chat/ChatInput"
+import { sendMessage } from "@/services/api"
+import { Button } from "@/components/ui/button"
+import { useAuth } from "@/components/auth/AuthProvider"
+import { Loader2 } from "lucide-react"
+import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth"
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -71,7 +72,9 @@ const Index = () => {
         <div className="flex flex-col md:flex-row gap-4 items-center justify-center max-w-4xl mx-auto">
           <div className="text-center md:text-left">
             <h1 className="text-2xl font-bold mb-2">TheGig.Agency Unified Assistant</h1>
-            <p className="text-muted-foreground mb-4">Your intelligent assistant that seamlessly searches both your Google Drive files and the web to provide comprehensive answers</p>
+            <p className="text-muted-foreground mb-4">
+              Your intelligent assistant that seamlessly searches both your Google Drive files and the web to provide comprehensive answers
+            </p>
             {!user && (
               <Button asChild>
                 <Link to="/auth">Sign In to Access All Features</Link>
@@ -80,6 +83,8 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      {user && <GoogleDriveAuth />}
       
       <div className="flex-1 overflow-hidden">
         <ChatContainer messages={messages} className="h-full" />
@@ -102,4 +107,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default Index
