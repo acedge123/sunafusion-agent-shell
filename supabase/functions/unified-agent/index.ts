@@ -21,6 +21,12 @@ serve(async (req) => {
   }
 
   try {
+    // Verify OpenAI API key is configured
+    if (!OPENAI_API_KEY) {
+      console.error('Error: OPENAI_API_KEY is not configured!')
+      throw new Error('OPENAI_API_KEY is not configured in the environment')
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     const { query, conversation_history = [], include_web = true, include_drive = true } = await req.json()
     
@@ -52,7 +58,9 @@ serve(async (req) => {
     // 1. Search Google Drive if requested
     if (include_drive) {
       try {
+        console.log(`Starting Google Drive search for user: ${userId}`)
         const driveResults = await searchGoogleDrive(supabase, userId, query, providerToken)
+        console.log(`Google Drive search returned ${driveResults.length} results`)
         results.push({
           source: "google_drive",
           results: driveResults
@@ -69,7 +77,12 @@ serve(async (req) => {
     // 2. Search the web if requested
     if (include_web) {
       try {
+        console.log("Starting web search")
+        if (!TAVILY_API_KEY) {
+          console.warn("TAVILY_API_KEY is not configured, web search will not work!")
+        }
         const webResults = await searchWeb(query)
+        console.log(`Web search returned ${webResults.length} results`)
         results.push({
           source: "web_search",
           results: webResults
@@ -84,6 +97,7 @@ serve(async (req) => {
     }
 
     // 3. Use OpenAI to synthesize the information
+    console.log("Synthesizing results with OpenAI")
     const answer = await synthesizeWithAI(query, results, conversation_history)
 
     // Return the combined results
@@ -177,7 +191,8 @@ async function searchGoogleDrive(supabase, userId, query, providerToken) {
 // Function to search the web using Tavily API
 async function searchWeb(query) {
   if (!TAVILY_API_KEY) {
-    throw new Error('TAVILY_API_KEY not configured')
+    console.error('TAVILY_API_KEY is not configured!')
+    return [] // Return empty results rather than failing
   }
 
   const response = await fetch('https://api.tavily.com/search', {
@@ -206,6 +221,7 @@ async function searchWeb(query) {
 // Function to synthesize information using OpenAI
 async function synthesizeWithAI(query, sources, conversationHistory) {
   if (!OPENAI_API_KEY) {
+    console.error('OpenAI API key is not configured!')
     throw new Error('OPENAI_API_KEY not configured')
   }
 
@@ -224,6 +240,8 @@ async function synthesizeWithAI(query, sources, conversationHistory) {
         sourceContext += `No content available (${file.mimeType})\n\n`
       }
     })
+  } else if (driveSource?.error) {
+    sourceContext += `Google Drive search error: ${driveSource.error}\n\n`
   }
 
   // Add web search results
@@ -235,6 +253,8 @@ async function synthesizeWithAI(query, sources, conversationHistory) {
       sourceContext += `URL: ${result.url}\n`
       sourceContext += `Content: ${result.content || result.snippet || 'No content available'}\n\n`
     })
+  } else if (webSource?.error) {
+    sourceContext += `Web search error: ${webSource.error}\n\n`
   }
 
   // Build conversation history
@@ -261,25 +281,34 @@ async function synthesizeWithAI(query, sources, conversationHistory) {
     content: `Question: ${query}\n\nHere is relevant information to help you answer:\n\n${sourceContext}`
   })
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: messages,
-      temperature: 0.3,
-      max_tokens: 2048,
-    }),
-  })
+  console.log('Sending request to OpenAI API - model: gpt-4o')
+  
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: messages,
+        temperature: 0.3,
+        max_tokens: 2048,
+      }),
+    })
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`)
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('OpenAI API error response:', errorText)
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    console.log('Successfully received response from OpenAI')
+    return data.choices[0].message.content
+  } catch (error) {
+    console.error('Error calling OpenAI API:', error)
+    throw new Error(`OpenAI API call failed: ${error.message}`)
   }
-
-  const data = await response.json()
-  return data.choices[0].message.content
 }
