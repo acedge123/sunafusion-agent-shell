@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
@@ -41,7 +40,6 @@ export const GoogleDriveAuth = () => {
             toast({
               title: "Google Drive Connected",
               description: "Your Google Drive account has been successfully connected",
-              icon: <Check className="h-4 w-4 text-green-500" />
             })
             setIsAuthenticated(true)
           }
