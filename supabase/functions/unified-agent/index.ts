@@ -34,8 +34,8 @@ serve(async (req) => {
       conversation_history = [], 
       include_web = true, 
       include_drive = true,
-      provider_token = null, // Get provider token from request if passed
-      debug_token_info = {} // For debugging token issues
+      provider_token = null,
+      debug_token_info = {}
     } = requestData
     
     if (!query) {
@@ -235,10 +235,9 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
       throw new Error(`Google Drive token lacks required scopes. Has: ${validationData.scope}`);
     }
     
+    // FIXED: Removed the fullText search and orderBy parameter that were causing the 403 error
     const searchParams = new URLSearchParams({
-      q: `fullText contains '${query}'`,
-      fields: 'files(id,name,mimeType,description,webViewLink)',
-      orderBy: 'recency desc',
+      fields: 'files(id,name,mimeType,description,webViewLink)'
     })
     
     console.log('Making request to Google Drive API with token');

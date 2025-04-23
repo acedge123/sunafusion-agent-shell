@@ -48,21 +48,49 @@ export const DriveBatchQuery = () => {
       // Store the provider token if available
       if (providerToken && sessionData?.session?.user?.id) {
         try {
-          const { error: upsertError } = await supabase
+          // First check if the record exists
+          const { data: existingRecord, error: queryError } = await supabase
             .from('google_drive_access')
-            .upsert({
-              user_id: sessionData.session.user.id,
-              access_token: providerToken,
-              token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'user_id'
-            });
-              
-          if (upsertError) {
-            console.error("Error storing Google Drive token:", upsertError);
+            .select('id')
+            .eq('user_id', sessionData.session.user.id)
+            .maybeSingle();
+          
+          if (queryError) {
+            console.error("Error checking for existing record:", queryError);
+          }
+          
+          if (existingRecord) {
+            // Update existing record
+            const { error: updateError } = await supabase
+              .from('google_drive_access')
+              .update({
+                access_token: providerToken,
+                token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', sessionData.session.user.id);
+            
+            if (updateError) {
+              console.error("Error updating Google Drive token:", updateError);
+            } else {
+              console.log("Successfully updated Google Drive token for future use");
+            }
           } else {
-            console.log("Successfully stored Google Drive token for future use");
+            // Insert new record
+            const { error: insertError } = await supabase
+              .from('google_drive_access')
+              .insert({
+                user_id: sessionData.session.user.id,
+                access_token: providerToken,
+                token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+                updated_at: new Date().toISOString()
+              });
+            
+            if (insertError) {
+              console.error("Error inserting Google Drive token:", insertError);
+            } else {
+              console.log("Successfully inserted Google Drive token for future use");
+            }
           }
         } catch (storeError) {
           console.error("Error in token storage:", storeError);
