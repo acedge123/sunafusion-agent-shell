@@ -1,9 +1,11 @@
 
 import React, { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { useToast } from "@/components/ui/use-toast";
 import AgentHeader from "@/components/agent/AgentHeader";
 import ChatContainer, { Message } from "@/components/chat/ChatContainer";
 import ChatInput from "@/components/chat/ChatInput";
+import { sendMessage } from "@/services/api";
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -14,8 +16,10 @@ const Index = () => {
       timestamp: new Date()
     }
   ]);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
       id: uuidv4(),
       content,
@@ -24,18 +28,20 @@ const Index = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    
-    // Simulate AI response (to be replaced with actual API call)
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: uuidv4(),
-        content: "This is a placeholder response. The actual AI functionality will be implemented when merging with the Suna repository.",
-        role: "assistant",
-        timestamp: new Date()
-      };
-      
+    setIsLoading(true);
+
+    try {
+      const aiMessage = await sendMessage(content);
       setMessages(prev => [...prev, aiMessage]);
-    }, 1000);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to get response from AI. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -50,7 +56,7 @@ const Index = () => {
         <ChatContainer messages={messages} className="h-full" />
       </div>
       
-      <ChatInput onSendMessage={handleSendMessage} />
+      <ChatInput onSendMessage={handleSendMessage} disabled={isLoading} />
     </div>
   );
 };
