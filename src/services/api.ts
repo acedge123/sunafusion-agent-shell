@@ -11,7 +11,7 @@ export async function sendMessage(content: string): Promise<Message> {
         query: content,
         conversation_history: [],
         include_web: true,
-        include_drive: false
+        include_drive: true
       }
     });
 

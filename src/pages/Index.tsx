@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
@@ -15,7 +14,7 @@ const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-message",
-      content: "Hello! I'm your AI assistant. How can I help you today?",
+      content: "Hello! I'm your AI assistant with access to Google Drive and web search. Ask me anything - I'll use all available resources to help you!",
       role: "assistant",
       timestamp: new Date()
     }
@@ -71,24 +70,13 @@ const Index = () => {
       <div className="p-4 bg-muted/20 border-b">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-center max-w-4xl mx-auto">
           <div className="text-center md:text-left">
-            <h1 className="text-2xl font-bold mb-2">TheGig.Agency Assistant</h1>
-            <p className="text-muted-foreground mb-4">Your intelligent assistant with access to Google Drive and web search</p>
-            <div className="flex gap-2 justify-center md:justify-start">
-              {user ? (
-                <>
-                  <Button asChild>
-                    <Link to="/chat">AI Chat Assistant</Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link to="/drive">Google Drive Files</Link>
-                  </Button>
-                </>
-              ) : (
-                <Button asChild>
-                  <Link to="/auth">Sign In to Access All Features</Link>
-                </Button>
-              )}
-            </div>
+            <h1 className="text-2xl font-bold mb-2">TheGig.Agency Unified Assistant</h1>
+            <p className="text-muted-foreground mb-4">Your intelligent assistant that seamlessly searches both your Google Drive files and the web to provide comprehensive answers</p>
+            {!user && (
+              <Button asChild>
+                <Link to="/auth">Sign In to Access All Features</Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
