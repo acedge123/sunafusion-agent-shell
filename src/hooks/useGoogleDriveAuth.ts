@@ -23,7 +23,10 @@ export const useGoogleDriveAuth = () => {
           .maybeSingle()
           
         if (data && !error) {
+          console.log("Found existing Google Drive token in database")
           setIsAuthenticated(true)
+        } else {
+          console.log("No Google Drive token found in database")
         }
       } catch (error) {
         console.error("Error checking Google Drive access:", error)
@@ -53,7 +56,33 @@ export const useGoogleDriveAuth = () => {
           }
           
           if (data?.session) {
-            console.log("Successfully authenticated with Google")
+            console.log("Successfully authenticated with Google. Provider token available:", !!data.session.provider_token)
+            
+            // Store the provider token in database for later use
+            if (data.session.provider_token && user?.id) {
+              try {
+                const { error: upsertError } = await supabase
+                  .from('google_drive_access')
+                  .upsert({
+                    user_id: user.id,
+                    access_token: data.session.provider_token,
+                    refresh_token: data.session.refresh_token, // Store refresh token if available
+                    token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+                    updated_at: new Date().toISOString()
+                  }, {
+                    onConflict: 'user_id'
+                  });
+                  
+                if (upsertError) {
+                  console.error("Error storing Google Drive token:", upsertError)
+                } else {
+                  console.log("Successfully stored Google Drive token")
+                }
+              } catch (storageError) {
+                console.error("Error during token storage:", storageError)
+              }
+            }
+            
             toast({
               title: "Google Drive Connected",
               description: "Your Google Drive account has been successfully connected",
@@ -72,7 +101,7 @@ export const useGoogleDriveAuth = () => {
     }
     
     checkForOAuthResponse()
-  }, [toast])
+  }, [toast, user])
 
   const initiateGoogleAuth = async () => {
     setIsAuthorizing(true)
@@ -80,14 +109,16 @@ export const useGoogleDriveAuth = () => {
       const currentDomain = window.location.origin
       const redirectUrl = `${currentDomain}/drive`
       
+      // Enhanced scope request for full access to drive content
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          scopes: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
+          scopes: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/drive.file',
           redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent'
+            prompt: 'consent',
+            include_granted_scopes: 'true'
           }
         }
       })
@@ -118,6 +149,7 @@ export const useGoogleDriveAuth = () => {
       }
       
       if (data?.url) {
+        console.log("Redirecting to OAuth URL:", data.url)
         window.location.href = data.url
       } else {
         throw new Error("No redirect URL returned from OAuth provider")

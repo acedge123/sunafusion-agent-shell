@@ -16,50 +16,30 @@ export async function sendMessage(content: string): Promise<Message> {
     const authToken = sessionData?.session?.access_token
     const providerToken = sessionData?.session?.provider_token
     
-    console.log("Provider token available:", !!providerToken);
+    console.log("Provider token available from session:", !!providerToken);
     
     // If no provider token in session, try to get from database
     let storedToken = null;
-    if (!providerToken && sessionData?.session?.user) {
+    if (sessionData?.session?.user) {
       try {
-        const { data: tokenData } = await supabase
+        const { data: tokenData, error: tokenError } = await supabase
           .from('google_drive_access')
           .select('access_token')
           .eq('user_id', sessionData.session.user.id)
           .maybeSingle();
           
-        storedToken = tokenData?.access_token;
-        console.log("Retrieved stored token from database:", !!storedToken);
+        if (tokenError) {
+          console.error("Error querying token from database:", tokenError);
+        } else {
+          storedToken = tokenData?.access_token;
+          console.log("Retrieved stored token from database:", !!storedToken);
+        }
       } catch (dbError) {
         console.error("Error retrieving token from database:", dbError);
       }
     }
 
-    // Use the unified-agent edge function to process the message
-    const response = await supabase.functions.invoke('unified-agent', {
-      body: {
-        query: content,
-        conversation_history: [],
-        include_web: true,
-        include_drive: true,
-        provider_token: providerToken || storedToken, // Try both tokens
-        debug_token_info: {
-          hasProviderToken: !!providerToken,
-          hasStoredToken: !!storedToken,
-          userHasSession: !!sessionData?.session
-        }
-      },
-      headers: authToken ? {
-        Authorization: `Bearer ${authToken}`
-      } : undefined
-    });
-
-    if (response.error) {
-      console.error("Edge function error:", response.error);
-      throw new Error(response.error.message || "Failed to get AI response");
-    }
-
-    // Store Google Drive token if available and we have a user
+    // Always store provider token if available
     if (providerToken && sessionData?.session?.user?.id) {
       try {
         const { error: upsertError } = await supabase
@@ -76,11 +56,36 @@ export async function sendMessage(content: string): Promise<Message> {
         if (upsertError) {
           console.error("Error storing Google Drive token:", upsertError);
         } else {
-          console.log("Successfully stored Google Drive token for future use");
+          console.log("Successfully stored Google Drive token from session");
         }
       } catch (storeError) {
         console.error("Error in token storage:", storeError);
       }
+    }
+
+    // Use the unified-agent edge function to process the message
+    const response = await supabase.functions.invoke('unified-agent', {
+      body: {
+        query: content,
+        conversation_history: [],
+        include_web: true,
+        include_drive: true,
+        provider_token: providerToken || storedToken, // Try both tokens
+        debug_token_info: {
+          hasProviderToken: !!providerToken,
+          hasStoredToken: !!storedToken,
+          userHasSession: !!sessionData?.session,
+          tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none')
+        }
+      },
+      headers: authToken ? {
+        Authorization: `Bearer ${authToken}`
+      } : undefined
+    });
+
+    if (response.error) {
+      console.error("Edge function error:", response.error);
+      throw new Error(response.error.message || "Failed to get AI response");
     }
 
     return {

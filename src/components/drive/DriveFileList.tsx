@@ -6,10 +6,18 @@ import { GoogleDriveAuth } from "./GoogleDriveAuth"
 import { DriveBatchQuery } from "./DriveBatchQuery"
 import { DriveFilesList } from "./DriveFilesList"
 import { useGoogleDriveFiles } from "@/hooks/useGoogleDriveFiles"
+import { useEffect } from "react"
 
 export const DriveFileList = () => {
   const { user } = useAuth()
   const { files, loading, analyzing, fetchFiles, analyzeFile } = useGoogleDriveFiles()
+  
+  // Auto-fetch files when component mounts
+  useEffect(() => {
+    if (user) {
+      fetchFiles()
+    }
+  }, [user])
   
   if (!user) {
     return null

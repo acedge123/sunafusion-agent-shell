@@ -80,6 +80,11 @@ serve(async (req) => {
         
         const driveResults = await searchGoogleDrive(supabase, userId, query, provider_token, userToken)
         console.log(`Google Drive search returned ${driveResults.length} results`)
+        
+        if (driveResults.length === 0) {
+          console.log("No drive results returned - this could indicate a permission issue")
+        }
+        
         results.push({
           source: "google_drive",
           results: driveResults
@@ -88,7 +93,8 @@ serve(async (req) => {
         console.error("Google Drive search error:", error)
         results.push({
           source: "google_drive",
-          error: error.message || "Failed to search Google Drive"
+          error: error.message || "Failed to search Google Drive",
+          details: typeof error === 'object' ? JSON.stringify(error) : 'No details available'
         })
       }
     }
@@ -136,9 +142,10 @@ serve(async (req) => {
   }
 })
 
-// Function to search Google Drive - Enhanced with better error handling
+// Function to search Google Drive - Enhanced with better error handling and token validation
 async function searchGoogleDrive(supabase, userId, query, providerToken, userToken) {
   let accessToken = providerToken;
+  let refreshToken = null;
   let tokenSource = 'request provider_token';
   let tokenDebugInfo = [];
 
@@ -173,7 +180,7 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
       tokenDebugInfo.push('Trying to get token from database');
       const { data: accessData, error: accessError } = await supabase
         .from('google_drive_access')
-        .select('access_token')
+        .select('access_token, refresh_token')
         .eq('user_id', userId)
         .maybeSingle()
 
@@ -182,6 +189,7 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
         tokenDebugInfo.push(`Database error: ${accessError.message}`);
       } else if (accessData?.access_token) {
         accessToken = accessData.access_token
+        refreshToken = accessData.refresh_token
         tokenSource = 'database stored token'
         tokenDebugInfo.push('Successfully retrieved token from database');
         console.log('Using access token from database')
@@ -204,6 +212,29 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
 
   // Call Google Drive API to search for files
   try {
+    console.log('Validating token before API call');
+    // Validate the token by making a simple API call first
+    const validationResponse = await fetch('https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + accessToken);
+    
+    if (!validationResponse.ok) {
+      const validationErrorText = await validationResponse.text();
+      console.error(`Token validation failed: ${validationErrorText}`);
+      tokenDebugInfo.push(`Token validation failed: ${validationErrorText}`);
+      
+      // If we have a refresh token, we could try to refresh here
+      // This would require additional implementation
+      
+      throw new Error(`Invalid Google Drive token. Validation failed: ${validationResponse.status} ${validationResponse.statusText}`);
+    }
+    
+    const validationData = await validationResponse.json();
+    console.log('Token validation response:', JSON.stringify(validationData));
+    
+    if (!validationData.scope || !validationData.scope.includes('drive')) {
+      console.error('Token does not have required Drive scopes:', validationData.scope);
+      throw new Error(`Google Drive token lacks required scopes. Has: ${validationData.scope}`);
+    }
+    
     const searchParams = new URLSearchParams({
       q: `fullText contains '${query}'`,
       fields: 'files(id,name,mimeType,description,webViewLink)',
@@ -213,18 +244,36 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
     console.log('Making request to Google Drive API with token');
     const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
       }
     })
 
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`Google Drive API error (${response.status}): ${errorText}`)
+      
+      // Additional debugging for common errors
+      if (response.status === 401) {
+        console.error('Token is unauthorized (401). Token may be expired or invalid.');
+        tokenDebugInfo.push('Token is unauthorized (401).');
+      } else if (response.status === 403) {
+        console.error('Permission denied (403). Token may not have sufficient scope.');
+        tokenDebugInfo.push('Permission denied (403).');
+      }
+      
       throw new Error(`Google Drive API error: ${response.statusText} (${response.status}) - ${errorText}`)
     }
 
     const data = await response.json()
     console.log(`Google Drive API returned ${data.files?.length || 0} files`);
+    
+    if (!data.files || data.files.length === 0) {
+      console.log('No files found matching the query. This could be due to:');
+      console.log('1. No matching files exist');
+      console.log('2. Token does not have permission to access files');
+      console.log('3. Search query did not match any content');
+    }
     
     // For the most relevant files, also fetch their content
     const relevantFiles = data.files?.slice(0, 3) || []
@@ -245,6 +294,10 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
               return { ...file, content: content.substring(0, 5000) } // Limit content size
             } else {
               console.error(`Error fetching content for file ${file.id}: ${contentResponse.status} ${contentResponse.statusText}`)
+              
+              if (contentResponse.status === 403) {
+                console.error('Permission denied for file content. This may be due to insufficient scopes.');
+              }
             }
           } catch (error) {
             console.error(`Error fetching content for file ${file.id}:`, error)
@@ -315,6 +368,9 @@ async function synthesizeWithAI(query, sources, conversationHistory) {
     })
   } else if (driveSource?.error) {
     sourceContext += `Google Drive search error: ${driveSource.error}\n\n`
+    if (driveSource.details) {
+      sourceContext += `Error details: ${driveSource.details}\n\n`
+    }
   }
 
   // Add web search results
@@ -334,7 +390,7 @@ async function synthesizeWithAI(query, sources, conversationHistory) {
   const messages = [
     {
       role: "system",
-      content: `You are a helpful assistant working for TheGig.Agency team. Your job is to help answer questions using information from Google Drive documents and web search results. Be as helpful, accurate, and detailed as possible. When referencing information, always cite your sources (e.g., "According to Document 1..." or "Based on the web search result from [source]..."). If you don't know something or the information isn't in the provided context, admit that you don't know rather than making up an answer.`
+      content: `You are a helpful assistant working for TheGig.Agency team. Your job is to help answer questions using information from Google Drive documents and web search results. Be as helpful, accurate, and detailed as possible. When referencing information, always cite your sources (e.g., "According to Document 1..." or "Based on the web search result from [source]..."). If you don't know something or the information isn't in the provided context, admit that you don't know rather than making up an answer. If there are errors accessing Google Drive, explain clearly what the issue is and suggest solutions like checking permissions or re-authorizing Google Drive access.`
     }
   ]
 
