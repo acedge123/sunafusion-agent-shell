@@ -34,7 +34,8 @@ serve(async (req) => {
       conversation_history = [], 
       include_web = true, 
       include_drive = true,
-      provider_token = null // Get provider token from request if passed
+      provider_token = null, // Get provider token from request if passed
+      debug_token_info = {} // For debugging token issues
     } = requestData
     
     if (!query) {
@@ -72,7 +73,8 @@ serve(async (req) => {
       try {
         console.log(`Starting Google Drive search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
-        // Log token presence
+        // Log token presence and debug info
+        console.log(`Debug token info:`, debug_token_info)
         console.log(`Provider token from request: ${provider_token ? 'Present' : 'Not present'}`)
         console.log(`User token: ${userToken ? 'Present' : 'Not present'}`)
         
@@ -134,31 +136,41 @@ serve(async (req) => {
   }
 })
 
-// Function to search Google Drive
+// Function to search Google Drive - Enhanced with better error handling
 async function searchGoogleDrive(supabase, userId, query, providerToken, userToken) {
   let accessToken = providerToken;
   let tokenSource = 'request provider_token';
+  let tokenDebugInfo = [];
+
+  tokenDebugInfo.push(`Initial check - Provider token from request: ${accessToken ? 'Present' : 'Not present'}`);
 
   // If no provider token is provided in the request, try to get from auth session if user token exists
   if (!accessToken && userToken) {
     try {
+      tokenDebugInfo.push('Trying to get token from auth session');
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession(userToken)
       
       if (sessionError) {
         console.error('Error getting session:', sessionError.message)
+        tokenDebugInfo.push(`Session error: ${sessionError.message}`);
       } else if (sessionData?.session?.provider_token) {
         accessToken = sessionData.session.provider_token
         tokenSource = 'auth session provider_token'
+        tokenDebugInfo.push('Successfully retrieved token from auth session');
         console.log('Using provider token from auth session')
+      } else {
+        tokenDebugInfo.push('No provider token found in auth session');
       }
     } catch (error) {
       console.error('Error retrieving session:', error.message)
+      tokenDebugInfo.push(`Error retrieving session: ${error.message}`);
     }
   }
 
   // If still no access token and we have a userId, try to get stored token from database
   if (!accessToken && userId) {
     try {
+      tokenDebugInfo.push('Trying to get token from database');
       const { data: accessData, error: accessError } = await supabase
         .from('google_drive_access')
         .select('access_token')
@@ -167,19 +179,25 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
 
       if (accessError) {
         console.error(`Failed to get stored Google Drive access: ${accessError.message}`)
+        tokenDebugInfo.push(`Database error: ${accessError.message}`);
       } else if (accessData?.access_token) {
         accessToken = accessData.access_token
         tokenSource = 'database stored token'
+        tokenDebugInfo.push('Successfully retrieved token from database');
         console.log('Using access token from database')
+      } else {
+        tokenDebugInfo.push('No token found in database');
       }
     } catch (dbError) {
       console.error('Database error while retrieving token:', dbError.message)
+      tokenDebugInfo.push(`Database retrieval error: ${dbError.message}`);
     }
   }
 
   if (!accessToken) {
     console.error('No Google Drive access token found from any source')
-    throw new Error('No Google Drive access token found')
+    console.error('Token debug info:', tokenDebugInfo.join('; '));
+    throw new Error(`No Google Drive access token found. Debug info: ${tokenDebugInfo.join('; ')}`)
   }
   
   console.log(`Using access token from ${tokenSource}`)
@@ -192,6 +210,7 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
       orderBy: 'recency desc',
     })
     
+    console.log('Making request to Google Drive API with token');
     const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`
@@ -201,10 +220,11 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`Google Drive API error (${response.status}): ${errorText}`)
-      throw new Error(`Google Drive API error: ${response.statusText} (${response.status})`)
+      throw new Error(`Google Drive API error: ${response.statusText} (${response.status}) - ${errorText}`)
     }
 
     const data = await response.json()
+    console.log(`Google Drive API returned ${data.files?.length || 0} files`);
     
     // For the most relevant files, also fetch their content
     const relevantFiles = data.files?.slice(0, 3) || []
@@ -213,6 +233,7 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
         if (file.mimeType === 'application/vnd.google-apps.document' || 
             file.mimeType === 'text/plain') {
           try {
+            console.log(`Fetching content for file: ${file.name} (${file.id})`);
             const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
               headers: {
                 'Authorization': `Bearer ${accessToken}`
