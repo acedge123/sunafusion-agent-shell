@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
-import { Loader2, Search } from "lucide-react"
+import { Loader2, Search, LogIn } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
@@ -12,7 +11,46 @@ export const DriveFileList = () => {
   const [analyzing, setAnalyzing] = useState<string | null>(null)
   const [batchQuery, setBatchQuery] = useState("")
   const [batchProcessing, setBatchProcessing] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const { toast } = useToast()
+
+  const initiateGoogleAuth = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('drive-ai-assistant', {
+        body: {
+          action: "getAuthUrl"
+        }
+      })
+
+      if (error) throw error
+      
+      // Open Google's auth page in a new window
+      window.location.href = data.url
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: error instanceof Error ? error.message : "Failed to start Google authentication"
+      })
+    }
+  }
+
+  const checkGoogleAuth = async () => {
+    try {
+      const { data: accessData } = await supabase
+        .from('google_drive_access')
+        .select('access_token')
+        .single()
+
+      setIsAuthenticated(!!accessData?.access_token)
+    } catch (error) {
+      setIsAuthenticated(false)
+    }
+  }
+
+  useEffect(() => {
+    checkGoogleAuth()
+  }, [])
 
   const fetchFiles = async () => {
     setLoading(true)
@@ -110,8 +148,25 @@ export const DriveFileList = () => {
   }
 
   useEffect(() => {
-    fetchFiles()
-  }, [])
+    if (isAuthenticated) {
+      fetchFiles()
+    }
+  }, [isAuthenticated])
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-4 space-y-4">
+        <h2 className="text-xl font-semibold">Connect to Google Drive</h2>
+        <p className="text-muted-foreground text-center max-w-md">
+          Sign in with your team@thegig.agency account to access and analyze documents from Google Drive
+        </p>
+        <Button onClick={initiateGoogleAuth} size="lg">
+          <LogIn className="mr-2 h-4 w-4" />
+          Sign in with Google
+        </Button>
+      </div>
+    )
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center p-4">
@@ -123,7 +178,13 @@ export const DriveFileList = () => {
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Your Google Drive Files</h2>
-        <Button onClick={fetchFiles} variant="outline">Refresh</Button>
+        <div className="space-x-2">
+          <Button onClick={fetchFiles} variant="outline">Refresh</Button>
+          <Button onClick={initiateGoogleAuth} variant="outline">
+            <LogIn className="mr-2 h-4 w-4" />
+            Change Account
+          </Button>
+        </div>
       </div>
       
       <div className="p-4 border border-muted rounded-lg bg-muted/50">
