@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { LogIn, Loader2, ExternalLink } from "lucide-react"
+import { LogIn, Loader2, ExternalLink, AlertTriangle } from "lucide-react"
 import { useState } from "react"
 
 export const GoogleDriveAuth = () => {
@@ -81,9 +81,30 @@ export const GoogleDriveAuth = () => {
     return null
   }
 
+  // Check if the URL contains localhost, which indicates a redirect issue
+  const hasRedirectError = window.location.href.includes("localhost") || 
+                          (window.location.search && window.location.search.includes("error="));
+
   return (
     <div className="flex flex-col items-center gap-4 p-4 border rounded-lg bg-card">
       <h3 className="text-lg font-semibold">Connect Google Drive</h3>
+      
+      {hasRedirectError && (
+        <div className="bg-amber-50 border border-amber-200 p-3 rounded-md flex items-start gap-3 w-full">
+          <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800">
+            <p className="font-medium mb-1">Redirect URL Issue Detected</p>
+            <p>Your OAuth flow seems to be redirecting to localhost instead of your app's URL.</p>
+            <p className="mt-2 font-medium">To fix this:</p>
+            <ol className="list-decimal list-inside pl-2 space-y-1">
+              <li>Go to your Supabase Authentication settings</li>
+              <li>Verify Site URL is set to: <code className="bg-amber-100 px-1 rounded">{window.location.origin}</code></li>
+              <li>Add <code className="bg-amber-100 px-1 rounded">{window.location.origin}/drive</code> to Redirect URLs</li>
+            </ol>
+          </div>
+        </div>
+      )}
+      
       <p className="text-sm text-muted-foreground text-center">
         To enable the AI assistant to search your Google Drive files, you need to authorize access.
       </p>
@@ -117,7 +138,19 @@ export const GoogleDriveAuth = () => {
           <li><code className="bg-muted px-1 rounded text-xs">{`${window.location.origin}/drive`}</code></li>
           <li><code className="bg-muted px-1 rounded text-xs">{`https://${productionDomain}/drive`}</code></li>
         </ul>
-        <p className="pt-2">
+        <div className="bg-muted/50 p-2 rounded-md mt-3">
+          <p className="font-medium mb-1">⚠️ Important: Supabase URL Configuration</p>
+          <p>Make sure to set these in Supabase Authentication settings:</p>
+          <ul className="list-disc list-inside pl-2">
+            <li>Site URL: <code className="bg-muted px-1 rounded text-xs">{window.location.origin}</code></li>
+            <li>Redirect URLs:</li>
+            <ul className="list-disc list-inside pl-5">
+              <li><code className="bg-muted px-1 rounded text-xs">{`${window.location.origin}/drive`}</code></li>
+              <li><code className="bg-muted px-1 rounded text-xs">{`https://${productionDomain}/drive`}</code></li>
+            </ul>
+          </ul>
+        </div>
+        <p className="pt-2 flex gap-2">
           <a 
             href="https://console.cloud.google.com/apis/credentials" 
             target="_blank" 
@@ -125,6 +158,14 @@ export const GoogleDriveAuth = () => {
             className="flex items-center text-blue-500 hover:underline"
           >
             Open Google Cloud Console <ExternalLink className="ml-1 h-3 w-3" />
+          </a>
+          <a 
+            href="https://supabase.com/dashboard/project/nljlsqgldgmxlbylqazg/auth/providers" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center text-blue-500 hover:underline"
+          >
+            Supabase Auth Settings <ExternalLink className="ml-1 h-3 w-3" />
           </a>
         </p>
       </div>
