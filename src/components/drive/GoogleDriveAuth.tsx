@@ -15,6 +15,7 @@ export const GoogleDriveAuth = () => {
     setIsAuthorizing(true)
     try {
       console.log("Starting Google authorization flow")
+      console.log("Current origin:", window.location.origin)
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -26,7 +27,24 @@ export const GoogleDriveAuth = () => {
 
       if (error) {
         console.error("OAuth error:", error)
-        throw error
+        
+        // Check for common auth errors
+        if (error.message.includes("provider is not enabled")) {
+          toast({
+            variant: "destructive",
+            title: "Google Provider Not Enabled",
+            description: "Please enable the Google provider in your Supabase project authentication settings."
+          })
+        } else if (error.message.includes("refusing to connect")) {
+          toast({
+            variant: "destructive",
+            title: "Connection Refused",
+            description: `Google refused the connection. Make sure ${window.location.origin} is added as an authorized origin in Google Cloud Console.`
+          })
+        } else {
+          throw error
+        }
+        return
       }
       
       console.log("OAuth response:", data)
@@ -69,9 +87,17 @@ export const GoogleDriveAuth = () => {
           <><LogIn className="mr-2 h-4 w-4" /> Authorize Google Drive</>
         )}
       </Button>
-      <p className="text-xs text-muted-foreground mt-1">
-        Make sure you've enabled the Google provider in your Supabase project
-      </p>
+      <div className="space-y-2 text-xs text-muted-foreground mt-1">
+        <p>
+          Make sure you've enabled the Google provider in your Supabase project
+        </p>
+        <p>
+          Current URL: <code className="bg-muted px-1 rounded text-xs">{window.location.origin}</code>
+        </p>
+        <p>
+          Add this URL as an authorized JavaScript origin in Google Cloud Console
+        </p>
+      </div>
     </div>
   )
 }
