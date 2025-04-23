@@ -66,7 +66,7 @@ export const GoogleDriveStatus = () => {
         if (!hasReadScope || !hasMetadataScope || !hasFileScope) {
           setScopeStatus('invalid');
           toast({
-            variant: "warning",
+            variant: "default", // Changed from "warning"
             title: "Token Scope Issue",
             description: "Your Google Drive token is missing some required scopes. Consider reconnecting."
           });
@@ -92,7 +92,7 @@ export const GoogleDriveStatus = () => {
             console.error(`API error: ${errorText}`);
             
             toast({
-              variant: "warning",
+              variant: "destructive", // Changed from "warning"
               title: "API Access Issue",
               description: `API call test failed: ${filesResponse.status} ${filesResponse.statusText}`
             });
