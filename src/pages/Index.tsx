@@ -9,6 +9,7 @@ import ChatInput from "@/components/chat/ChatInput";
 import { sendMessage } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { Loader2 } from "lucide-react";
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -38,6 +39,17 @@ const Index = () => {
       const aiMessage = await sendMessage(content);
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
+      console.error("Error getting AI response:", error);
+      
+      // Add an error message to the chat
+      const errorMessage: Message = {
+        id: uuidv4(),
+        content: "Sorry, I encountered an error processing your request. Please try again.",
+        role: "assistant",
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      
       toast({
         variant: "destructive",
         title: "Error",
@@ -85,7 +97,19 @@ const Index = () => {
         <ChatContainer messages={messages} className="h-full" />
       </div>
       
-      <ChatInput onSendMessage={handleSendMessage} disabled={isLoading} />
+      <ChatInput 
+        onSendMessage={handleSendMessage} 
+        disabled={isLoading} 
+      />
+      
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
+          <div className="bg-background p-4 rounded-lg shadow-lg flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Getting response...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
