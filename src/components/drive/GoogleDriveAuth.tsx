@@ -14,6 +14,8 @@ export const GoogleDriveAuth = () => {
   const initiateGoogleAuth = async () => {
     setIsAuthorizing(true)
     try {
+      console.log("Starting Google authorization flow")
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -22,13 +24,21 @@ export const GoogleDriveAuth = () => {
         }
       })
 
-      if (error) throw error
+      if (error) {
+        console.error("OAuth error:", error)
+        throw error
+      }
+      
+      console.log("OAuth response:", data)
       
       // The user will be redirected to Google's auth page
-      if (data.url) {
+      if (data?.url) {
         window.location.href = data.url
+      } else {
+        throw new Error("No redirect URL returned from OAuth provider")
       }
     } catch (error) {
+      console.error("Full authorization error:", error)
       toast({
         variant: "destructive",
         title: "Authorization Error",
@@ -59,6 +69,9 @@ export const GoogleDriveAuth = () => {
           <><LogIn className="mr-2 h-4 w-4" /> Authorize Google Drive</>
         )}
       </Button>
+      <p className="text-xs text-muted-foreground mt-1">
+        Make sure you've enabled the Google provider in your Supabase project
+      </p>
     </div>
   )
 }
