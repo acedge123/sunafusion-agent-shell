@@ -28,7 +28,14 @@ serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    const { query, conversation_history = [], include_web = true, include_drive = true } = await req.json()
+    const requestData = await req.json()
+    const { 
+      query, 
+      conversation_history = [], 
+      include_web = true, 
+      include_drive = true,
+      provider_token = null // Get provider token from request if passed
+    } = requestData
     
     if (!query) {
       throw new Error('Query is required')
@@ -36,21 +43,26 @@ serve(async (req) => {
 
     // Extract the Authorization header
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing Authorization header')
-    }
+    let userId = null
+    let userToken = null
 
-    // Get user ID from auth token
-    const token = authHeader.replace('Bearer ', '')
-    const { data: userData, error: userError } = await supabase.auth.getUser(token)
-    if (userError || !userData.user) {
-      throw new Error('Invalid user token')
+    // Try to get user from auth header
+    if (authHeader) {
+      try {
+        userToken = authHeader.replace('Bearer ', '')
+        const { data: userData, error: userError } = await supabase.auth.getUser(userToken)
+        if (!userError && userData.user) {
+          userId = userData.user.id
+          console.log(`Authenticated user: ${userId}`)
+        } else {
+          console.log('Invalid user token in auth header:', userError?.message)
+        }
+      } catch (authError) {
+        console.error('Error processing auth header:', authError)
+      }
+    } else {
+      console.log('No Authorization header provided')
     }
-    const userId = userData.user.id
-
-    // Get the user's provider tokens if available
-    const { data: sessionData } = await supabase.auth.getSession(token)
-    const providerToken = sessionData?.session?.provider_token
 
     // Initialize results array to store information from different sources
     const results = []
@@ -58,8 +70,13 @@ serve(async (req) => {
     // 1. Search Google Drive if requested
     if (include_drive) {
       try {
-        console.log(`Starting Google Drive search for user: ${userId}`)
-        const driveResults = await searchGoogleDrive(supabase, userId, query, providerToken)
+        console.log(`Starting Google Drive search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
+        
+        // Log token presence
+        console.log(`Provider token from request: ${provider_token ? 'Present' : 'Not present'}`)
+        console.log(`User token: ${userToken ? 'Present' : 'Not present'}`)
+        
+        const driveResults = await searchGoogleDrive(supabase, userId, query, provider_token, userToken)
         console.log(`Google Drive search returned ${driveResults.length} results`)
         results.push({
           source: "google_drive",
@@ -118,74 +135,109 @@ serve(async (req) => {
 })
 
 // Function to search Google Drive
-async function searchGoogleDrive(supabase, userId, query, providerToken) {
+async function searchGoogleDrive(supabase, userId, query, providerToken, userToken) {
   let accessToken = providerToken;
+  let tokenSource = 'request provider_token';
 
-  // If no provider token is available, fall back to stored token
-  if (!accessToken) {
-    // Get the user's Google Drive access token
-    const { data: accessData, error: accessError } = await supabase
-      .from('google_drive_access')
-      .select('access_token')
-      .eq('user_id', userId)
-      .maybeSingle()
-
-    if (accessError) {
-      throw new Error(`Failed to get Google Drive access: ${accessError.message}`)
+  // If no provider token is provided in the request, try to get from auth session if user token exists
+  if (!accessToken && userToken) {
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession(userToken)
+      
+      if (sessionError) {
+        console.error('Error getting session:', sessionError.message)
+      } else if (sessionData?.session?.provider_token) {
+        accessToken = sessionData.session.provider_token
+        tokenSource = 'auth session provider_token'
+        console.log('Using provider token from auth session')
+      }
+    } catch (error) {
+      console.error('Error retrieving session:', error.message)
     }
-
-    if (!accessData?.access_token) {
-      throw new Error('No Google Drive access token found')
-    }
-    
-    accessToken = accessData.access_token;
   }
+
+  // If still no access token and we have a userId, try to get stored token from database
+  if (!accessToken && userId) {
+    try {
+      const { data: accessData, error: accessError } = await supabase
+        .from('google_drive_access')
+        .select('access_token')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (accessError) {
+        console.error(`Failed to get stored Google Drive access: ${accessError.message}`)
+      } else if (accessData?.access_token) {
+        accessToken = accessData.access_token
+        tokenSource = 'database stored token'
+        console.log('Using access token from database')
+      }
+    } catch (dbError) {
+      console.error('Database error while retrieving token:', dbError.message)
+    }
+  }
+
+  if (!accessToken) {
+    console.error('No Google Drive access token found from any source')
+    throw new Error('No Google Drive access token found')
+  }
+  
+  console.log(`Using access token from ${tokenSource}`)
 
   // Call Google Drive API to search for files
-  const searchParams = new URLSearchParams({
-    q: `fullText contains '${query}'`,
-    fields: 'files(id,name,mimeType,description,webViewLink)',
-    orderBy: 'recency desc',
-  })
-  
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`
-    }
-  })
-
-  if (!response.ok) {
-    throw new Error(`Google Drive API error: ${response.statusText}`)
-  }
-
-  const data = await response.json()
-  
-  // For the most relevant files, also fetch their content
-  const relevantFiles = data.files?.slice(0, 3) || []
-  const filesWithContent = await Promise.all(
-    relevantFiles.map(async (file) => {
-      if (file.mimeType === 'application/vnd.google-apps.document' || 
-          file.mimeType === 'text/plain') {
-        try {
-          const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            }
-          })
-          
-          if (contentResponse.ok) {
-            const content = await contentResponse.text()
-            return { ...file, content: content.substring(0, 5000) } // Limit content size
-          }
-        } catch (error) {
-          console.error(`Error fetching content for file ${file.id}:`, error)
-        }
-      }
-      return file
+  try {
+    const searchParams = new URLSearchParams({
+      q: `fullText contains '${query}'`,
+      fields: 'files(id,name,mimeType,description,webViewLink)',
+      orderBy: 'recency desc',
     })
-  )
+    
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
 
-  return filesWithContent
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Google Drive API error (${response.status}): ${errorText}`)
+      throw new Error(`Google Drive API error: ${response.statusText} (${response.status})`)
+    }
+
+    const data = await response.json()
+    
+    // For the most relevant files, also fetch their content
+    const relevantFiles = data.files?.slice(0, 3) || []
+    const filesWithContent = await Promise.all(
+      relevantFiles.map(async (file) => {
+        if (file.mimeType === 'application/vnd.google-apps.document' || 
+            file.mimeType === 'text/plain') {
+          try {
+            const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`
+              }
+            })
+            
+            if (contentResponse.ok) {
+              const content = await contentResponse.text()
+              return { ...file, content: content.substring(0, 5000) } // Limit content size
+            } else {
+              console.error(`Error fetching content for file ${file.id}: ${contentResponse.status} ${contentResponse.statusText}`)
+            }
+          } catch (error) {
+            console.error(`Error fetching content for file ${file.id}:`, error)
+          }
+        }
+        return file
+      })
+    )
+
+    return filesWithContent
+  } catch (error) {
+    console.error('Error in searchGoogleDrive:', error)
+    throw error
+  }
 }
 
 // Function to search the web using Tavily API

@@ -23,17 +23,45 @@ export const useGoogleDriveFiles = () => {
         throw new Error("User not authenticated")
       }
       
-      const { data: accessData } = await supabase
-        .from('google_drive_access')
-        .select('access_token')
-        .eq('user_id', userData.user.id)
-        .single()
+      // First get the session to check for provider_token
+      const { data: sessionData } = await supabase.auth.getSession()
+      let accessToken = sessionData?.session?.provider_token
       
-      let accessToken = accessData?.access_token
-      
+      // If no provider token available, try to get from the database
       if (!accessToken) {
-        const { data: sessionData } = await supabase.auth.getSession()
-        accessToken = sessionData.session?.provider_token
+        const { data: accessData } = await supabase
+          .from('google_drive_access')
+          .select('access_token')
+          .eq('user_id', userData.user.id)
+          .maybeSingle()
+        
+        accessToken = accessData?.access_token
+      }
+      
+      // If we have a provider token, store it in the database for future use
+      if (sessionData?.session?.provider_token && userData.user.id) {
+        try {
+          // Store the token in the database for future use by other components
+          const { error: upsertError } = await supabase
+            .from('google_drive_access')
+            .upsert({
+              user_id: userData.user.id,
+              access_token: sessionData.session.provider_token,
+              // Store the current timestamp plus token expiration time
+              token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id'
+            })
+            
+          if (upsertError) {
+            console.error("Error storing Google Drive token:", upsertError)
+          } else {
+            console.log("Successfully stored Google Drive token")
+          }
+        } catch (storeError) {
+          console.error("Error in token storage:", storeError)
+        }
       }
 
       if (accessToken) {
@@ -68,11 +96,20 @@ export const useGoogleDriveFiles = () => {
   const analyzeFile = async (fileId: string) => {
     setAnalyzing(fileId)
     try {
+      // Get the current session for the auth token
+      const { data: sessionData } = await supabase.auth.getSession()
+      const authToken = sessionData?.session?.access_token
+      const providerToken = sessionData?.session?.provider_token
+      
       const response = await supabase.functions.invoke('drive-ai-assistant', {
         body: {
           action: "Please analyze this document and provide a summary.",
-          fileId
-        }
+          fileId,
+          provider_token: providerToken // Pass provider token explicitly
+        },
+        headers: authToken ? {
+          Authorization: `Bearer ${authToken}`
+        } : undefined
       })
 
       if (response.error) throw response.error

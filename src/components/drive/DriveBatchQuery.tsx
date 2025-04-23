@@ -23,12 +23,21 @@ export const DriveBatchQuery = () => {
 
     setBatchProcessing(true)
     try {
+      // Get the current session for the auth token
+      const { data: sessionData } = await supabase.auth.getSession()
+      const authToken = sessionData?.session?.access_token
+      const providerToken = sessionData?.session?.provider_token
+
       const response = await supabase.functions.invoke('unified-agent', {
         body: {
           query: batchQuery,
           include_web: true,
-          include_drive: true
-        }
+          include_drive: true,
+          provider_token: providerToken // Pass provider token explicitly
+        },
+        headers: authToken ? {
+          Authorization: `Bearer ${authToken}`
+        } : undefined
       })
 
       if (response.error) throw response.error
