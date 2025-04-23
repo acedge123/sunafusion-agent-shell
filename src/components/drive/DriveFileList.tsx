@@ -1,10 +1,11 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
-import { Loader2, Search, LogIn } from "lucide-react"
+import { Loader2, Search, LogIn, RefreshCw } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { Input } from "@/components/ui/input"
+import { GoogleDriveAuth } from "./GoogleDriveAuth"
 
 export const DriveFileList = () => {
   const [files, setFiles] = useState<any[]>([])
@@ -15,115 +16,123 @@ export const DriveFileList = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const { toast } = useToast()
 
-  const initiateGoogleAuth = async () => {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          scopes: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.metadata.readonly',
-          redirectTo: `${window.location.origin}/drive`
-        }
-      });
-      
-      if (error) throw error;
-      
-      // The user will be redirected to Google's auth page
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Authentication Error",
-        description: error instanceof Error ? error.message : "Failed to start Google authentication"
-      })
-    }
-  }
-
-  const checkGoogleAuth = async () => {
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) {
-        setIsAuthenticated(false);
-        return;
-      }
-      
-      const { data: accessData, error } = await supabase
-        .from('google_drive_access')
-        .select('access_token')
-        .eq('user_id', userData.user.id)
-        .maybeSingle();
-
-      setIsAuthenticated(!!accessData?.access_token);
-    } catch (error) {
-      setIsAuthenticated(false);
-    }
-  }
-
+  // Check if user has authenticated with Google Drive
   useEffect(() => {
-    checkGoogleAuth()
-  }, [])
+    const checkGoogleAuth = async () => {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) {
+          setIsAuthenticated(false);
+          return;
+        }
+        
+        // Check if user has Google Drive access
+        const { data: accessData, error } = await supabase
+          .from('google_drive_access')
+          .select('access_token')
+          .eq('user_id', userData.user.id)
+          .maybeSingle();
+
+        // Also check session for provider
+        const { data: sessionData } = await supabase.auth.getSession();
+        const hasGoogleProvider = sessionData.session?.user?.app_metadata?.provider === 'google';
+
+        setIsAuthenticated(!!accessData?.access_token || hasGoogleProvider);
+        
+        // If authenticated, fetch files automatically
+        if (!!accessData?.access_token || hasGoogleProvider) {
+          fetchFiles();
+        }
+      } catch (error) {
+        console.error("Error checking Google auth:", error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkGoogleAuth();
+  }, []);
 
   const fetchFiles = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) {
         throw new Error("User not authenticated");
       }
       
+      // First try to get from google_drive_access table
       const { data: accessData } = await supabase
         .from('google_drive_access')
         .select('access_token')
         .eq('user_id', userData.user.id)
         .single();
+      
+      let accessToken = accessData?.access_token;
+      
+      // If not found, try to get from the session
+      if (!accessToken) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        accessToken = sessionData.session?.provider_token;
+      }
 
-      if (accessData?.access_token) {
+      if (accessToken) {
+        console.log("Using access token to fetch files");
         const response = await fetch('https://www.googleapis.com/drive/v3/files?fields=files(id,name,mimeType)', {
           headers: {
-            'Authorization': `Bearer ${accessData.access_token}`
+            'Authorization': `Bearer ${accessToken}`
           }
         });
+        
+        if (!response.ok) {
+          throw new Error(`Google API error: ${response.status} ${response.statusText}`);
+        }
+        
         const data = await response.json();
         setFiles(data.files || []);
+        setIsAuthenticated(true);
+      } else {
+        console.log("No access token found");
+        setIsAuthenticated(false);
       }
     } catch (error) {
+      console.error("Error fetching files:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to fetch files"
+        description: "Failed to fetch files. Please reconnect your Google Drive."
       });
+      setIsAuthenticated(false);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   const analyzeFile = async (fileId: string) => {
-    setAnalyzing(fileId)
+    setAnalyzing(fileId);
     try {
       const response = await supabase.functions.invoke('drive-ai-assistant', {
         body: {
           action: "Please analyze this document and provide a summary.",
           fileId
         }
-      })
+      });
 
-      if (response.error) throw response.error
+      if (response.error) throw response.error;
 
       toast({
         title: "Analysis Complete",
         description: response.data.result
-      })
+      });
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Analysis Failed",
         description: error instanceof Error ? error.message : "An unexpected error occurred"
-      })
+      });
     } finally {
-      setAnalyzing(null)
+      setAnalyzing(null);
     }
-  }
+  };
 
   const handleBatchQuery = async () => {
     if (!batchQuery.trim()) {
@@ -131,11 +140,11 @@ export const DriveFileList = () => {
         variant: "destructive",
         title: "Query Required",
         description: "Please enter a query to analyze files"
-      })
-      return
+      });
+      return;
     }
 
-    setBatchProcessing(true)
+    setBatchProcessing(true);
     try {
       const response = await supabase.functions.invoke('unified-agent', {
         body: {
@@ -143,110 +152,113 @@ export const DriveFileList = () => {
           include_web: true,
           include_drive: true
         }
-      })
+      });
 
-      if (response.error) throw response.error
+      if (response.error) throw response.error;
 
       toast({
         title: "Analysis Complete",
         description: "The agent has processed your query successfully."
-      })
+      });
 
-      window.location.href = `/chat?query=${encodeURIComponent(batchQuery)}&result=${encodeURIComponent(JSON.stringify(response.data))}`
+      window.location.href = `/chat?query=${encodeURIComponent(batchQuery)}&result=${encodeURIComponent(JSON.stringify(response.data))}`;
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Query Failed",
         description: error instanceof Error ? error.message : "An unexpected error occurred"
-      })
+      });
     } finally {
-      setBatchProcessing(false)
+      setBatchProcessing(false);
     }
-  }
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchFiles()
-    }
-  }, [isAuthenticated])
-
-  if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] p-4 space-y-4">
-        <h2 className="text-xl font-semibold">Connect to Google Drive</h2>
-        <p className="text-muted-foreground text-center max-w-md">
-          Sign in with your team@thegig.agency account to access and analyze documents from Google Drive
-        </p>
-        <Button onClick={initiateGoogleAuth} size="lg">
-          <LogIn className="mr-2 h-4 w-4" />
-          Sign in with Google
-        </Button>
-      </div>
-    )
-  }
-
-  if (loading) {
-    return <div className="flex items-center justify-center p-4">
-      <Loader2 className="h-6 w-6 animate-spin" />
-    </div>
-  }
+  };
 
   return (
-    <div className="p-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Your Google Drive Files</h2>
-        <div className="space-x-2">
-          <Button onClick={fetchFiles} variant="outline">Refresh</Button>
-          <Button onClick={initiateGoogleAuth} variant="outline">
-            <LogIn className="mr-2 h-4 w-4" />
-            Change Account
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <GoogleDriveAuth />
       
-      <div className="p-4 border border-muted rounded-lg bg-muted/50">
-        <h3 className="font-medium mb-2">Ask about your documents</h3>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Enter a question about your documents..."
-            value={batchQuery}
-            onChange={(e) => setBatchQuery(e.target.value)}
-            disabled={batchProcessing}
-            className="flex-1"
-          />
-          <Button 
-            onClick={handleBatchQuery}
-            disabled={batchProcessing || !batchQuery.trim()}
-          >
-            {batchProcessing ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
-            ) : (
-              <><Search className="mr-2 h-4 w-4" /> Search</>
-            )}
-          </Button>
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">
-          Ask questions about your documents or search for specific information across your files.
-        </p>
-      </div>
-      
-      <div className="grid gap-4">
-        {files.map((file) => (
-          <div key={file.id} className="flex items-center justify-between p-4 border rounded-lg">
-            <span>{file.name}</span>
+      {isAuthenticated && (
+        <div className="p-4 border rounded-lg bg-card">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Your Google Drive Files</h2>
             <Button 
-              onClick={() => analyzeFile(file.id)}
-              disabled={analyzing === file.id}
+              onClick={fetchFiles} 
+              variant="outline" 
+              disabled={loading}
+              size="sm"
             >
-              {analyzing === file.id ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...</>
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
-                'Analyze with AI'
+                <RefreshCw className="h-4 w-4 mr-2" />
               )}
+              Refresh
             </Button>
           </div>
-        ))}
-      </div>
+          
+          <div className="p-4 border border-muted rounded-lg bg-muted/50 mb-4">
+            <h3 className="font-medium mb-2">Ask about your documents</h3>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter a question about your documents..."
+                value={batchQuery}
+                onChange={(e) => setBatchQuery(e.target.value)}
+                disabled={batchProcessing}
+                className="flex-1"
+              />
+              <Button 
+                onClick={handleBatchQuery}
+                disabled={batchProcessing || !batchQuery.trim()}
+              >
+                {batchProcessing ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                ) : (
+                  <><Search className="mr-2 h-4 w-4" /> Search</>
+                )}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Ask questions about your documents or search for specific information across your files.
+            </p>
+          </div>
+          
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              <span>Loading files...</span>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {files.length === 0 ? (
+                <div className="text-center p-8 text-muted-foreground">
+                  <p>No files found in your Google Drive.</p>
+                  <p className="text-sm mt-2">Files you have access to will appear here.</p>
+                </div>
+              ) : (
+                files.map((file) => (
+                  <div key={file.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1 truncate mr-4">
+                      <span className="font-medium">{file.name}</span>
+                      <p className="text-xs text-muted-foreground">{file.mimeType}</p>
+                    </div>
+                    <Button 
+                      onClick={() => analyzeFile(file.id)}
+                      disabled={analyzing === file.id}
+                      size="sm"
+                    >
+                      {analyzing === file.id ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...</>
+                      ) : (
+                        'Analyze with AI'
+                      )}
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
-  )
-}
+  );
+};
