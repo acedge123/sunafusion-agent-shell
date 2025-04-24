@@ -89,8 +89,8 @@ export const SlackAuth = () => {
   const connectSlack = () => {
     setConnecting(true)
     
-    // Slack OAuth client ID - this would be provided by Slack when registering the app
-    const clientId = "YOUR_SLACK_CLIENT_ID" 
+    // Slack OAuth client ID 
+    const clientId = "105581126916.8801648634339"
     const redirectUri = window.location.origin
     const scopes = "channels:history,channels:read,search:read,users:read"
     
