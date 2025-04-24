@@ -1,12 +1,10 @@
 
-import { useGoogleDriveAuth } from "@/hooks/useGoogleDriveAuth"
-import { useGoogleDriveStatus } from "@/hooks/useGoogleDriveStatus"
+import { useGoogleDrive } from "@/hooks/useGoogleDrive"
 import { StatusIndicator } from "./status/StatusIndicator"
 import { StatusActions } from "./status/StatusActions"
 
 export const GoogleDriveStatus = () => {
-  const { initiateGoogleAuth } = useGoogleDriveAuth()
-  const { tokenStatus, scopeStatus, isChecking, checkDriveToken } = useGoogleDriveStatus()
+  const { tokenStatus, scopeStatus, isAuthorizing, initiateAuth, checkStoredToken } = useGoogleDrive()
   
   const tokenStatusDescriptions = {
     valid: "Your account is successfully connected to Google Drive",
@@ -50,10 +48,10 @@ export const GoogleDriveStatus = () => {
         />
         
         <StatusActions 
-          isChecking={isChecking}
+          isChecking={isAuthorizing}
           hasInvalidStatus={hasInvalidStatus}
-          onCheck={checkDriveToken}
-          onReconnect={initiateGoogleAuth}
+          onCheck={checkStoredToken}
+          onReconnect={initiateAuth}
         />
       </div>
     </div>

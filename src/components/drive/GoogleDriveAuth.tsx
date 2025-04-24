@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button"
 import { LogIn, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { useGoogleDriveAuth } from "@/hooks/useGoogleDriveAuth"
+import { useGoogleDrive } from "@/hooks/useGoogleDrive"
 import { GoogleDriveStatus } from "./GoogleDriveStatus"
 import { GoogleDriveConfigGuide } from "./GoogleDriveConfigGuide"
 
@@ -12,16 +12,14 @@ interface GoogleDriveAuthProps {
 
 export const GoogleDriveAuth = ({ onReconnectSuccess }: GoogleDriveAuthProps = {}) => {
   const { user } = useAuth()
-  const { isAuthorizing, isAuthenticated, initiateGoogleAuth } = useGoogleDriveAuth()
+  const { isAuthorizing, isAuthenticated, initiateAuth } = useGoogleDrive()
   
-  // Production domain to display in guidance
   const productionDomain = "www.gigagencygroup.com"
-
+  
   if (!user) {
     return null
   }
 
-  // Check if the URL contains localhost, which indicates a redirect issue
   const hasRedirectError = window.location.href.includes("localhost") || 
                           (window.location.search && window.location.search.includes("error="))
 
@@ -37,7 +35,7 @@ export const GoogleDriveAuth = ({ onReconnectSuccess }: GoogleDriveAuthProps = {
             To enable the AI assistant to search your Google Drive files, you need to authorize access.
           </p>
           <Button 
-            onClick={initiateGoogleAuth} 
+            onClick={initiateAuth} 
             disabled={isAuthorizing}
           >
             {isAuthorizing ? (
