@@ -110,4 +110,5 @@ export const useGoogleDriveFiles = () => {
   }
 }
 
-export type { DriveFile }
+// Remove the duplicate export at the end of the file
+// export type { DriveFile }
