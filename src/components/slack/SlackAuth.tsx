@@ -21,12 +21,12 @@ export const SlackAuth = () => {
         setCheckingStatus(true)
         const { data, error } = await supabase
           .from('slack_access')
-          .select('access_token')
+          .select('*')
           .eq('user_id', user.id)
           .maybeSingle()
           
         if (error) throw error
-        setIsConnected(!!data?.access_token)
+        setIsConnected(!!data)
       } catch (err) {
         console.error("Error checking Slack connection:", err)
       } finally {

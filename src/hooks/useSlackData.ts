@@ -45,7 +45,7 @@ export const useSlackData = () => {
     try {
       const { data, error } = await supabase
         .from('slack_access')
-        .select('access_token')
+        .select('*')
         .eq('user_id', user.id)
         .maybeSingle()
         

@@ -1,5 +1,4 @@
-
-import { serve } from "http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // Define Slack API base URL
 const SLACK_API_BASE_URL = "https://slack.com/api";
