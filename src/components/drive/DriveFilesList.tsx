@@ -1,114 +1,128 @@
 
+import { FileIcon, AlertTriangle } from "lucide-react"
+import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
-import { Loader2, Calendar, HardDrive } from "lucide-react"
-import type { DriveFile } from "@/hooks/useGoogleDriveFiles"
+import { Loader2 } from "lucide-react"
 import { format } from "date-fns"
+
+interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  webViewLink?: string
+  modifiedTime?: string
+}
 
 interface DriveFilesListProps {
   files: DriveFile[]
   loading: boolean
   analyzing: string | null
   onAnalyze: (fileId: string) => void
+  analysisError?: string | null
 }
 
-export const DriveFilesList = ({ files, loading, analyzing, onAnalyze }: DriveFilesListProps) => {
+export const DriveFilesList = ({ files, loading, analyzing, onAnalyze, analysisError }: DriveFilesListProps) => {
+  // Helper to render file type icon based on MIME type
+  const renderFileIcon = (mimeType: string) => {
+    return <FileIcon className="h-4 w-4 text-muted-foreground" />
+  }
+
+  const columns = [
+    {
+      accessorKey: "type",
+      header: "Type",
+      cell: ({ row }: { row: any }) => renderFileIcon(row.original.mimeType)
+    },
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }: { row: any }) => (
+        <div className="max-w-[300px] truncate font-medium">
+          {row.original.webViewLink ? (
+            <a 
+              href={row.original.webViewLink} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:underline text-blue-600 dark:text-blue-400"
+            >
+              {row.original.name}
+            </a>
+          ) : (
+            row.original.name
+          )}
+        </div>
+      )
+    },
+    {
+      accessorKey: "mimeType",
+      header: "File Type",
+      cell: ({ row }: { row: any }) => (
+        <div className="text-xs text-muted-foreground">
+          {row.original.mimeType.replace('application/', '')}
+        </div>
+      )
+    },
+    {
+      accessorKey: "modifiedTime",
+      header: "Modified",
+      cell: ({ row }: { row: any }) => (
+        <div className="text-xs text-muted-foreground">
+          {row.original.modifiedTime ? 
+            format(new Date(row.original.modifiedTime), 'MMM d, yyyy') : 
+            'Unknown'}
+        </div>
+      )
+    },
+    {
+      id: "actions",
+      cell: ({ row }: { row: any }) => (
+        <div className="text-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onAnalyze(row.original.id)}
+            disabled={analyzing === row.original.id}
+          >
+            {analyzing === row.original.id ? (
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...</>
+            ) : (
+              "Analyze with AI"
+            )}
+          </Button>
+        </div>
+      )
+    }
+  ]
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        <span>Loading files...</span>
+      <div className="py-8 text-center">
+        <Loader2 className="w-6 h-6 mx-auto animate-spin text-muted-foreground" />
+        <p className="mt-2 text-sm text-muted-foreground">Loading Drive files...</p>
       </div>
     )
   }
 
   if (files.length === 0) {
     return (
-      <div className="text-center p-8 text-muted-foreground">
-        <p>No files found in your Google Drive.</p>
-        <p className="text-sm mt-2">Try searching with different keywords or refresh the list.</p>
+      <div className="py-8 text-center">
+        <p className="text-muted-foreground">No files found in your Google Drive with the current filters.</p>
+      </div>
+    )
+  }
+
+  if (analysisError) {
+    return (
+      <div className="py-4 px-4 border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 rounded-md text-center">
+        <AlertTriangle className="w-5 h-5 mx-auto mb-2 text-red-500" />
+        <p className="text-sm text-red-600 dark:text-red-400">{analysisError}</p>
       </div>
     )
   }
 
   return (
-    <div className="grid gap-4 mt-4">
-      {files.map((file) => (
-        <div key={file.id} className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center gap-4">
-            {file.thumbnailLink ? (
-              <img 
-                src={file.thumbnailLink} 
-                alt={file.name}
-                className="w-10 h-10 object-cover rounded"
-              />
-            ) : file.iconLink ? (
-              <img 
-                src={file.iconLink} 
-                alt={file.mimeType}
-                className="w-10 h-10 object-contain"
-              />
-            ) : (
-              <div className="w-10 h-10 bg-muted rounded flex items-center justify-center">
-                <HardDrive className="h-6 w-6 text-muted-foreground" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">
-                {file.webViewLink ? (
-                  <a 
-                    href={file.webViewLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                  >
-                    {file.name}
-                  </a>
-                ) : (
-                  file.name
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{file.mimeType}</span>
-                {file.modifiedTime && (
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {format(new Date(file.modifiedTime), 'MMM d, yyyy')}
-                  </span>
-                )}
-                {file.size && (
-                  <span>
-                    {formatFileSize(parseInt(file.size))}
-                  </span>
-                )}
-              </div>
-              {file.description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                  {file.description}
-                </p>
-              )}
-            </div>
-          </div>
-          <Button 
-            onClick={() => onAnalyze(file.id)}
-            disabled={analyzing === file.id}
-            size="sm"
-          >
-            {analyzing === file.id ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing...</>
-            ) : (
-              'Analyze with AI'
-            )}
-          </Button>
-        </div>
-      ))}
+    <div className="mt-6 border rounded-md">
+      <DataTable columns={columns} data={files} />
     </div>
   )
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }

@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Search, FileType, Loader2 } from "lucide-react"
+import { RefreshCw, Search, FileType, Loader2, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { GoogleDriveAuth } from "./GoogleDriveAuth"
 import { DriveBatchQuery } from "./DriveBatchQuery"
@@ -9,6 +9,7 @@ import { useGoogleDriveFiles, type SearchParams } from "@/hooks/useGoogleDriveFi
 import { useGoogleDriveAnalysis } from "@/hooks/useGoogleDriveAnalysis"
 import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Select,
   SelectContent,
@@ -16,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useGoogleDriveToken } from "@/hooks/useGoogleDriveToken"
 
 // Common MIME types for filtering with non-empty values
 const MIME_TYPE_FILTERS = {
@@ -29,17 +32,42 @@ const MIME_TYPE_FILTERS = {
 
 export const DriveFileList = () => {
   const { user } = useAuth()
-  const { files, loading, hasMore, fetchFiles, loadMore } = useGoogleDriveFiles()
-  const { analyzing, analyzeFile } = useGoogleDriveAnalysis()
+  const { toast } = useToast()
+  const { files, loading, hasMore, fetchFiles, loadMore, error: filesError } = useGoogleDriveFiles()
+  const { analyzing, analyzeFile, error: analysisError } = useGoogleDriveAnalysis()
+  const { getTokens } = useGoogleDriveToken()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedMimeType, setSelectedMimeType] = useState("")
   const [loadingMore, setLoadingMore] = useState(false)
+  const [tokenError, setTokenError] = useState<string | null>(null)
   
   useEffect(() => {
     if (user) {
-      fetchFiles()
+      checkTokenAndFetchFiles()
     }
   }, [user])
+  
+  const checkTokenAndFetchFiles = async () => {
+    try {
+      const { driveToken, isValidToken } = await getTokens()
+      
+      if (!driveToken) {
+        setTokenError("No Google Drive token found. Please connect your Google Drive account.")
+        return
+      }
+      
+      if (!isValidToken) {
+        setTokenError("Your Google Drive token has insufficient permissions or is invalid. Please reconnect.")
+        return
+      }
+      
+      setTokenError(null)
+      fetchFiles()
+    } catch (error) {
+      console.error("Error checking token:", error)
+      setTokenError("Error validating Google Drive connection. Please try reconnecting.")
+    }
+  }
   
   const handleSearch = () => {
     const searchParams: SearchParams = {}
@@ -63,6 +91,17 @@ export const DriveFileList = () => {
   const handleMimeTypeChange = (value: string) => {
     setSelectedMimeType(value)
   }
+  
+  const handleReconnect = () => {
+    // Reset the error state
+    setTokenError(null)
+    
+    // Show a toast notification
+    toast({
+      title: "Reconnecting to Google Drive",
+      description: "Please complete the authorization process."
+    })
+  }
 
   if (!user) {
     return null
@@ -70,7 +109,7 @@ export const DriveFileList = () => {
 
   return (
     <div className="space-y-6">
-      <GoogleDriveAuth />
+      <GoogleDriveAuth onReconnectSuccess={checkTokenAndFetchFiles} />
       
       <div className="p-4 border rounded-lg bg-card">
         <div className="flex flex-col gap-4">
@@ -84,10 +123,31 @@ export const DriveFileList = () => {
               disabled={loading}
               size="sm"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
+
+          {tokenError && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              <AlertTitle>Authentication Error</AlertTitle>
+              <AlertDescription className="flex justify-between items-center">
+                <span>{tokenError}</span>
+                <Button size="sm" onClick={handleReconnect}>Reconnect</Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {filesError && (
+            <Alert variant="destructive" className="mb-2">
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              <AlertTitle>Error Loading Files</AlertTitle>
+              <AlertDescription>
+                {typeof filesError === 'string' ? filesError : 'Failed to load Drive files. Please try again.'}
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="flex gap-2">
             <div className="flex-1">
@@ -133,6 +193,7 @@ export const DriveFileList = () => {
           loading={loading}
           analyzing={analyzing}
           onAnalyze={analyzeFile}
+          analysisError={analysisError}
         />
 
         {hasMore && !loading && (
