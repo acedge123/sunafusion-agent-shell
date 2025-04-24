@@ -89,13 +89,23 @@ const AgentTaskRunner = ({
         }
       }
 
+      // Check if Drive search is enabled but no token is available
+      const includeDrive = selectedTools.includes("file_search") || selectedTools.includes("file_analysis");
+      if (includeDrive && !providerToken && !storedToken) {
+        toast({
+          variant: "warning",
+          title: "Google Drive Access Required",
+          description: "Your task involves Google Drive but you're not connected. Please connect your Google Drive first."
+        });
+      }
+
       // Call the unified-agent function with task mode enabled
       const response = await supabase.functions.invoke('unified-agent', {
         body: {
           query: task,
           conversation_history: [],
-          include_web: true,
-          include_drive: true,
+          include_web: selectedTools.includes("web_search"),
+          include_drive: includeDrive,
           provider_token: providerToken || storedToken,
           task_mode: true,
           tools: selectedTools,
@@ -116,6 +126,17 @@ const AgentTaskRunner = ({
       if (response.error) throw response.error;
       
       setResult(response.data);
+      
+      // Check for Google Drive errors in the response
+      const driveSource = response.data.sources?.find(source => source.source === "google_drive");
+      if (driveSource && driveSource.error) {
+        console.error("Google Drive error detected:", driveSource.error);
+        toast({
+          variant: "warning",
+          title: "Google Drive Access Issue",
+          description: "There was an issue accessing your Google Drive. Try reconnecting your account."
+        });
+      }
       
       // Store provider token if present
       if (providerToken && sessionData?.session?.user?.id) {
@@ -235,7 +256,7 @@ const AgentTaskRunner = ({
             </div>
           )}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col gap-3">
           <Button 
             onClick={runTask} 
             disabled={!task.trim() || isProcessing}
@@ -253,6 +274,16 @@ const AgentTaskRunner = ({
               </>
             )}
           </Button>
+          
+          {/* Add Google Drive status message if relevant tools selected */}
+          {selectedTools.some(tool => tool === "file_search" || tool === "file_analysis") && (
+            <div className="w-full text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <FileSearch className="h-3 w-3" />
+                <span>Google Drive access required for file search and analysis</span>
+              </div>
+            </div>
+          )}
         </CardFooter>
       </Card>
 

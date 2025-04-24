@@ -102,14 +102,31 @@ serve(async (req) => {
           
           for (const file of filesToAnalyze) {
             try {
+              // Use more detailed error handling for file analysis
+              console.log(`Analyzing file: ${file.id} (${file.name})`)
               const analysis = await analyzeGoogleDriveFile(file.id, provider_token || userToken)
+              if (typeof analysis === 'string' && analysis.includes('Error analyzing file')) {
+                console.error(`Analysis error for file ${file.id}: ${analysis}`)
+                analysisResults.push({
+                  file_id: file.id,
+                  file_name: file.name,
+                  analysis: `Could not analyze file content: ${analysis}`
+                })
+              } else {
+                console.log(`Successfully analyzed file ${file.id}`)
+                analysisResults.push({
+                  file_id: file.id,
+                  file_name: file.name,
+                  analysis
+                })
+              }
+            } catch (error) {
+              console.error(`Error analyzing file ${file.id}:`, error)
               analysisResults.push({
                 file_id: file.id,
                 file_name: file.name,
-                analysis
+                analysis: `Error analyzing file: ${error.message || "Unknown error"}`
               })
-            } catch (error) {
-              console.error(`Error analyzing file ${file.id}:`, error)
             }
           }
           
@@ -230,35 +247,56 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
     }
     
     // Validate the token first
-    const validationResponse = await fetch(
-      'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + driveToken
-    );
-    
-    if (!validationResponse.ok) {
-      throw new Error(`Invalid Google Drive token: ${validationResponse.status}`);
-    }
-    
-    // Build search query
-    const queryParams = new URLSearchParams({
-      q: `fullText contains '${query}'`,
-      fields: 'files(id,name,mimeType,description,thumbnailLink,webViewLink,modifiedTime,size,iconLink,fileExtension,parents)',
-      orderBy: 'relevance',
-      pageSize: '10'
-    });
-    
-    const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files?${queryParams}`, 
-      {
-        headers: { 'Authorization': `Bearer ${driveToken}` }
+    console.log("Validating Google Drive token...")
+    try {
+      const validationResponse = await fetch(
+        'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + driveToken
+      );
+      
+      if (!validationResponse.ok) {
+        const validationData = await validationResponse.text();
+        console.error(`Token validation error (${validationResponse.status}): ${validationData}`);
+        throw new Error(`Invalid Google Drive token (${validationResponse.status}): ${validationResponse.statusText}`);
       }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Google Drive API error: ${response.status}`);
+      
+      const validationData = await validationResponse.json();
+      console.log(`Token validated successfully with scope: ${validationData.scope}`);
+    } catch (validationError) {
+      console.error("Token validation failed:", validationError);
+      throw new Error(`Token validation failed: ${validationError.message}`);
     }
     
-    const data = await response.json();
-    return data.files || [];
+    // Build search query with improved error handling
+    console.log(`Building Google Drive search query for: "${query}"`);
+    try {
+      const queryParams = new URLSearchParams({
+        q: `fullText contains '${query}'`,
+        fields: 'files(id,name,mimeType,description,thumbnailLink,webViewLink,modifiedTime,size,iconLink,fileExtension,parents)',
+        orderBy: 'relevance',
+        pageSize: '10'
+      });
+      
+      console.log(`Making request to Google Drive API: /drive/v3/files?${queryParams}`);
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files?${queryParams}`, 
+        {
+          headers: { 'Authorization': `Bearer ${driveToken}` }
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Google Drive API error (${response.status}): ${errorText}`);
+        throw new Error(`Google Drive API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Google Drive search completed successfully with ${data.files?.length || 0} results`);
+      return data.files || [];
+    } catch (searchError) {
+      console.error("Error in Drive search:", searchError);
+      throw searchError;
+    }
   } catch (error) {
     console.error("Error in searchGoogleDrive:", error);
     throw error;
@@ -273,6 +311,7 @@ async function analyzeGoogleDriveFile(fileId, accessToken) {
     }
     
     // Get file metadata to determine type
+    console.log(`Getting metadata for file: ${fileId}`);
     const metadataResponse = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name`, 
       {
@@ -281,35 +320,72 @@ async function analyzeGoogleDriveFile(fileId, accessToken) {
     );
     
     if (!metadataResponse.ok) {
-      throw new Error(`Failed to get file metadata: ${metadataResponse.status}`);
+      const errorText = await metadataResponse.text();
+      console.error(`Failed to get file metadata (${metadataResponse.status}): ${errorText}`);
+      throw new Error(`Failed to get file metadata: ${metadataResponse.status} ${metadataResponse.statusText}`);
     }
     
     const metadata = await metadataResponse.json();
     const { mimeType, name } = metadata;
+    console.log(`File ${fileId} (${name}) is of type: ${mimeType}`);
     
-    // For text-based files, get content
-    if (mimeType.includes('text/') || 
-        mimeType.includes('application/json') || 
-        mimeType.includes('application/xml') ||
-        mimeType.includes('application/vnd.google-apps.document')) {
+    // For Google Docs, Sheets, Slides, use the export API
+    if (mimeType.includes('application/vnd.google-apps.')) {
+      let exportMimeType = 'text/plain';
+      let exportUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${exportMimeType}`;
       
-      const exportMimeType = mimeType.includes('application/vnd.google-apps.') 
-        ? 'text/plain' 
-        : mimeType;
-      
-      const contentUrl = mimeType.includes('application/vnd.google-apps.')
-        ? `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`
-        : `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-      
-      const contentResponse = await fetch(contentUrl, {
+      console.log(`Exporting Google Workspace file using URL: ${exportUrl}`);
+      const contentResponse = await fetch(exportUrl, {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
       
       if (!contentResponse.ok) {
+        // If export fails, try to get at least the metadata
+        const errorText = await contentResponse.text();
+        console.error(`Export API error (${contentResponse.status}): ${errorText}`);
+        return {
+          type: 'google-workspace',
+          fileName: name,
+          mimeType: mimeType,
+          contentInfo: `Could not export content: ${contentResponse.status} ${contentResponse.statusText}`
+        };
+      }
+      
+      const content = await contentResponse.text();
+      console.log(`Successfully exported ${content.length} characters of content`);
+      
+      // Limit content length to avoid overwhelming the AI
+      const maxContentLength = 5000;
+      const truncatedContent = content.length > maxContentLength 
+        ? content.substring(0, maxContentLength) + '...[content truncated]'
+        : content;
+      
+      return {
+        type: 'google-workspace',
+        content: truncatedContent,
+        fileName: name,
+        mimeType: mimeType
+      };
+    }
+    
+    // For text-based files, get content directly
+    else if (mimeType.includes('text/') || 
+        mimeType.includes('application/json') || 
+        mimeType.includes('application/xml')) {
+      
+      console.log(`Getting content for text-based file: ${fileId}`);
+      const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      
+      if (!contentResponse.ok) {
+        const errorText = await contentResponse.text();
+        console.error(`Content retrieval error (${contentResponse.status}): ${errorText}`);
         return `Could not download file content: ${contentResponse.status}`;
       }
       
       const content = await contentResponse.text();
+      console.log(`Successfully retrieved ${content.length} characters of content`);
       
       // Limit content length to avoid overwhelming the AI
       const maxContentLength = 5000;
@@ -325,12 +401,24 @@ async function analyzeGoogleDriveFile(fileId, accessToken) {
       };
     }
     
+    // For PDF files
+    else if (mimeType.includes('application/pdf')) {
+      console.log(`PDF file detected: ${fileId}. PDFs require special handling.`);
+      return {
+        type: 'pdf',
+        fileName: name,
+        mimeType: mimeType,
+        contentInfo: 'PDF content extraction not supported. For best results, convert PDF to Google Docs.'
+      };
+    }
+    
     // For other files, just return metadata
+    console.log(`Non-text file detected: ${fileId}. Returning metadata only.`);
     return {
       type: 'non-text',
       fileName: name,
       mimeType: mimeType,
-      contentInfo: 'Content not extracted - non-text file'
+      contentInfo: 'Content not extracted - non-text file type'
     };
   } catch (error) {
     console.error("Error analyzing file:", error);
@@ -389,35 +477,60 @@ ${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' :
     // Format initial results as context
     let initialContext = "Information gathered so far:\n";
     
-    for (const source of initialResults) {
-      initialContext += `\n--- ${source.source.toUpperCase()} RESULTS ---\n`;
+    // Process Google Drive results
+    const driveSource = initialResults.find(source => source.source === "google_drive");
+    if (driveSource) {
+      initialContext += "\n--- GOOGLE DRIVE FILES ---\n";
       
-      if (source.results && source.results.length > 0) {
-        for (const result of source.results.slice(0, 3)) { // Limit to first 3 for brevity
-          if (source.source === "google_drive") {
-            initialContext += `File: ${result.name} (${result.mimeType})\n`;
-            if (result.description) initialContext += `Description: ${result.description}\n`;
-          } else if (source.source === "web_search") {
-            initialContext += `Title: ${result.title}\n`;
-            initialContext += `Content: ${result.snippet}\n`;
-            initialContext += `URL: ${result.url}\n`;
-          } else if (source.source === "file_analysis") {
-            initialContext += `File Analysis - ${result.file_name}:\n`;
-            if (typeof result.analysis === 'string') {
-              initialContext += result.analysis.substring(0, 500) + '...\n';
-            } else {
-              initialContext += `Type: ${result.analysis.type}, ${result.analysis.contentInfo || ''}\n`;
-              if (result.analysis.content) {
-                initialContext += result.analysis.content.substring(0, 500) + '...\n';
-              }
-            }
-          }
-          initialContext += '\n';
+      if (driveSource.error) {
+        initialContext += `Error accessing Google Drive: ${driveSource.error}\n`;
+      } else if (driveSource.results && driveSource.results.length > 0) {
+        initialContext += `Found ${driveSource.results.length} relevant files in Google Drive:\n`;
+        for (const file of driveSource.results.slice(0, 5)) { // Limit to first 5 for brevity
+          initialContext += `- ${file.name} (${file.mimeType})\n`;
+          if (file.description) initialContext += `  Description: ${file.description}\n`;
         }
-      } else if (source.error) {
-        initialContext += `Error: ${source.error}\n`;
       } else {
-        initialContext += `No results found.\n`;
+        initialContext += "No relevant files found in Google Drive.\n";
+      }
+    }
+    
+    // Process file analysis results
+    const analysisSource = initialResults.find(source => source.source === "file_analysis");
+    if (analysisSource) {
+      initialContext += "\n--- FILE ANALYSES ---\n";
+      
+      if (analysisSource.results && analysisSource.results.length > 0) {
+        for (const result of analysisSource.results) {
+          initialContext += `Analysis of "${result.file_name}":\n`;
+          if (typeof result.analysis === 'string') {
+            initialContext += result.analysis.substring(0, 1000) + '...\n\n';
+          } else if (result.analysis.content) {
+            initialContext += `Content: ${result.analysis.content.substring(0, 1000)}...\n\n`;
+          } else {
+            initialContext += `${result.analysis.contentInfo || 'No content available'}\n\n`;
+          }
+        }
+      } else {
+        initialContext += "No file analyses available.\n";
+      }
+    }
+    
+    // Process web search results
+    const webSource = initialResults.find(source => source.source === "web_search");
+    if (webSource) {
+      initialContext += "\n--- WEB SEARCH RESULTS ---\n";
+      
+      if (webSource.error) {
+        initialContext += `Error searching the web: ${webSource.error}\n`;
+      } else if (webSource.results && webSource.results.length > 0) {
+        for (const result of webSource.results.slice(0, 3)) { // Limit to first 3 for brevity
+          initialContext += `Title: ${result.title}\n`;
+          initialContext += `Content: ${result.snippet || ''}\n`;
+          initialContext += `URL: ${result.url}\n\n`;
+        }
+      } else {
+        initialContext += "No relevant web search results found.\n";
       }
     }
     
@@ -514,6 +627,8 @@ async function synthesizeWithAI(query, results, conversationHistory) {
               formattedResults += `Type: ${result.analysis.type}\n`;
               if (result.analysis.content) {
                 formattedResults += result.analysis.content + '\n';
+              } else if (result.analysis.contentInfo) {
+                formattedResults += result.analysis.contentInfo + '\n';
               }
             }
           }
@@ -535,7 +650,8 @@ async function synthesizeWithAI(query, results, conversationHistory) {
           "Provide comprehensive, accurate answers based on the information available to you. " +
           "If the information to answer the query is not available in the provided results, " +
           "acknowledge this limitation and provide the best possible answer with the information you have. " +
-          "If relevant, mention the source of information (Google Drive or web search)."
+          "If relevant, mention the source of information (Google Drive or web search). " +
+          "If there are issues accessing Google Drive files, explain clearly what happened and suggest alternatives."
       }
     ];
     
@@ -575,3 +691,4 @@ async function synthesizeWithAI(query, results, conversationHistory) {
     throw error;
   }
 }
+
