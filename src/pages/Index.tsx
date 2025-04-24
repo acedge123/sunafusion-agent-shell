@@ -11,13 +11,14 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Loader2 } from "lucide-react"
 import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth"
+import { SlackAuth } from "@/components/slack/SlackAuth"
 import AgentTaskRunner from "@/components/agent/AgentTaskRunner"
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-message",
-      content: "Hello! I'm your AI assistant with access to Google Drive and web search. Ask me anything or give me a complex task - I'll break it down into steps and solve it for you.",
+      content: "Hello! I'm your AI assistant with access to Google Drive, Slack, and web search. Ask me anything or give me a complex task - I'll break it down into steps and solve it for you.",
       role: "assistant",
       timestamp: new Date()
     }
@@ -74,7 +75,7 @@ const Index = () => {
           <div className="text-center md:text-left">
             <h1 className="text-2xl font-bold mb-2">TheGig.Agency Unified Assistant</h1>
             <p className="text-muted-foreground mb-4">
-              Your intelligent assistant that autonomously searches your Google Drive files and the web to solve complex tasks
+              Your intelligent assistant that autonomously searches your Google Drive files, Slack messages, and the web to solve complex tasks
             </p>
             
             {!user && (
@@ -86,13 +87,18 @@ const Index = () => {
         </div>
       </div>
 
-      {user && <GoogleDriveAuth />}
+      {user && (
+        <div className="max-w-4xl mx-auto w-full px-4 py-2 space-y-2">
+          <GoogleDriveAuth />
+          <SlackAuth />
+        </div>
+      )}
       
       <div className="flex-1 overflow-hidden p-4">
         <div className="max-w-4xl mx-auto">
           <AgentTaskRunner 
-            showToolSelection={false}
-            initialTask="Example: Summarize all meeting minutes for our client Copper Fit" 
+            showToolSelection={true}
+            initialTask="Example: Summarize all meeting minutes for our client Copper Fit or Find all Slack messages about the Q2 marketing campaign" 
           />
         </div>
       </div>
@@ -109,4 +115,4 @@ const Index = () => {
   );
 };
 
-export default Index
+export default Index;

@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
@@ -34,10 +33,11 @@ serve(async (req) => {
       conversation_history = [], 
       include_web = true, 
       include_drive = true,
+      include_slack = true, // New parameter to include Slack
       provider_token = null,
       debug_token_info = {},
       task_mode = false, // New parameter to enable full agent capabilities
-      tools = ["web_search", "file_search", "file_analysis"], // Tools to use
+      tools = ["web_search", "file_search", "file_analysis", "slack_search"], // Added slack_search
       allow_iterations = true, // Allow multiple iterations for complex tasks
       max_iterations = 5, // Maximum number of iterations
       reasoning_level = "medium" // How much reasoning to show
@@ -165,6 +165,37 @@ serve(async (req) => {
         results.push({
           source: "web_search",
           error: error.message || "Failed to search the web"
+        })
+      }
+    }
+
+    // 3. Search Slack if requested and tool is enabled
+    if (include_slack && tools.includes("slack_search")) {
+      try {
+        console.log(`Starting Slack search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
+        
+        // Import the Slack search functionality
+        const { searchSlack } = await import('./slack-tool.ts')
+        
+        // Search Slack for messages related to the query
+        const slackResults = await searchSlack(userId, query, supabase)
+        console.log(`Slack search returned ${slackResults.length} results`)
+        
+        if (slackResults.length === 0) {
+          console.log("No Slack results returned - this could indicate no matching messages or a permission issue")
+        }
+        
+        results.push({
+          source: "slack",
+          results: slackResults
+        })
+        
+      } catch (error) {
+        console.error("Slack search error:", error)
+        results.push({
+          source: "slack",
+          error: error.message || "Failed to search Slack",
+          details: typeof error === 'object' ? JSON.stringify(error) : 'No details available'
         })
       }
     }
@@ -534,6 +565,26 @@ ${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' :
       }
     }
     
+    // Process Slack results
+    const slackSource = initialResults.find(source => source.source === "slack");
+    if (slackSource) {
+      initialContext += "\n--- SLACK RESULTS ---\n";
+      
+      if (slackSource.error) {
+        initialContext += `Error accessing Slack: ${slackSource.error}\n`;
+      } else if (slackSource.results && slackSource.results.length > 0) {
+        for (const result of slackSource.results.slice(0, 3)) { // Limit to first 3 for brevity
+          initialContext += `Slack Message in ${result.channel || 'a channel'}:\n`;
+          initialContext += `Content: ${result.text}\n`;
+          initialContext += `User: ${result.user}\n`;
+          initialContext += `Timestamp: ${result.timestamp}\n`;
+          if (result.permalink) initialContext += `Link: ${result.permalink}\n`;
+        }
+      } else {
+        initialContext += "No relevant Slack messages found.\n";
+      }
+    }
+    
     // Simulate iterations if needed
     const iterations = allowIterations ? Math.min(Math.ceil(query.length / 50), maxIterations) : 1;
     const steps = [];
@@ -631,6 +682,12 @@ async function synthesizeWithAI(query, results, conversationHistory) {
                 formattedResults += result.analysis.contentInfo + '\n';
               }
             }
+          } else if (source.source === "slack") {
+            formattedResults += `Slack Message in ${result.channel || 'a channel'}:\n`;
+            formattedResults += `Content: ${result.text}\n`;
+            formattedResults += `User: ${result.user}\n`;
+            formattedResults += `Timestamp: ${result.timestamp}\n`;
+            if (result.permalink) formattedResults += `Link: ${result.permalink}\n`;
           }
           formattedResults += '\n';
         }
@@ -646,12 +703,12 @@ async function synthesizeWithAI(query, results, conversationHistory) {
       {
         role: "system",
         content:
-          "You are a helpful AI assistant with access to Google Drive files and web search results. " +
+          "You are a helpful AI assistant with access to Google Drive files, web search results, and Slack conversations. " +
           "Provide comprehensive, accurate answers based on the information available to you. " +
           "If the information to answer the query is not available in the provided results, " +
           "acknowledge this limitation and provide the best possible answer with the information you have. " +
-          "If relevant, mention the source of information (Google Drive or web search). " +
-          "If there are issues accessing Google Drive files, explain clearly what happened and suggest alternatives."
+          "If relevant, mention the source of information (Google Drive, web search, or Slack). " +
+          "If there are issues accessing any data sources, explain clearly what happened and suggest alternatives."
       }
     ];
     
@@ -691,4 +748,3 @@ async function synthesizeWithAI(query, results, conversationHistory) {
     throw error;
   }
 }
-

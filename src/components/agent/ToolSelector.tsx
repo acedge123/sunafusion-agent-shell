@@ -1,6 +1,6 @@
 
 import { Badge } from "@/components/ui/badge";
-import { Search, FileSearch, FileText } from "lucide-react";
+import { Search, FileSearch, FileText, MessageSquareText } from "lucide-react";
 
 interface Tool {
   id: string;
@@ -18,6 +18,7 @@ export const ToolSelector = ({ selectedTools, onToolToggle }: ToolSelectorProps)
     { id: "web_search", name: "Web Search", icon: <Search className="h-4 w-4" /> },
     { id: "file_search", name: "Drive Search", icon: <FileSearch className="h-4 w-4" /> },
     { id: "file_analysis", name: "File Analysis", icon: <FileText className="h-4 w-4" /> },
+    { id: "slack_search", name: "Slack Search", icon: <MessageSquareText className="h-4 w-4" /> },
   ];
 
   return (
