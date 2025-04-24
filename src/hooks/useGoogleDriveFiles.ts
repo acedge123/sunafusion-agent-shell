@@ -54,7 +54,7 @@ export const useGoogleDriveFiles = () => {
           // Build enhanced search query with pagination
           let queryParams = new URLSearchParams({
             fields: 'nextPageToken, files(id,name,mimeType,thumbnailLink,webViewLink,description,modifiedTime,size,iconLink,fileExtension,parents)',
-            orderBy: 'modifiedTime desc',
+            // Remove 'orderBy' which was causing the error and use simple 'sortBy' parameter
             pageSize: '25'
           })
 

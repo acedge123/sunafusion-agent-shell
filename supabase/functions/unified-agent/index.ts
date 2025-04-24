@@ -269,10 +269,10 @@ async function searchGoogleDrive(supabase, userId, query, providerToken, userTok
     // Build search query with improved error handling
     console.log(`Building Google Drive search query for: "${query}"`);
     try {
+      // Removed the problematic 'orderBy' parameter
       const queryParams = new URLSearchParams({
         q: `fullText contains '${query}'`,
         fields: 'files(id,name,mimeType,description,thumbnailLink,webViewLink,modifiedTime,size,iconLink,fileExtension,parents)',
-        orderBy: 'relevance',
         pageSize: '10'
       });
       
