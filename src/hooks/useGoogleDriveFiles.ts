@@ -1,4 +1,3 @@
-
 import { useState } from "react"
 import { useToast } from "@/components/ui/use-toast"
 import { useGoogleDrive } from "./useGoogleDrive"
@@ -48,27 +47,12 @@ export const useGoogleDriveFiles = () => {
         throw new Error("Invalid Google Drive token. Please reconnect your Google Drive account.")
       }
 
-      console.log("Making request to Google Drive API with pagination")
+      console.log("Fetching files with search parameters:", searchParams)
       
-      // Use retry logic for token validation
-      await withRetry(async () => {
-        // Validate token first
-        const validationResponse = await fetch('https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + driveToken)
-        
-        if (!validationResponse.ok) {
-          const validationErrorText = await validationResponse.text()
-          console.error(`Token validation failed: ${validationErrorText}`)
-          throw new Error(`Invalid Google Drive token. Validation failed: ${validationResponse.status} ${validationResponse.statusText}`)
-        }
-        
-        const validationData = await validationResponse.json()
-        console.log('Token validation response scope:', validationData.scope)
-      }, 2)
-      
-      // Build enhanced search query with pagination
+      // Increase page size to retrieve more files
       let queryParams = new URLSearchParams({
         fields: 'nextPageToken, files(id,name,mimeType,thumbnailLink,webViewLink,description,modifiedTime,size,iconLink,fileExtension,parents)',
-        pageSize: '25'
+        pageSize: '100'  // Increased from 25 to 100
       })
 
       // Add page token if provided
@@ -91,15 +75,14 @@ export const useGoogleDriveFiles = () => {
         queryParams.append('q', searchQuery.join(' and '))
       }
       
-      // Use retry logic for the API call
       const response = await withRetry(
         () => fetch(`https://www.googleapis.com/drive/v3/files?${queryParams}`, {
           headers: {
             'Authorization': `Bearer ${driveToken}`
           }
         }),
-        3, // max retries
-        1000 // base delay
+        3,
+        1000
       )
       
       if (!response.ok) {
@@ -110,7 +93,8 @@ export const useGoogleDriveFiles = () => {
       }
       
       const data = await response.json()
-      console.log(`Received ${data.files?.length || 0} files from Google Drive with pagination`)
+      console.log(`Total files found: ${data.files?.length || 0}`)
+      console.log('Files:', data.files || [])
       
       // Update next page token
       setNextPageToken(data.nextPageToken || null)
@@ -122,12 +106,10 @@ export const useGoogleDriveFiles = () => {
     } catch (error) {
       console.error("Error fetching files:", error)
       
-      // Parse and display the error
       const parsedError = parseGoogleDriveError(error)
       setError(parsedError.message)
       displayDriveError(parsedError)
       
-      // Clear files if not appending
       if (!append) {
         setFiles([])
       }
