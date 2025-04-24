@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -10,6 +9,8 @@ import { TaskInput } from "./TaskInput";
 import { ToolSelector } from "./ToolSelector";
 import { ReasoningControls } from "./ReasoningControls";
 import { TaskResults } from "./TaskResults";
+import { DriveErrorAlert } from "@/components/drive/error/DriveErrorAlert";
+import { displayDriveError, GoogleDriveErrorType, parseGoogleDriveError } from "@/utils/googleDriveErrors";
 
 interface TaskResult {
   answer: string;
@@ -38,10 +39,11 @@ const AgentTaskRunner = ({
   const [result, setResult] = useState<TaskResult | null>(null);
   const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis"]);
   const [reasoningLevel, setReasoningLevel] = useState<"low" | "medium" | "high">("medium");
+  const [driveError, setDriveError] = useState<string | null>(null);
   const { toast } = useToast();
   const resultRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
-  const { getToken, isAuthenticated } = useGoogleDrive();
+  const { getToken, isAuthenticated, initiateAuth } = useGoogleDrive();
 
   const toggleTool = (toolId: string) => {
     setSelectedTools(prev => 
@@ -51,10 +53,16 @@ const AgentTaskRunner = ({
     );
   };
 
+  const handleDriveReconnect = () => {
+    setDriveError(null);
+    initiateAuth();
+  };
+
   const runTask = async (task: string) => {
     if (!task.trim() || isProcessing) return;
     setIsProcessing(true);
     setResult(null);
+    setDriveError(null);
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -65,22 +73,47 @@ const AgentTaskRunner = ({
       
       let driveToken = null;
       if (includeDrive && user) {
-        const { token, isValid } = await getToken();
-        
-        if (!isValid) {
-          toast({
-            variant: "default",
-            title: "Google Drive Access Required",
-            description: "Your task involves Google Drive but your connection is invalid. Please reconnect Google Drive first."
-          });
+        try {
+          const { token, isValid } = await getToken();
           
-          if (!token) {
+          if (!isValid) {
+            setDriveError("Your Google Drive connection is invalid or has insufficient permissions.");
+            toast({
+              variant: "default",
+              title: "Google Drive Access Required",
+              description: "Your task involves Google Drive but your connection is invalid. Please reconnect Google Drive first."
+            });
+            
+            if (!token) {
+              setIsProcessing(false);
+              return;
+            }
+          }
+          
+          driveToken = token;
+        } catch (error) {
+          const parsedError = parseGoogleDriveError(error);
+          console.error("Drive token error:", parsedError);
+          
+          if (parsedError.type === GoogleDriveErrorType.AUTH_ERROR) {
+            setDriveError("Google Drive authentication failed. Please reconnect your account.");
+          } else {
+            setDriveError(parsedError.message);
+          }
+          
+          // If Drive is essential but we can't get a token, abort
+          if (includeDrive && (!selectedTools.includes("web_search") || task.toLowerCase().includes("drive"))) {
+            displayDriveError(parsedError);
             setIsProcessing(false);
             return;
+          } else {
+            // Otherwise, proceed without Drive functionality
+            toast({
+              title: "Limited Functionality",
+              description: "Continuing without Google Drive access. Some results may be limited."
+            });
           }
         }
-        
-        driveToken = token;
       }
 
       const response = await supabase.functions.invoke('unified-agent', {
@@ -88,10 +121,16 @@ const AgentTaskRunner = ({
           query: task,
           conversation_history: [],
           include_web: selectedTools.includes("web_search"),
-          include_drive: includeDrive,
+          include_drive: includeDrive && driveToken !== null,
           provider_token: driveToken,
           task_mode: true,
-          tools: selectedTools,
+          tools: selectedTools.filter(tool => {
+            // Filter out Drive tools if we don't have a valid token
+            if ((tool === "file_search" || tool === "file_analysis") && !driveToken) {
+              return false;
+            }
+            return true;
+          }),
           allow_iterations: true,
           max_iterations: 5,
           reasoning_level: reasoningLevel,
@@ -105,8 +144,10 @@ const AgentTaskRunner = ({
       
       setResult(response.data);
       
+      // Handle Drive-specific errors from the response
       const driveSource = response.data.sources?.find(source => source.source === "google_drive");
       if (driveSource && driveSource.error) {
+        setDriveError(driveSource.error);
         toast({
           variant: "default",
           title: "Google Drive Access Issue",
@@ -118,12 +159,23 @@ const AgentTaskRunner = ({
         resultRef.current.scrollIntoView({ behavior: 'smooth' });
       }
     } catch (error) {
+      console.error("Task execution error:", error);
+      
+      // Try to categorize the error
+      const isNetworkError = error instanceof Error && 
+        (error.message.includes("network") || error.message.includes("fetch"));
+      
+      const isServerError = error instanceof Error && 
+        (error.message.includes("500") || error.message.includes("server"));
+      
+      // Show appropriate error message
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "An unexpected error occurred"
+        title: isNetworkError ? "Network Error" : 
+               isServerError ? "Server Error" : "Error",
+        description: error instanceof Error ? 
+                     error.message : "An unexpected error occurred"
       });
-      console.error("Task execution error:", error);
     } finally {
       setIsProcessing(false);
     }
@@ -149,6 +201,11 @@ const AgentTaskRunner = ({
               driveConnected={isAuthenticated}
             />
           )}
+          
+          <DriveErrorAlert 
+            error={driveError} 
+            onReconnect={handleDriveReconnect}
+          />
           
           {showReasoningControls && (
             <ReasoningControls
