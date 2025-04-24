@@ -4,7 +4,7 @@ import { StatusIndicator } from "./status/StatusIndicator"
 import { StatusActions } from "./status/StatusActions"
 
 export const GoogleDriveStatus = () => {
-  const { tokenStatus, scopeStatus, isAuthorizing, initiateAuth, checkStoredToken } = useGoogleDrive()
+  const { tokenStatus, scopeStatus, isAuthorizing, initiateAuth, getToken } = useGoogleDrive()
   
   const tokenStatusDescriptions = {
     valid: "Your account is successfully connected to Google Drive",
@@ -21,6 +21,11 @@ export const GoogleDriveStatus = () => {
   }
 
   const hasInvalidStatus = tokenStatus === 'invalid' || scopeStatus === 'invalid'
+  
+  // Create a function to check token status using the getToken function
+  const checkTokenStatus = async () => {
+    await getToken()
+  }
   
   return (
     <div className="p-4 bg-muted/40 rounded-lg">
@@ -50,7 +55,7 @@ export const GoogleDriveStatus = () => {
         <StatusActions 
           isChecking={isAuthorizing}
           hasInvalidStatus={hasInvalidStatus}
-          onCheck={checkStoredToken}
+          onCheck={checkTokenStatus}
           onReconnect={initiateAuth}
         />
       </div>
