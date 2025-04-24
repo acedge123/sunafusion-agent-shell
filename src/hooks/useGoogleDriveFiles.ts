@@ -7,6 +7,8 @@ export interface DriveFile {
   id: string
   name: string
   mimeType: string
+  thumbnailLink?: string
+  webViewLink?: string
 }
 
 export const useGoogleDriveFiles = () => {
@@ -15,7 +17,7 @@ export const useGoogleDriveFiles = () => {
   const { toast } = useToast()
   const { getTokens } = useGoogleDriveToken()
 
-  const fetchFiles = async () => {
+  const fetchFiles = async (searchQuery?: string) => {
     setLoading(true)
     try {
       const { driveToken } = await getTokens()
@@ -35,8 +37,20 @@ export const useGoogleDriveFiles = () => {
           const validationData = await validationResponse.json()
           console.log('Token validation response scope:', validationData.scope)
           
-          // Now make the actual files request
-          const response = await fetch('https://www.googleapis.com/drive/v3/files?fields=files(id,name,mimeType)', {
+          // Build the search query
+          const searchParams = new URLSearchParams({
+            fields: 'files(id,name,mimeType,thumbnailLink,webViewLink)',
+            orderBy: 'modifiedTime desc'
+          })
+
+          // If there's a search query, add it to the parameters
+          if (searchQuery) {
+            // Search in file names and full text
+            searchParams.append('q', `fullText contains '${searchQuery}' or name contains '${searchQuery}'`)
+          }
+          
+          // Now make the actual files request with enhanced parameters
+          const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
             headers: {
               'Authorization': `Bearer ${driveToken}`
             }
@@ -109,6 +123,3 @@ export const useGoogleDriveFiles = () => {
     fetchFiles
   }
 }
-
-// Remove the duplicate export at the end of the file
-// export type { DriveFile }
