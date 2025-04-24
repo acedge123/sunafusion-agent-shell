@@ -1,11 +1,10 @@
-
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Search, FileType, Loader2, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { GoogleDriveAuth } from "./GoogleDriveAuth"
 import { DriveBatchQuery } from "./DriveBatchQuery"
 import { DriveFilesList } from "./DriveFilesList"
-import { useGoogleDriveFiles, type SearchParams } from "@/hooks/useGoogleDriveFiles"
+import { useGoogleDriveFiles } from "@/hooks/useGoogleDriveFiles"
 import { useGoogleDriveAnalysis } from "@/hooks/useGoogleDriveAnalysis"
 import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
@@ -20,9 +19,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useGoogleDriveToken } from "@/hooks/useGoogleDriveToken"
 
-// Common MIME types for filtering with non-empty values
 const MIME_TYPE_FILTERS = {
-  'All Files': 'all_files', // Changed from empty string to a descriptive value
+  'All Files': 'all_files',
   'Documents': 'application/vnd.google-apps.document',
   'Spreadsheets': 'application/vnd.google-apps.spreadsheet',
   'PDFs': 'application/pdf',
@@ -33,13 +31,14 @@ const MIME_TYPE_FILTERS = {
 export const DriveFileList = () => {
   const { user } = useAuth()
   const { toast } = useToast()
-  const { files, loading, hasMore, fetchFiles, loadMore, error: filesError } = useGoogleDriveFiles()
+  const { files, loading, hasMore, fetchFiles, loadMore } = useGoogleDriveFiles()
   const { analyzing, analyzeFile, error: analysisError } = useGoogleDriveAnalysis()
   const { getTokens } = useGoogleDriveToken()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedMimeType, setSelectedMimeType] = useState("")
   const [loadingMore, setLoadingMore] = useState(false)
   const [tokenError, setTokenError] = useState<string | null>(null)
+  const [filesError, setFilesError] = useState<string | null>(null)
   
   useEffect(() => {
     if (user) {
@@ -72,7 +71,6 @@ export const DriveFileList = () => {
   const handleSearch = () => {
     const searchParams: SearchParams = {}
     if (searchQuery) searchParams.query = searchQuery
-    // Convert back to empty string for "all_files" when sending to API
     if (selectedMimeType && selectedMimeType !== 'all_files') {
       searchParams.mimeType = selectedMimeType
     }
@@ -92,11 +90,8 @@ export const DriveFileList = () => {
     setSelectedMimeType(value)
   }
   
-  const handleReconnect = () => {
-    // Reset the error state
+  const handleReconnect = async () => {
     setTokenError(null)
-    
-    // Show a toast notification
     toast({
       title: "Reconnecting to Google Drive",
       description: "Please complete the authorization process."
@@ -194,6 +189,7 @@ export const DriveFileList = () => {
           analyzing={analyzing}
           onAnalyze={analyzeFile}
           analysisError={analysisError}
+          error={filesError}
         />
 
         {hasMore && !loading && (

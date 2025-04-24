@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/components/auth/AuthProvider"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
@@ -7,11 +6,13 @@ export const useGoogleDriveToken = () => {
   const { user } = useAuth()
   const { toast } = useToast()
 
-  // Required scopes for full Drive functionality
+  // Updated required scopes for full access
   const REQUIRED_SCOPES = [
-    'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/drive.metadata.readonly',
-    'https://www.googleapis.com/auth/drive.file'
+    'https://www.googleapis.com/auth/drive',           // Full access to all files
+    'https://www.googleapis.com/auth/drive.appdata',   // Access to application-specific data
+    'https://www.googleapis.com/auth/drive.file',      // Access to files created by the app
+    'https://www.googleapis.com/auth/drive.metadata',  // View and manage metadata
+    'https://www.googleapis.com/auth/drive.scripts'    // Access to Apps Script files
   ]
 
   // Validate token scopes
@@ -29,7 +30,6 @@ export const useGoogleDriveToken = () => {
       const data = await response.json()
       console.log("Token validation response:", data)
       
-      // Check if all required scopes are included
       if (!data.scope) return false
       
       const scopes = data.scope.split(' ')
@@ -43,7 +43,7 @@ export const useGoogleDriveToken = () => {
         toast({
           variant: "destructive",
           title: "Google Drive Authorization Issue",
-          description: "Your Google Drive token is missing some required permissions. Please reconnect."
+          description: "Your Google Drive token is missing some required permissions. Please reconnect with full access."
         })
       }
       
@@ -74,7 +74,6 @@ export const useGoogleDriveToken = () => {
     try {
       console.log("Getting Google Drive tokens...")
       
-      // Get the current session for the auth token
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError) {
@@ -85,7 +84,6 @@ export const useGoogleDriveToken = () => {
       const providerToken = sessionData?.session?.provider_token
       console.log("Provider token available from session:", !!providerToken)
       
-      // If no provider token in session, try to get from database
       let storedToken = null
       let storedRefreshToken = null
       if (sessionData?.session?.user) {
@@ -108,65 +106,18 @@ export const useGoogleDriveToken = () => {
         }
       }
 
-      // Use provider token if available, otherwise use stored token
       let finalToken = providerToken || storedToken
       
-      // Validate token scopes if we have a token
       let isValidToken = false
       if (finalToken) {
         isValidToken = await validateTokenScopes(finalToken)
         
-        // If token is invalid but we have a refresh token, try to refresh
         if (!isValidToken && storedRefreshToken && sessionData?.session?.user) {
           const refreshedToken = await refreshToken(sessionData.session.user.id, storedRefreshToken)
           if (refreshedToken) {
             finalToken = refreshedToken
             isValidToken = true
-            
-            // Store the new token in database
-            if (sessionData.session.user.id) {
-              try {
-                await supabase
-                  .from('google_drive_access')
-                  .upsert({
-                    user_id: sessionData.session.user.id,
-                    access_token: refreshedToken,
-                    token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
-                    updated_at: new Date().toISOString()
-                  }, {
-                    onConflict: 'user_id'
-                  })
-                  
-                console.log("Updated token in database after refresh")
-              } catch (storeError) {
-                console.error("Error storing refreshed token:", storeError)
-              }
-            }
           }
-        }
-      }
-
-      // Store provider token if available and valid
-      if (providerToken && sessionData?.session?.user?.id) {
-        try {
-          const { error: upsertError } = await supabase
-            .from('google_drive_access')
-            .upsert({
-              user_id: sessionData.session.user.id,
-              access_token: providerToken,
-              token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'user_id'
-            })
-            
-          if (upsertError) {
-            console.error("Error storing Google Drive token:", upsertError)
-          } else {
-            console.log("Successfully stored Google Drive token")
-          }
-        } catch (storeError) {
-          console.error("Error in token storage:", storeError)
         }
       }
 

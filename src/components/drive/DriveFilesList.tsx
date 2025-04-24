@@ -1,4 +1,3 @@
-
 import { FileIcon, AlertTriangle } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table"
 import { Button } from "@/components/ui/button"
@@ -19,9 +18,10 @@ interface DriveFilesListProps {
   analyzing: string | null
   onAnalyze: (fileId: string) => void
   analysisError?: string | null
+  error?: string | null
 }
 
-export const DriveFilesList = ({ files, loading, analyzing, onAnalyze, analysisError }: DriveFilesListProps) => {
+export const DriveFilesList = ({ files, loading, analyzing, onAnalyze, analysisError, error }: DriveFilesListProps) => {
   // Helper to render file type icon based on MIME type
   const renderFileIcon = (mimeType: string) => {
     return <FileIcon className="h-4 w-4 text-muted-foreground" />
@@ -99,6 +99,15 @@ export const DriveFilesList = ({ files, loading, analyzing, onAnalyze, analysisE
       <div className="py-8 text-center">
         <Loader2 className="w-6 h-6 mx-auto animate-spin text-muted-foreground" />
         <p className="mt-2 text-sm text-muted-foreground">Loading Drive files...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="py-4 px-4 border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900 rounded-md text-center">
+        <AlertTriangle className="w-5 h-5 mx-auto mb-2 text-red-500" />
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       </div>
     )
   }
