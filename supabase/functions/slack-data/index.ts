@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // Define Slack API base URL
@@ -34,37 +35,43 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     let userId = null;
 
-    // Try to get user from auth header
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '');
-      const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-      if (!userError && userData.user) {
-        userId = userData.user.id;
-      } else {
-        console.log('Invalid user token in auth header:', userError?.message);
+    // Only require authentication for actions that need it
+    if (action !== 'exchangeCodeForToken') {
+      // Try to get user from auth header
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
+        if (!userError && userData.user) {
+          userId = userData.user.id;
+        } else {
+          console.log('Invalid user token in auth header:', userError?.message);
+        }
       }
+  
+      if (!userId) {
+        throw new Error('Unauthorized: Invalid or missing authentication');
+      }
+  
+      // Retrieve the Slack access token for the user (for authenticated endpoints only)
+      const { data: tokenData, error: tokenError } = await supabaseClient
+        .from('slack_access')
+        .select('access_token')
+        .eq('user_id', userId)
+        .maybeSingle();
+  
+      if (tokenError || !tokenData?.access_token) {
+        throw new Error('Slack access token not found for user');
+      }
+  
+      var slackToken = tokenData.access_token;
     }
-
-    if (!userId) {
-      throw new Error('Unauthorized: Invalid or missing authentication');
-    }
-
-    // Retrieve the Slack access token for the user
-    const { data: tokenData, error: tokenError } = await supabaseClient
-      .from('slack_access')
-      .select('access_token')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (tokenError || !tokenData?.access_token) {
-      throw new Error('Slack access token not found for user');
-    }
-
-    const slackToken = tokenData.access_token;
 
     // Handle different Slack API actions
     let result;
     switch (action) {
+      case 'exchangeCodeForToken':
+        result = await exchangeCodeForToken(requestData);
+        break;
       case 'search':
         result = await searchMessages(slackToken, requestData);
         break;
@@ -97,6 +104,49 @@ serve(async (req) => {
     );
   }
 });
+
+// New function to exchange code for token
+async function exchangeCodeForToken(params: any) {
+  const { code, redirectUri } = params;
+  const clientId = "105581126916.8801648634339";
+  const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET');
+  
+  if (!clientSecret) {
+    throw new Error('SLACK_CLIENT_SECRET environment variable is not set');
+  }
+  
+  console.log(`Exchanging code for token with redirect URI: ${redirectUri}`);
+
+  const formData = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    code: code,
+    redirect_uri: redirectUri
+  });
+
+  const response = await fetch(`${SLACK_API_BASE_URL}/oauth.v2.access`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: formData.toString()
+  });
+
+  const data = await response.json();
+
+  if (!data.ok) {
+    console.error('Slack OAuth error:', data.error);
+    throw new Error(`Slack API error: ${data.error}`);
+  }
+
+  console.log('Successfully exchanged code for token');
+  
+  return {
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: data.expires_in ? new Date(Date.now() + (data.expires_in * 1000)).toISOString() : null
+  };
+}
 
 // Function to search Slack messages
 async function searchMessages(token: string, params: any) {
