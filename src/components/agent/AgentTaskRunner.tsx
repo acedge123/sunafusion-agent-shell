@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
-import { CornerDownLeft, Loader2, Send, Sparkles, Tool, Brain, Search, FileSearch, FileText } from "lucide-react";
+import { CornerDownLeft, Loader2, Send, Sparkles, Wrench, Brain, Search, FileSearch, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { v4 as uuidv4 } from "uuid";
@@ -263,7 +263,7 @@ const AgentTaskRunner = ({
             <CardDescription>
               {result.tools_used && result.tools_used.length > 0 && (
                 <div className="flex items-center gap-2 mt-1">
-                  <Tool className="h-4 w-4 text-muted-foreground" />
+                  <Wrench className="h-4 w-4 text-muted-foreground" />
                   <div className="flex flex-wrap gap-1">
                     {result.tools_used.map(tool => (
                       <Badge key={tool} variant="secondary" className="text-xs">
