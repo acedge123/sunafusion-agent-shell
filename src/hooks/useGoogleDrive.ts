@@ -1,5 +1,5 @@
-
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
@@ -9,6 +9,7 @@ import { getStoredToken, storeToken } from "@/utils/googleDriveStorage"
 import { withRetry, parseGoogleDriveError, displayDriveError, GoogleDriveErrorType } from "@/utils/googleDriveErrors"
 
 export const useGoogleDrive = () => {
+  const navigate = useNavigate()
   const [state, setState] = useState<GoogleDriveState>({
     isAuthorizing: false,
     isAuthenticated: false,
@@ -21,7 +22,6 @@ export const useGoogleDrive = () => {
   const retryCount = useRef<number>(0)
   const maxRetries = 3
 
-  // Get the token and validate it
   const getToken = useCallback(async (): Promise<TokenInfo> => {
     try {
       setState(prev => ({ ...prev, tokenStatus: 'checking', scopeStatus: 'checking' }))
@@ -52,7 +52,6 @@ export const useGoogleDrive = () => {
       }
       
       try {
-        // Use retry logic for token validation
         const { isValid, scopes } = await withRetry(
           () => validateGoogleToken(finalToken!, tokenCache.current),
           maxRetries
@@ -76,7 +75,6 @@ export const useGoogleDrive = () => {
         const parsedError = parseGoogleDriveError(validationError)
         console.error("Token validation error:", parsedError)
         
-        // Only show toast for non-auth errors (since auth errors are expected when token is invalid)
         if (parsedError.type !== GoogleDriveErrorType.AUTH_ERROR) {
           displayDriveError(parsedError)
         }
@@ -92,7 +90,6 @@ export const useGoogleDrive = () => {
     } catch (error) {
       console.error("Error in getToken:", error)
       
-      // Parse and handle the error
       const parsedError = parseGoogleDriveError(error)
       displayDriveError(parsedError)
       
@@ -106,7 +103,6 @@ export const useGoogleDrive = () => {
     }
   }, [user, toast])
 
-  // Initialize Google Drive authentication
   const initiateAuth = async () => {
     setState(prev => ({ ...prev, isAuthorizing: true }))
     retryCount.current = 0
@@ -155,7 +151,6 @@ export const useGoogleDrive = () => {
     }
   }
 
-  // Handle OAuth response
   useEffect(() => {
     if (!user) return
 
@@ -186,14 +181,16 @@ export const useGoogleDrive = () => {
                 scopeStatus: hasRequiredScopes(scopes) ? 'valid' : 'invalid'
               }))
 
-              // Clean URL after successful auth
               window.history.replaceState({}, document.title, window.location.pathname)
               
               if (isValid && hasRequiredScopes(scopes)) {
-                toast({
-                  title: "Google Drive Connected",
-                  description: "Your Google Drive is now connected successfully."
-                })
+                navigate('/')
+                setTimeout(() => {
+                  toast({
+                    title: "Google Drive Connected",
+                    description: "Your Google Drive is now connected successfully."
+                  })
+                }, 100)
               } else if (!isValid) {
                 displayDriveError({
                   type: GoogleDriveErrorType.AUTH_ERROR,
@@ -220,9 +217,8 @@ export const useGoogleDrive = () => {
     }
 
     handleOAuthResponse()
-  }, [user, toast])
+  }, [user, toast, navigate])
 
-  // Check authentication status on mount and when user changes
   useEffect(() => {
     if (!user) {
       setState(prev => ({ 
