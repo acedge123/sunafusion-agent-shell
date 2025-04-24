@@ -6,7 +6,11 @@ import { useGoogleDriveAuth } from "@/hooks/useGoogleDriveAuth"
 import { GoogleDriveStatus } from "./GoogleDriveStatus"
 import { GoogleDriveConfigGuide } from "./GoogleDriveConfigGuide"
 
-export const GoogleDriveAuth = () => {
+interface GoogleDriveAuthProps {
+  onReconnectSuccess?: () => Promise<void>
+}
+
+export const GoogleDriveAuth = ({ onReconnectSuccess }: GoogleDriveAuthProps = {}) => {
   const { user } = useAuth()
   const { isAuthorizing, isAuthenticated, initiateGoogleAuth } = useGoogleDriveAuth()
   

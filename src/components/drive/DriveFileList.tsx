@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Search, FileType, Loader2, AlertTriangle } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useGoogleDriveToken } from "@/hooks/useGoogleDriveToken"
+import { SearchParams } from "@/hooks/useGoogleDriveFiles" // Import the SearchParams type
 
 const MIME_TYPE_FILTERS = {
   'All Files': 'all_files',
@@ -104,7 +106,7 @@ export const DriveFileList = () => {
 
   return (
     <div className="space-y-6">
-      <GoogleDriveAuth onReconnectSuccess={checkTokenAndFetchFiles} />
+      <GoogleDriveAuth /> {/* Removed the onReconnectSuccess prop */}
       
       <div className="p-4 border rounded-lg bg-card">
         <div className="flex flex-col gap-4">
