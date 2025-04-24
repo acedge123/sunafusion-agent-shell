@@ -1,3 +1,4 @@
+
 """
 Centralized database connection management for AgentPress using Supabase.
 """
@@ -65,5 +66,3 @@ class DBConnection:
             logger.error("Database client is None after initialization")
             raise RuntimeError("Database not initialized")
         return self._client
-
-

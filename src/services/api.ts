@@ -39,7 +39,7 @@ export async function sendMessage(content: string): Promise<Message> {
       }
     }
 
-    // Always store provider token if available
+    // Always store provider token if available - now using proper upsert with unique constraint
     if (providerToken && sessionData?.session?.user?.id) {
       try {
         const { error: upsertError } = await supabase
