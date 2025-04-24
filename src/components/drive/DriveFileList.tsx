@@ -17,9 +17,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-// Common MIME types for filtering
+// Common MIME types for filtering with non-empty values
 const MIME_TYPE_FILTERS = {
-  'All Files': '',
+  'All Files': 'all_files', // Changed from empty string to a descriptive value
   'Documents': 'application/vnd.google-apps.document',
   'Spreadsheets': 'application/vnd.google-apps.spreadsheet',
   'PDFs': 'application/pdf',
@@ -44,7 +44,10 @@ export const DriveFileList = () => {
   const handleSearch = () => {
     const searchParams: SearchParams = {}
     if (searchQuery) searchParams.query = searchQuery
-    if (selectedMimeType) searchParams.mimeType = selectedMimeType
+    // Convert back to empty string for "all_files" when sending to API
+    if (selectedMimeType && selectedMimeType !== 'all_files') {
+      searchParams.mimeType = selectedMimeType
+    }
     fetchFiles(searchParams)
   }
 
@@ -55,6 +58,10 @@ export const DriveFileList = () => {
     } finally {
       setLoadingMore(false)
     }
+  }
+
+  const handleMimeTypeChange = (value: string) => {
+    setSelectedMimeType(value)
   }
 
   if (!user) {
@@ -70,7 +77,9 @@ export const DriveFileList = () => {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Your Google Drive Files</h2>
             <Button 
-              onClick={() => fetchFiles({ mimeType: selectedMimeType })} 
+              onClick={() => fetchFiles({
+                mimeType: selectedMimeType !== 'all_files' ? selectedMimeType : ''
+              })} 
               variant="outline" 
               disabled={loading}
               size="sm"
@@ -91,7 +100,7 @@ export const DriveFileList = () => {
             </div>
             <Select
               value={selectedMimeType}
-              onValueChange={setSelectedMimeType}
+              onValueChange={handleMimeTypeChange}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="File type" />
