@@ -9,14 +9,15 @@ import ChatInput from "@/components/chat/ChatInput"
 import { sendMessage } from "@/services/api"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { Loader2, Bot, MessageSquare, FileSearch } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth"
+import AgentTaskRunner from "@/components/agent/AgentTaskRunner"
 
 const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-message",
-      content: "Hello! I'm your AI assistant with access to Google Drive and web search. Ask me anything - I'll use all available resources to help you!",
+      content: "Hello! I'm your AI assistant with access to Google Drive and web search. Ask me anything or give me a complex task - I'll break it down into steps and solve it for you.",
       role: "assistant",
       timestamp: new Date()
     }
@@ -42,7 +43,6 @@ const Index = () => {
     } catch (error) {
       console.error("Error getting AI response:", error);
       
-      // Add an error message to the chat
       const errorMessage: Message = {
         id: uuidv4(),
         content: "Sorry, I encountered an error processing your request. Please try again.",
@@ -74,51 +74,28 @@ const Index = () => {
           <div className="text-center md:text-left">
             <h1 className="text-2xl font-bold mb-2">TheGig.Agency Unified Assistant</h1>
             <p className="text-muted-foreground mb-4">
-              Your intelligent assistant that seamlessly searches both your Google Drive files and the web to provide comprehensive answers
+              Your intelligent assistant that autonomously searches your Google Drive files and the web to solve complex tasks
             </p>
             
-            <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-              {!user && (
-                <Button asChild>
-                  <Link to="/auth">Sign In to Access All Features</Link>
-                </Button>
-              )}
-              
-              <Button asChild variant="outline">
-                <Link to="/chat" className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4" />
-                  Chat
-                </Link>
+            {!user && (
+              <Button asChild>
+                <Link to="/auth">Sign In to Access All Features</Link>
               </Button>
-              
-              <Button asChild variant="outline">
-                <Link to="/drive" className="flex items-center gap-2">
-                  <FileSearch className="h-4 w-4" />
-                  Drive Files
-                </Link>
-              </Button>
-              
-              <Button asChild variant="default">
-                <Link to="/agent" className="flex items-center gap-2">
-                  <Bot className="h-4 w-4" />
-                  AI Agent
-                </Link>
-              </Button>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
       {user && <GoogleDriveAuth />}
       
-      <div className="flex-1 overflow-hidden">
-        <ChatContainer messages={messages} className="h-full" />
+      <div className="flex-1 overflow-hidden p-4">
+        <div className="max-w-4xl mx-auto">
+          <AgentTaskRunner 
+            showToolSelection={false}
+            initialTask="Example: Summarize all meeting minutes for our client Copper Fit" 
+          />
+        </div>
       </div>
-      
-      <ChatInput 
-        onSendMessage={handleSendMessage} 
-        disabled={isLoading} 
-      />
       
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
