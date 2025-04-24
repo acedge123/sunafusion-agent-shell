@@ -63,7 +63,7 @@ const Index = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background">
       <AgentHeader 
         agentName="Suna AI" 
         agentImage="/placeholder.svg"
@@ -94,8 +94,8 @@ const Index = () => {
         </div>
       )}
       
-      <div className="flex-1 overflow-hidden p-4">
-        <div className="max-w-4xl mx-auto">
+      <div className="flex-1 p-4 overflow-y-auto">
+        <div className="max-w-4xl mx-auto pb-4">
           <AgentTaskRunner 
             showToolSelection={true}
             initialTask="Example: Summarize all meeting minutes for our client Copper Fit or Find all Slack messages about the Q2 marketing campaign" 
@@ -104,7 +104,7 @@ const Index = () => {
       </div>
       
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
           <div className="bg-background p-4 rounded-lg shadow-lg flex items-center gap-2">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Getting response...</span>
