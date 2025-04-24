@@ -1,28 +1,19 @@
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Search, FileType, Loader2, AlertTriangle } from "lucide-react"
+import { RefreshCw, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { GoogleDriveAuth } from "./GoogleDriveAuth"
 import { DriveBatchQuery } from "./DriveBatchQuery"
 import { DriveFilesList } from "./DriveFilesList"
 import { useGoogleDriveFiles } from "@/hooks/useGoogleDriveFiles"
 import { useGoogleDriveAnalysis } from "@/hooks/useGoogleDriveAnalysis"
-import { useEffect, useState } from "react"
-import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { useGoogleDriveToken } from "@/hooks/useGoogleDriveToken"
 import { SearchParams } from "@/hooks/useGoogleDriveFiles" // Import the SearchParams type
 import { DriveSearchBar } from "./search/DriveSearchBar"
 import { DriveErrorAlert } from "./error/DriveErrorAlert"
 import { MIME_TYPE_FILTERS } from "./utils/driveConstants"
+import { useGoogleDriveToken } from "@/hooks/useGoogleDriveToken"
 
 export const DriveFileList = () => {
   const { user } = useAuth()
