@@ -1,7 +1,7 @@
 
 import { useState } from "react"
 import { useToast } from "@/components/ui/use-toast"
-import { useGoogleDriveToken } from "./useGoogleDriveToken"
+import { useGoogleDrive } from "./useGoogleDrive"
 
 export interface DriveFile {
   id: string
@@ -29,12 +29,12 @@ export const useGoogleDriveFiles = () => {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
   const { toast } = useToast()
-  const { getTokens } = useGoogleDriveToken()
+  const { getToken } = useGoogleDrive()
 
   const fetchFiles = async (searchParams?: SearchParams, append: boolean = false) => {
     setLoading(true)
     try {
-      const { driveToken } = await getTokens()
+      const { token: driveToken } = await getToken()
 
       if (driveToken) {
         console.log("Making request to Google Drive API with pagination")
