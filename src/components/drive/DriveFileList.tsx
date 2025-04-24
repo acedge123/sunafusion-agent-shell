@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Search, FileType } from "lucide-react"
+import { RefreshCw, Search, FileType, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { GoogleDriveAuth } from "./GoogleDriveAuth"
 import { DriveBatchQuery } from "./DriveBatchQuery"
@@ -29,12 +29,12 @@ const MIME_TYPE_FILTERS = {
 
 export const DriveFileList = () => {
   const { user } = useAuth()
-  const { files, loading, fetchFiles } = useGoogleDriveFiles()
+  const { files, loading, hasMore, fetchFiles, loadMore } = useGoogleDriveFiles()
   const { analyzing, analyzeFile } = useGoogleDriveAnalysis()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedMimeType, setSelectedMimeType] = useState("")
+  const [loadingMore, setLoadingMore] = useState(false)
   
-  // Auto-fetch files when component mounts
   useEffect(() => {
     if (user) {
       fetchFiles()
@@ -46,6 +46,15 @@ export const DriveFileList = () => {
     if (searchQuery) searchParams.query = searchQuery
     if (selectedMimeType) searchParams.mimeType = selectedMimeType
     fetchFiles(searchParams)
+  }
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true)
+    try {
+      await loadMore()
+    } finally {
+      setLoadingMore(false)
+    }
   }
 
   if (!user) {
@@ -116,6 +125,22 @@ export const DriveFileList = () => {
           analyzing={analyzing}
           onAnalyze={analyzeFile}
         />
+
+        {hasMore && !loading && (
+          <div className="flex justify-center mt-6">
+            <Button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              variant="outline"
+            >
+              {loadingMore ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading more...</>
+              ) : (
+                'Load More Files'
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
