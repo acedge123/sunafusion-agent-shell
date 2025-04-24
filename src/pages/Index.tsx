@@ -1,4 +1,3 @@
-
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
@@ -10,8 +9,6 @@ import { sendMessage } from "@/services/api"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Loader2 } from "lucide-react"
-import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth"
-import { SlackAuth } from "@/components/slack/SlackAuth"
 import AgentTaskRunner from "@/components/agent/AgentTaskRunner"
 
 const Index = () => {
@@ -70,11 +67,11 @@ const Index = () => {
         onSettings={() => console.log("Settings clicked")}
       />
       
-      <div className="p-4 bg-muted/20 border-b">
+      <div className="p-4 pb-0 bg-muted/20 border-b">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-center max-w-4xl mx-auto">
           <div className="text-center md:text-left">
             <h1 className="text-2xl font-bold mb-2">TheGig.Agency Unified Assistant</h1>
-            <p className="text-muted-foreground mb-4">
+            <p className="text-muted-foreground mb-2">
               Your intelligent assistant that autonomously searches your Google Drive files, Slack messages, and the web to solve complex tasks
             </p>
             
@@ -86,16 +83,9 @@ const Index = () => {
           </div>
         </div>
       </div>
-
-      {user && (
-        <div className="max-w-4xl mx-auto w-full px-4 py-2 space-y-2">
-          <GoogleDriveAuth />
-          <SlackAuth />
-        </div>
-      )}
       
       <div className="flex-1 p-4 overflow-y-auto">
-        <div className="max-w-4xl mx-auto pb-4">
+        <div className="max-w-4xl mx-auto">
           <AgentTaskRunner 
             showToolSelection={true}
             initialTask="Example: Summarize all meeting minutes for our client Copper Fit or Find all Slack messages about the Q2 marketing campaign" 

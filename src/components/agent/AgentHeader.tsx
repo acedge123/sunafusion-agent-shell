@@ -4,12 +4,13 @@ import {
   Settings,
   MoreVertical,
   MinusCircle,
-  LogOut  // Import the log-out icon from lucide-react
+  LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
+import { ProfileDropdown } from "@/components/profile/ProfileDropdown";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,6 +79,8 @@ const AgentHeader: React.FC<AgentHeaderProps> = ({
             <span className="sr-only">Minimize</span>
           </Button>
         )}
+        
+        <ProfileDropdown />
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
