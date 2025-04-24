@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
@@ -11,6 +11,13 @@ interface GoogleDriveState {
   scopeStatus: 'valid' | 'invalid' | 'checking' | 'unknown'
 }
 
+type TokenCacheItem = {
+  token: string,
+  isValid: boolean,
+  scopes: string[],
+  expires: number
+}
+
 export const useGoogleDrive = () => {
   const [state, setState] = useState<GoogleDriveState>({
     isAuthorizing: false,
@@ -20,6 +27,8 @@ export const useGoogleDrive = () => {
   })
   const { user } = useAuth()
   const { toast } = useToast()
+  const tokenCache = useRef<Map<string, TokenCacheItem>>(new Map())
+  const CACHE_VALIDITY_MS = 5 * 60 * 1000 // 5 minutes
 
   // Required scopes for full Drive functionality
   const REQUIRED_SCOPES = [
@@ -28,41 +37,97 @@ export const useGoogleDrive = () => {
     'https://www.googleapis.com/auth/drive.file'
   ]
 
-  // Check if stored token exists and is valid
-  const checkStoredToken = async () => {
-    if (!user) return false
+  // Get stored token from the database
+  const getStoredToken = useCallback(async (): Promise<{accessToken: string | null, refreshToken: string | null}> => {
+    if (!user) return { accessToken: null, refreshToken: null }
     
     try {
-      const { data: tokenData } = await supabase
+      const { data: tokenData, error } = await supabase
         .from('google_drive_access')
-        .select('access_token')
+        .select('access_token, refresh_token, token_expires_at')
         .eq('user_id', user.id)
         .maybeSingle()
       
-      if (!tokenData?.access_token) return false
+      if (error) {
+        console.error('Error fetching token:', error)
+        return { accessToken: null, refreshToken: null }
+      }
+
+      if (!tokenData) {
+        return { accessToken: null, refreshToken: null }
+      }
+
+      // Check if token is expired
+      const tokenExpiresAt = tokenData.token_expires_at ? new Date(tokenData.token_expires_at) : null
+      const isExpired = tokenExpiresAt && tokenExpiresAt < new Date()
+
+      if (isExpired) {
+        console.log('Token expired, will attempt refresh')
+        if (tokenData.refresh_token) {
+          // We should refresh the token if possible
+          // But since this requires a server endpoint, we'll mark it as invalid for now
+          return { accessToken: null, refreshToken: tokenData.refresh_token }
+        }
+        return { accessToken: null, refreshToken: null }
+      }
       
-      return validateToken(tokenData.access_token)
+      return { 
+        accessToken: tokenData.access_token || null,
+        refreshToken: tokenData.refresh_token || null
+      }
     } catch (error) {
-      console.error('Error checking stored token:', error)
-      return false
+      console.error('Error in getStoredToken:', error)
+      return { accessToken: null, refreshToken: null }
     }
-  }
+  }, [user])
 
   // Validate token and its scopes
-  const validateToken = async (token: string) => {
+  const validateToken = useCallback(async (token: string) => {
     try {
+      // Check cache first
+      const cached = tokenCache.current.get(token)
+      if (cached && cached.expires > Date.now()) {
+        console.log('Using cached token validation')
+        setState(prev => ({ 
+          ...prev, 
+          tokenStatus: cached.isValid ? 'valid' : 'invalid',
+          scopeStatus: cached.isValid && 
+                        REQUIRED_SCOPES.every(scope => 
+                          cached.scopes.some(s => s.includes(scope))) 
+                        ? 'valid' : 'invalid',
+          isAuthenticated: cached.isValid && 
+                           REQUIRED_SCOPES.every(scope => 
+                             cached.scopes.some(s => s.includes(scope)))
+        }))
+        return cached.isValid && REQUIRED_SCOPES.every(scope => cached.scopes.some(s => s.includes(scope)))
+      }
+
       const response = await fetch(
         `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`
       )
       
       if (!response.ok) {
         setState(prev => ({ ...prev, tokenStatus: 'invalid', scopeStatus: 'unknown' }))
+        // Cache the invalid result
+        tokenCache.current.set(token, {
+          token,
+          isValid: false,
+          scopes: [],
+          expires: Date.now() + CACHE_VALIDITY_MS
+        })
         return false
       }
       
       const data = await response.json()
       if (!data.scope) {
         setState(prev => ({ ...prev, tokenStatus: 'valid', scopeStatus: 'invalid' }))
+        // Cache the result
+        tokenCache.current.set(token, {
+          token,
+          isValid: true,
+          scopes: [],
+          expires: Date.now() + CACHE_VALIDITY_MS
+        })
         return false
       }
       
@@ -78,6 +143,14 @@ export const useGoogleDrive = () => {
         isAuthenticated: hasAllRequiredScopes
       }))
       
+      // Cache the result
+      tokenCache.current.set(token, {
+        token,
+        isValid: true,
+        scopes,
+        expires: Date.now() + CACHE_VALIDITY_MS
+      })
+      
       return hasAllRequiredScopes
     } catch (error) {
       console.error('Error validating token:', error)
@@ -89,7 +162,80 @@ export const useGoogleDrive = () => {
       }))
       return false
     }
-  }
+  }, [])
+
+  // Unified token getter - gets session token or stored token
+  const getToken = useCallback(async (): Promise<{
+    token: string | null, 
+    isValid: boolean,
+    session: any
+  }> => {
+    try {
+      console.log("Getting Google Drive token...")
+      setState(prev => ({ ...prev, tokenStatus: 'checking', scopeStatus: 'checking' }))
+      
+      // First check for a session token
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error("Error getting session:", sessionError)
+        setState(prev => ({ ...prev, tokenStatus: 'unknown', scopeStatus: 'unknown' }))
+        return { token: null, isValid: false, session: null }
+      }
+      
+      let finalToken = sessionData?.session?.provider_token || null
+      let tokenSource = finalToken ? 'session' : null
+      
+      // If no session token, try stored token
+      if (!finalToken) {
+        const { accessToken } = await getStoredToken()
+        if (accessToken) {
+          finalToken = accessToken
+          tokenSource = 'database'
+        }
+      }
+      
+      // If no token at all, return
+      if (!finalToken) {
+        console.log("No token found")
+        setState(prev => ({ ...prev, tokenStatus: 'invalid', scopeStatus: 'unknown', isAuthenticated: false }))
+        return { token: null, isValid: false, session: sessionData?.session }
+      }
+      
+      console.log(`Token found from ${tokenSource}`)
+      
+      // Validate the token
+      const isValid = await validateToken(finalToken)
+      
+      return { 
+        token: finalToken, 
+        isValid, 
+        session: sessionData?.session 
+      }
+    } catch (error) {
+      console.error("Error in getToken:", error)
+      setState(prev => ({ ...prev, tokenStatus: 'unknown', scopeStatus: 'unknown', isAuthenticated: false }))
+      return { token: null, isValid: false, session: null }
+    }
+  }, [getStoredToken, validateToken])
+
+  // Check if stored token exists and is valid
+  const checkStoredToken = useCallback(async () => {
+    if (!user) {
+      setState(prev => ({ ...prev, isAuthenticated: false }))
+      return false
+    }
+    
+    setState(prev => ({ 
+      ...prev,
+      tokenStatus: 'checking',
+      scopeStatus: 'checking' 
+    }))
+    
+    const { token, isValid } = await getToken()
+    
+    return isValid
+  }, [user, getToken])
 
   // Initialize Google Drive authentication
   const initiateAuth = async () => {
@@ -152,6 +298,7 @@ export const useGoogleDrive = () => {
               .upsert({
                 user_id: user.id,
                 access_token: sessionData.session.provider_token,
+                refresh_token: sessionData.session.refresh_token,
                 token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
                 updated_at: new Date().toISOString()
               }, {
@@ -176,7 +323,7 @@ export const useGoogleDrive = () => {
     }
 
     handleOAuthResponse()
-  }, [user])
+  }, [user, validateToken])
 
   // Check authentication status on mount and when user changes
   useEffect(() => {
@@ -202,12 +349,13 @@ export const useGoogleDrive = () => {
     }
 
     checkAuth()
-  }, [user])
+  }, [user, checkStoredToken])
 
   return {
     ...state,
     initiateAuth,
     validateToken,
-    checkStoredToken
+    checkStoredToken,
+    getToken
   }
 }

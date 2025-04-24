@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { TaskInput } from "./TaskInput";
 import { ToolSelector } from "./ToolSelector";
 import { ReasoningControls } from "./ReasoningControls";
@@ -39,6 +40,8 @@ const AgentTaskRunner = ({
   const [reasoningLevel, setReasoningLevel] = useState<"low" | "medium" | "high">("medium");
   const { toast } = useToast();
   const resultRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const { getToken, isAuthenticated } = useGoogleDrive();
 
   const toggleTool = (toolId: string) => {
     setSelectedTools(prev => 
@@ -56,26 +59,28 @@ const AgentTaskRunner = ({
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData?.session?.access_token;
-      const providerToken = sessionData?.session?.provider_token;
       
-      let storedToken = null;
-      if (!providerToken && sessionData?.session?.user) {
-        const { data: tokenData } = await supabase
-          .from('google_drive_access')
-          .select('access_token')
-          .eq('user_id', sessionData.session.user.id)
-          .maybeSingle();
-          
-        storedToken = tokenData?.access_token;
-      }
-
+      // Get Google Drive token using our centralized hook
       const includeDrive = selectedTools.includes("file_search") || selectedTools.includes("file_analysis");
-      if (includeDrive && !providerToken && !storedToken) {
-        toast({
-          variant: "default",
-          title: "Google Drive Access Required",
-          description: "Your task involves Google Drive but you're not connected. Please connect your Google Drive first."
-        });
+      
+      let driveToken = null;
+      if (includeDrive && user) {
+        const { token, isValid } = await getToken();
+        
+        if (!isValid) {
+          toast({
+            variant: "default",
+            title: "Google Drive Access Required",
+            description: "Your task involves Google Drive but your connection is invalid. Please reconnect Google Drive first."
+          });
+          
+          if (!token) {
+            setIsProcessing(false);
+            return;
+          }
+        }
+        
+        driveToken = token;
       }
 
       const response = await supabase.functions.invoke('unified-agent', {
@@ -84,7 +89,7 @@ const AgentTaskRunner = ({
           conversation_history: [],
           include_web: selectedTools.includes("web_search"),
           include_drive: includeDrive,
-          provider_token: providerToken || storedToken,
+          provider_token: driveToken,
           task_mode: true,
           tools: selectedTools,
           allow_iterations: true,
@@ -141,6 +146,7 @@ const AgentTaskRunner = ({
             <ToolSelector 
               selectedTools={selectedTools}
               onToolToggle={toggleTool}
+              driveConnected={isAuthenticated}
             />
           )}
           
@@ -160,7 +166,7 @@ const AgentTaskRunner = ({
       </Card>
 
       {result && (
-        <Card>
+        <Card ref={resultRef}>
           <CardHeader>
             <CardTitle>Task Results</CardTitle>
           </CardHeader>

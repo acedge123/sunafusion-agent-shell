@@ -1,14 +1,15 @@
 
-import { DriveFileList } from "@/components/drive/DriveFileList"
 import { useEffect, useState } from "react"
+import { DriveFileList } from "@/components/drive/DriveFileList"
 import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth"
-import { GoogleDriveStatus } from "@/components/drive/GoogleDriveStatus"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useAuth } from "@/components/auth/AuthProvider"
+import { useGoogleDrive } from "@/hooks/useGoogleDrive"
 
 const Drive = () => {
   const [isLoading, setIsLoading] = useState(true)
   const { user } = useAuth()
+  const { isAuthenticated, tokenStatus } = useGoogleDrive()
   
   // Add a delay to allow the auth flow to complete and components to initialize
   useEffect(() => {
@@ -31,12 +32,7 @@ const Drive = () => {
         </CardHeader>
         <CardContent>
           {user ? (
-            <>
-              <GoogleDriveAuth />
-              <div className="mt-4">
-                <GoogleDriveStatus />
-              </div>
-            </>
+            <GoogleDriveAuth />
           ) : (
             <p className="text-center text-muted-foreground">
               Please sign in to connect your Google Drive account

@@ -3,6 +3,10 @@ import { Message } from "@/components/chat/ChatContainer";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 
+// Import useGoogleDrive hook from the correct location
+// Note: Since this is a non-component file, we can't use hooks directly
+// We'll need to modify how this function works
+
 export async function sendMessage(content: string): Promise<Message> {
   try {
     // Get the current session for the auth token
@@ -20,7 +24,7 @@ export async function sendMessage(content: string): Promise<Message> {
     
     // If no provider token in session, try to get from database
     let storedToken = null;
-    if (sessionData?.session?.user) {
+    if (!providerToken && sessionData?.session?.user) {
       try {
         const { data: tokenData, error: tokenError } = await supabase
           .from('google_drive_access')
@@ -39,7 +43,7 @@ export async function sendMessage(content: string): Promise<Message> {
       }
     }
 
-    // Always store provider token if available - now using proper upsert with unique constraint
+    // Store provider token if available
     if (providerToken && sessionData?.session?.user?.id) {
       try {
         const { error: upsertError } = await supabase

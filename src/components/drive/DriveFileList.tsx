@@ -3,55 +3,53 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, Loader2 } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { GoogleDriveAuth } from "./GoogleDriveAuth"
 import { DriveBatchQuery } from "./DriveBatchQuery"
 import { DriveFilesList } from "./DriveFilesList"
 import { useGoogleDriveFiles } from "@/hooks/useGoogleDriveFiles"
 import { useGoogleDriveAnalysis } from "@/hooks/useGoogleDriveAnalysis"
 import { useToast } from "@/components/ui/use-toast"
-import { SearchParams } from "@/hooks/useGoogleDriveFiles" // Import the SearchParams type
+import { SearchParams } from "@/hooks/useGoogleDriveFiles" 
 import { DriveSearchBar } from "./search/DriveSearchBar"
 import { DriveErrorAlert } from "./error/DriveErrorAlert"
-import { MIME_TYPE_FILTERS } from "./utils/driveConstants"
-import { useGoogleDriveToken } from "@/hooks/useGoogleDriveToken"
+import { useGoogleDrive } from "@/hooks/useGoogleDrive"
 
 export const DriveFileList = () => {
   const { user } = useAuth()
   const { toast } = useToast()
+  const { getToken, isAuthenticated } = useGoogleDrive()
   const { files, loading, hasMore, fetchFiles, loadMore } = useGoogleDriveFiles()
   const { analyzing, analyzeFile, error: analysisError } = useGoogleDriveAnalysis()
-  const { getTokens } = useGoogleDriveToken()
+  
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedMimeType, setSelectedMimeType] = useState("")
   const [loadingMore, setLoadingMore] = useState(false)
-  const [tokenError, setTokenError] = useState<string | null>(null)
   const [filesError, setFilesError] = useState<string | null>(null)
   
   useEffect(() => {
-    if (user) {
-      checkTokenAndFetchFiles()
+    if (user && isAuthenticated) {
+      fetchFiles()
     }
-  }, [user])
+  }, [user, isAuthenticated])
   
   const checkTokenAndFetchFiles = async () => {
     try {
-      const { driveToken, isValidToken } = await getTokens()
+      const { token, isValid } = await getToken()
       
-      if (!driveToken) {
-        setTokenError("No Google Drive token found. Please connect your Google Drive account.")
+      if (!token) {
+        setFilesError("No Google Drive token found. Please connect your Google Drive account.")
         return
       }
       
-      if (!isValidToken) {
-        setTokenError("Your Google Drive token has insufficient permissions or is invalid. Please reconnect.")
+      if (!isValid) {
+        setFilesError("Your Google Drive token has insufficient permissions or is invalid. Please reconnect.")
         return
       }
       
-      setTokenError(null)
+      setFilesError(null)
       fetchFiles()
     } catch (error) {
       console.error("Error checking token:", error)
-      setTokenError("Error validating Google Drive connection. Please try reconnecting.")
+      setFilesError("Error validating Google Drive connection. Please try reconnecting.")
     }
   }
 
@@ -76,14 +74,6 @@ export const DriveFileList = () => {
   const handleMimeTypeChange = (value: string) => {
     setSelectedMimeType(value)
   }
-  
-  const handleReconnect = async () => {
-    setTokenError(null)
-    toast({
-      title: "Reconnecting to Google Drive",
-      description: "Please complete the authorization process."
-    })
-  }
 
   if (!user) {
     return null
@@ -91,8 +81,6 @@ export const DriveFileList = () => {
 
   return (
     <div className="space-y-6">
-      <GoogleDriveAuth />
-      
       <div className="p-4 border rounded-lg bg-card">
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
@@ -110,7 +98,6 @@ export const DriveFileList = () => {
             </Button>
           </div>
 
-          <DriveErrorAlert error={tokenError} onReconnect={handleReconnect} />
           <DriveErrorAlert error={filesError} />
 
           <DriveSearchBar
