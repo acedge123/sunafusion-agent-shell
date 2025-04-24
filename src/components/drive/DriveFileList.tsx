@@ -1,20 +1,38 @@
 
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Search } from "lucide-react"
+import { RefreshCw, Search, FileType } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { GoogleDriveAuth } from "./GoogleDriveAuth"
 import { DriveBatchQuery } from "./DriveBatchQuery"
 import { DriveFilesList } from "./DriveFilesList"
-import { useGoogleDriveFiles } from "@/hooks/useGoogleDriveFiles"
+import { useGoogleDriveFiles, type SearchParams } from "@/hooks/useGoogleDriveFiles"
 import { useGoogleDriveAnalysis } from "@/hooks/useGoogleDriveAnalysis"
 import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+// Common MIME types for filtering
+const MIME_TYPE_FILTERS = {
+  'All Files': '',
+  'Documents': 'application/vnd.google-apps.document',
+  'Spreadsheets': 'application/vnd.google-apps.spreadsheet',
+  'PDFs': 'application/pdf',
+  'Images': 'image/',
+  'Videos': 'video/',
+}
 
 export const DriveFileList = () => {
   const { user } = useAuth()
   const { files, loading, fetchFiles } = useGoogleDriveFiles()
   const { analyzing, analyzeFile } = useGoogleDriveAnalysis()
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedMimeType, setSelectedMimeType] = useState("")
   
   // Auto-fetch files when component mounts
   useEffect(() => {
@@ -24,7 +42,10 @@ export const DriveFileList = () => {
   }, [user])
   
   const handleSearch = () => {
-    fetchFiles(searchQuery)
+    const searchParams: SearchParams = {}
+    if (searchQuery) searchParams.query = searchQuery
+    if (selectedMimeType) searchParams.mimeType = selectedMimeType
+    fetchFiles(searchParams)
   }
 
   if (!user) {
@@ -40,7 +61,7 @@ export const DriveFileList = () => {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Your Google Drive Files</h2>
             <Button 
-              onClick={() => fetchFiles()} 
+              onClick={() => fetchFiles({ mimeType: selectedMimeType })} 
               variant="outline" 
               disabled={loading}
               size="sm"
@@ -51,12 +72,32 @@ export const DriveFileList = () => {
           </div>
 
           <div className="flex gap-2">
-            <Input
-              placeholder="Search files..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
+            <div className="flex-1">
+              <Input
+                placeholder="Search files..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              />
+            </div>
+            <Select
+              value={selectedMimeType}
+              onValueChange={setSelectedMimeType}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="File type" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(MIME_TYPE_FILTERS).map(([label, value]) => (
+                  <SelectItem key={value} value={value}>
+                    <div className="flex items-center">
+                      <FileType className="h-4 w-4 mr-2" />
+                      {label}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button 
               onClick={handleSearch}
               disabled={loading}

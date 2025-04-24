@@ -9,6 +9,17 @@ export interface DriveFile {
   mimeType: string
   thumbnailLink?: string
   webViewLink?: string
+  description?: string
+  modifiedTime?: string
+  size?: string
+  iconLink?: string
+  fileExtension?: string
+  parents?: string[]
+}
+
+export interface SearchParams {
+  query?: string
+  mimeType?: string
 }
 
 export const useGoogleDriveFiles = () => {
@@ -17,13 +28,13 @@ export const useGoogleDriveFiles = () => {
   const { toast } = useToast()
   const { getTokens } = useGoogleDriveToken()
 
-  const fetchFiles = async (searchQuery?: string) => {
+  const fetchFiles = async (searchParams?: SearchParams) => {
     setLoading(true)
     try {
       const { driveToken } = await getTokens()
 
       if (driveToken) {
-        console.log("Making request to Google Drive API")
+        console.log("Making request to Google Drive API with enhanced parameters")
         try {
           // First validate the token
           const validationResponse = await fetch('https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + driveToken)
@@ -37,20 +48,34 @@ export const useGoogleDriveFiles = () => {
           const validationData = await validationResponse.json()
           console.log('Token validation response scope:', validationData.scope)
           
-          // Build the search query
-          const searchParams = new URLSearchParams({
-            fields: 'files(id,name,mimeType,thumbnailLink,webViewLink)',
-            orderBy: 'modifiedTime desc'
+          // Build enhanced search query with more metadata fields
+          let queryParams = new URLSearchParams({
+            fields: 'files(id,name,mimeType,thumbnailLink,webViewLink,description,modifiedTime,size,iconLink,fileExtension,parents)',
+            orderBy: 'modifiedTime desc',
+            pageSize: '50' // Fetch more files per request
           })
 
-          // If there's a search query, add it to the parameters
-          if (searchQuery) {
-            // Search in file names and full text
-            searchParams.append('q', `fullText contains '${searchQuery}' or name contains '${searchQuery}'`)
+          // Build search query string
+          let searchQuery = []
+          
+          // Add text search if provided
+          if (searchParams?.query) {
+            // Search in both filename and full text
+            searchQuery.push(`(name contains '${searchParams.query}' or fullText contains '${searchParams.query}')`)
+          }
+
+          // Add MIME type filter if provided
+          if (searchParams?.mimeType) {
+            searchQuery.push(`mimeType = '${searchParams.mimeType}'`)
+          }
+
+          // Combine search conditions
+          if (searchQuery.length > 0) {
+            queryParams.append('q', searchQuery.join(' and '))
           }
           
-          // Now make the actual files request with enhanced parameters
-          const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
+          // Make the enhanced files request
+          const response = await fetch(`https://www.googleapis.com/drive/v3/files?${queryParams}`, {
             headers: {
               'Authorization': `Bearer ${driveToken}`
             }
@@ -84,7 +109,7 @@ export const useGoogleDriveFiles = () => {
           }
           
           const data = await response.json()
-          console.log(`Received ${data.files?.length || 0} files from Google Drive`)
+          console.log(`Received ${data.files?.length || 0} files from Google Drive with enhanced metadata`)
           setFiles(data.files || [])
         } catch (apiError) {
           console.error("Error calling Google Drive API:", apiError)

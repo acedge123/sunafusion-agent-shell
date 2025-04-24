@@ -1,7 +1,8 @@
 
 import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
+import { Loader2, Calendar, HardDrive } from "lucide-react"
 import type { DriveFile } from "@/hooks/useGoogleDriveFiles"
+import { format } from "date-fns"
 
 interface DriveFilesListProps {
   files: DriveFile[]
@@ -34,15 +35,25 @@ export const DriveFilesList = ({ files, loading, analyzing, onAnalyze }: DriveFi
       {files.map((file) => (
         <div key={file.id} className="flex items-center justify-between p-4 border rounded-lg">
           <div className="flex items-center gap-4">
-            {file.thumbnailLink && (
+            {file.thumbnailLink ? (
               <img 
                 src={file.thumbnailLink} 
                 alt={file.name}
                 className="w-10 h-10 object-cover rounded"
               />
+            ) : file.iconLink ? (
+              <img 
+                src={file.iconLink} 
+                alt={file.mimeType}
+                className="w-10 h-10 object-contain"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-muted rounded flex items-center justify-center">
+                <HardDrive className="h-6 w-6 text-muted-foreground" />
+              </div>
             )}
-            <div className="flex-1">
-              <div className="font-medium">
+            <div className="flex-1 min-w-0">
+              <div className="font-medium truncate">
                 {file.webViewLink ? (
                   <a 
                     href={file.webViewLink} 
@@ -56,7 +67,25 @@ export const DriveFilesList = ({ files, loading, analyzing, onAnalyze }: DriveFi
                   file.name
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">{file.mimeType}</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{file.mimeType}</span>
+                {file.modifiedTime && (
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {format(new Date(file.modifiedTime), 'MMM d, yyyy')}
+                  </span>
+                )}
+                {file.size && (
+                  <span>
+                    {formatFileSize(parseInt(file.size))}
+                  </span>
+                )}
+              </div>
+              {file.description && (
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                  {file.description}
+                </p>
+              )}
             </div>
           </div>
           <Button 
@@ -74,4 +103,12 @@ export const DriveFilesList = ({ files, loading, analyzing, onAnalyze }: DriveFi
       ))}
     </div>
   )
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
