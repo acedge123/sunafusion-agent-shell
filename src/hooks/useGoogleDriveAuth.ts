@@ -3,12 +3,14 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth/AuthProvider"
+import { useNavigate } from "react-router-dom"
 
 export const useGoogleDriveAuth = () => {
   const [isAuthorizing, setIsAuthorizing] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const { toast } = useToast()
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   // Check if user already has Google Drive access
   useEffect(() => {
@@ -39,7 +41,8 @@ export const useGoogleDriveAuth = () => {
   // Check for OAuth response
   useEffect(() => {
     const checkForOAuthResponse = async () => {
-      if (window.location.pathname === "/drive" && window.location.hash) {
+      // Check for hash in URL which indicates OAuth response
+      if ((window.location.pathname === "/drive" || window.location.pathname === "/") && window.location.hash) {
         console.log("Detected OAuth redirect with hash:", window.location.hash)
         
         try {
@@ -88,6 +91,12 @@ export const useGoogleDriveAuth = () => {
               description: "Your Google Drive account has been successfully connected",
             })
             setIsAuthenticated(true)
+            
+            // Clean URL by removing hash and navigating to the /drive page
+            if (window.location.hash) {
+              const cleanUrl = window.location.pathname;
+              navigate('/drive', { replace: true });
+            }
           }
         } catch (error) {
           console.error("Error processing OAuth response:", error)
@@ -101,7 +110,7 @@ export const useGoogleDriveAuth = () => {
     }
     
     checkForOAuthResponse()
-  }, [toast, user])
+  }, [toast, user, navigate])
 
   const initiateGoogleAuth = async () => {
     setIsAuthorizing(true)
