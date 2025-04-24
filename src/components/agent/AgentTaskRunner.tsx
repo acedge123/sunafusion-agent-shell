@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,7 +92,7 @@ const AgentTaskRunner = ({
       const includeDrive = selectedTools.includes("file_search") || selectedTools.includes("file_analysis");
       if (includeDrive && !providerToken && !storedToken) {
         toast({
-          variant: "warning",
+          variant: "default",
           title: "Google Drive Access Required",
           description: "Your task involves Google Drive but you're not connected. Please connect your Google Drive first."
         });
@@ -132,7 +131,7 @@ const AgentTaskRunner = ({
       if (driveSource && driveSource.error) {
         console.error("Google Drive error detected:", driveSource.error);
         toast({
-          variant: "warning",
+          variant: "default",
           title: "Google Drive Access Issue",
           description: "There was an issue accessing your Google Drive. Try reconnecting your account."
         });
