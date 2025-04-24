@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
@@ -36,7 +35,6 @@ export const SlackAuth = () => {
     
     checkSlackConnection()
     
-    // Handle OAuth callback
     const handleOAuthCallback = async () => {
       const hash = window.location.hash
       if (hash) {
@@ -47,7 +45,6 @@ export const SlackAuth = () => {
           try {
             setConnecting(true)
             
-            // Store the token in Supabase
             const { error } = await supabase
               .from('slack_access')
               .upsert({
@@ -61,7 +58,6 @@ export const SlackAuth = () => {
               
             if (error) throw error
             
-            // Clean the URL hash
             window.history.replaceState({}, document.title, window.location.pathname)
             
             setIsConnected(true)
@@ -89,12 +85,10 @@ export const SlackAuth = () => {
   const connectSlack = () => {
     setConnecting(true)
     
-    // Slack OAuth client ID 
     const clientId = "105581126916.8801648634339"
     const redirectUri = window.location.origin
     const scopes = "channels:history,channels:read,search:read,users:read"
     
-    // Redirect to Slack OAuth
     const slackAuthUrl = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`
     window.location.href = slackAuthUrl
   }
