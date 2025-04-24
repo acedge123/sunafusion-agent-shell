@@ -9,6 +9,7 @@ import Index from "./pages/Index"
 import Auth from "./pages/Auth"
 import Drive from "./pages/Drive"
 import Chat from "./pages/Chat"
+import Agent from "./pages/Agent"
 import NotFound from "./pages/NotFound"
 
 const queryClient = new QueryClient()
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/drive" element={<Drive />} />
             <Route path="/chat" element={<Chat />} />
+            <Route path="/agent" element={<Agent />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

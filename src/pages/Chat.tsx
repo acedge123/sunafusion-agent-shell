@@ -1,9 +1,9 @@
 
 import { useState, useEffect, useRef } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useSearchParams, Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Send } from "lucide-react"
+import { Loader2, Send, Bot } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import ChatContainer, { Message } from "@/components/chat/ChatContainer"
@@ -208,10 +208,20 @@ const Chat = () => {
   return (
     <div className="flex flex-col h-screen">
       <header className="border-b p-4">
-        <h1 className="text-xl font-bold">TheGig.Agency Assistant</h1>
-        <p className="text-muted-foreground text-sm">
-          Ask me anything about your Google Drive files or general questions
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">TheGig.Agency Assistant</h1>
+            <p className="text-muted-foreground text-sm">
+              Ask me anything about your Google Drive files or general questions
+            </p>
+          </div>
+          <Button asChild variant="outline" className="ml-2">
+            <Link to="/agent" className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              Switch to Agent Mode
+            </Link>
+          </Button>
+        </div>
       </header>
       
       <div className="flex-1 overflow-y-auto p-4">

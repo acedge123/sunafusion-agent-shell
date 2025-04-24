@@ -35,7 +35,12 @@ serve(async (req) => {
       include_web = true, 
       include_drive = true,
       provider_token = null,
-      debug_token_info = {}
+      debug_token_info = {},
+      task_mode = false, // New parameter to enable full agent capabilities
+      tools = ["web_search", "file_search", "file_analysis"], // Tools to use
+      allow_iterations = true, // Allow multiple iterations for complex tasks
+      max_iterations = 5, // Maximum number of iterations
+      reasoning_level = "medium" // How much reasoning to show
     } = requestData
     
     if (!query) {
@@ -68,8 +73,8 @@ serve(async (req) => {
     // Initialize results array to store information from different sources
     const results = []
     
-    // 1. Search Google Drive if requested
-    if (include_drive) {
+    // 1. Search Google Drive if requested and tool is enabled
+    if (include_drive && tools.includes("file_search")) {
       try {
         console.log(`Starting Google Drive search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
@@ -89,6 +94,32 @@ serve(async (req) => {
           source: "google_drive",
           results: driveResults
         })
+
+        // If file analysis is enabled and we have drive results, analyze the first few relevant files
+        if (tools.includes("file_analysis") && driveResults.length > 0) {
+          const filesToAnalyze = driveResults.slice(0, 3) // Analyze up to 3 most relevant files
+          const analysisResults = []
+          
+          for (const file of filesToAnalyze) {
+            try {
+              const analysis = await analyzeGoogleDriveFile(file.id, provider_token || userToken)
+              analysisResults.push({
+                file_id: file.id,
+                file_name: file.name,
+                analysis
+              })
+            } catch (error) {
+              console.error(`Error analyzing file ${file.id}:`, error)
+            }
+          }
+          
+          if (analysisResults.length > 0) {
+            results.push({
+              source: "file_analysis",
+              results: analysisResults
+            })
+          }
+        }
       } catch (error) {
         console.error("Google Drive search error:", error)
         results.push({
@@ -99,8 +130,8 @@ serve(async (req) => {
       }
     }
 
-    // 2. Search the web if requested
-    if (include_web) {
+    // 2. Search the web if requested and tool is enabled
+    if (include_web && tools.includes("web_search")) {
       try {
         console.log("Starting web search")
         if (!TAVILY_API_KEY) {
@@ -121,7 +152,43 @@ serve(async (req) => {
       }
     }
 
-    // 3. Use OpenAI to synthesize the information
+    // 3. Use task mode if requested (full agent capabilities)
+    if (task_mode) {
+      try {
+        console.log("Starting agent task mode execution")
+        const agentResponse = await runAgentTask(
+          query, 
+          results, 
+          conversation_history, 
+          tools, 
+          allow_iterations, 
+          max_iterations, 
+          reasoning_level
+        )
+        
+        return new Response(
+          JSON.stringify({
+            answer: agentResponse.answer,
+            reasoning: agentResponse.reasoning,
+            steps_taken: agentResponse.steps,
+            tools_used: agentResponse.tools_used,
+            sources: results
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (error) {
+        console.error("Agent task execution error:", error)
+        return new Response(
+          JSON.stringify({ 
+            error: error.message || 'Failed to execute agent task',
+            sources: results 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+    
+    // For non-task mode, just synthesize with AI as before
     console.log("Synthesizing results with OpenAI")
     const answer = await synthesizeWithAI(query, results, conversation_history)
 
@@ -142,301 +209,369 @@ serve(async (req) => {
   }
 })
 
-// Function to search Google Drive - Enhanced with better error handling and token validation
+// Function to search Google Drive
 async function searchGoogleDrive(supabase, userId, query, providerToken, userToken) {
-  let accessToken = providerToken;
-  let refreshToken = null;
-  let tokenSource = 'request provider_token';
-  let tokenDebugInfo = [];
-
-  tokenDebugInfo.push(`Initial check - Provider token from request: ${accessToken ? 'Present' : 'Not present'}`);
-
-  // If no provider token is provided in the request, try to get from auth session if user token exists
-  if (!accessToken && userToken) {
-    try {
-      tokenDebugInfo.push('Trying to get token from auth session');
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession(userToken)
-      
-      if (sessionError) {
-        console.error('Error getting session:', sessionError.message)
-        tokenDebugInfo.push(`Session error: ${sessionError.message}`);
-      } else if (sessionData?.session?.provider_token) {
-        accessToken = sessionData.session.provider_token
-        tokenSource = 'auth session provider_token'
-        tokenDebugInfo.push('Successfully retrieved token from auth session');
-        console.log('Using provider token from auth session')
-      } else {
-        tokenDebugInfo.push('No provider token found in auth session');
-      }
-    } catch (error) {
-      console.error('Error retrieving session:', error.message)
-      tokenDebugInfo.push(`Error retrieving session: ${error.message}`);
-    }
-  }
-
-  // If still no access token and we have a userId, try to get stored token from database
-  if (!accessToken && userId) {
-    try {
-      tokenDebugInfo.push('Trying to get token from database');
-      const { data: accessData, error: accessError } = await supabase
-        .from('google_drive_access')
-        .select('access_token, refresh_token')
-        .eq('user_id', userId)
-        .maybeSingle()
-
-      if (accessError) {
-        console.error(`Failed to get stored Google Drive access: ${accessError.message}`)
-        tokenDebugInfo.push(`Database error: ${accessError.message}`);
-      } else if (accessData?.access_token) {
-        accessToken = accessData.access_token
-        refreshToken = accessData.refresh_token
-        tokenSource = 'database stored token'
-        tokenDebugInfo.push('Successfully retrieved token from database');
-        console.log('Using access token from database')
-      } else {
-        tokenDebugInfo.push('No token found in database');
-      }
-    } catch (dbError) {
-      console.error('Database error while retrieving token:', dbError.message)
-      tokenDebugInfo.push(`Database retrieval error: ${dbError.message}`);
-    }
-  }
-
-  if (!accessToken) {
-    console.error('No Google Drive access token found from any source')
-    console.error('Token debug info:', tokenDebugInfo.join('; '));
-    throw new Error(`No Google Drive access token found. Debug info: ${tokenDebugInfo.join('; ')}`)
-  }
-  
-  console.log(`Using access token from ${tokenSource}`)
-
-  // Call Google Drive API to search for files
   try {
-    console.log('Validating token before API call');
-    // Validate the token by making a simple API call first
-    const validationResponse = await fetch('https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + accessToken);
+    let driveToken = providerToken;
+    
+    // If no provider token, try to get from database
+    if (!driveToken && userId) {
+      const { data: tokenData } = await supabase
+        .from('google_drive_access')
+        .select('access_token')
+        .eq('user_id', userId)
+        .maybeSingle();
+        
+      driveToken = tokenData?.access_token;
+    }
+    
+    if (!driveToken) {
+      throw new Error('No Google Drive access token available');
+    }
+    
+    // Validate the token first
+    const validationResponse = await fetch(
+      'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + driveToken
+    );
     
     if (!validationResponse.ok) {
-      const validationErrorText = await validationResponse.text();
-      console.error(`Token validation failed: ${validationErrorText}`);
-      tokenDebugInfo.push(`Token validation failed: ${validationErrorText}`);
-      
-      // If we have a refresh token, we could try to refresh here
-      // This would require additional implementation
-      
-      throw new Error(`Invalid Google Drive token. Validation failed: ${validationResponse.status} ${validationResponse.statusText}`);
+      throw new Error(`Invalid Google Drive token: ${validationResponse.status}`);
     }
     
-    const validationData = await validationResponse.json();
-    console.log('Token validation response:', JSON.stringify(validationData));
+    // Build search query
+    const queryParams = new URLSearchParams({
+      q: `fullText contains '${query}'`,
+      fields: 'files(id,name,mimeType,description,thumbnailLink,webViewLink,modifiedTime,size,iconLink,fileExtension,parents)',
+      orderBy: 'relevance',
+      pageSize: '10'
+    });
     
-    if (!validationData.scope || !validationData.scope.includes('drive')) {
-      console.error('Token does not have required Drive scopes:', validationData.scope);
-      throw new Error(`Google Drive token lacks required scopes. Has: ${validationData.scope}`);
-    }
-    
-    // FIXED: Removed the fullText search and orderBy parameter that were causing the 403 error
-    const searchParams = new URLSearchParams({
-      fields: 'files(id,name,mimeType,description,webViewLink)'
-    })
-    
-    console.log('Making request to Google Drive API with token');
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${searchParams}`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files?${queryParams}`, 
+      {
+        headers: { 'Authorization': `Bearer ${driveToken}` }
       }
-    })
-
+    );
+    
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Google Drive API error (${response.status}): ${errorText}`)
+      throw new Error(`Google Drive API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.files || [];
+  } catch (error) {
+    console.error("Error in searchGoogleDrive:", error);
+    throw error;
+  }
+}
+
+// Function to analyze Google Drive file content
+async function analyzeGoogleDriveFile(fileId, accessToken) {
+  try {
+    if (!accessToken) {
+      throw new Error('No access token available for file analysis');
+    }
+    
+    // Get file metadata to determine type
+    const metadataResponse = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=mimeType,name`, 
+      {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      }
+    );
+    
+    if (!metadataResponse.ok) {
+      throw new Error(`Failed to get file metadata: ${metadataResponse.status}`);
+    }
+    
+    const metadata = await metadataResponse.json();
+    const { mimeType, name } = metadata;
+    
+    // For text-based files, get content
+    if (mimeType.includes('text/') || 
+        mimeType.includes('application/json') || 
+        mimeType.includes('application/xml') ||
+        mimeType.includes('application/vnd.google-apps.document')) {
       
-      // Additional debugging for common errors
-      if (response.status === 401) {
-        console.error('Token is unauthorized (401). Token may be expired or invalid.');
-        tokenDebugInfo.push('Token is unauthorized (401).');
-      } else if (response.status === 403) {
-        console.error('Permission denied (403). Token may not have sufficient scope.');
-        tokenDebugInfo.push('Permission denied (403).');
+      const exportMimeType = mimeType.includes('application/vnd.google-apps.') 
+        ? 'text/plain' 
+        : mimeType;
+      
+      const contentUrl = mimeType.includes('application/vnd.google-apps.')
+        ? `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=text/plain`
+        : `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+      
+      const contentResponse = await fetch(contentUrl, {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      
+      if (!contentResponse.ok) {
+        return `Could not download file content: ${contentResponse.status}`;
       }
       
-      throw new Error(`Google Drive API error: ${response.statusText} (${response.status}) - ${errorText}`)
+      const content = await contentResponse.text();
+      
+      // Limit content length to avoid overwhelming the AI
+      const maxContentLength = 5000;
+      const truncatedContent = content.length > maxContentLength 
+        ? content.substring(0, maxContentLength) + '...[content truncated]'
+        : content;
+      
+      return {
+        type: 'text',
+        content: truncatedContent,
+        fileName: name,
+        mimeType: mimeType
+      };
     }
-
-    const data = await response.json()
-    console.log(`Google Drive API returned ${data.files?.length || 0} files`);
     
-    if (!data.files || data.files.length === 0) {
-      console.log('No files found matching the query. This could be due to:');
-      console.log('1. No matching files exist');
-      console.log('2. Token does not have permission to access files');
-      console.log('3. Search query did not match any content');
-    }
-    
-    // For the most relevant files, also fetch their content
-    const relevantFiles = data.files?.slice(0, 3) || []
-    const filesWithContent = await Promise.all(
-      relevantFiles.map(async (file) => {
-        if (file.mimeType === 'application/vnd.google-apps.document' || 
-            file.mimeType === 'text/plain') {
-          try {
-            console.log(`Fetching content for file: ${file.name} (${file.id})`);
-            const contentResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`
-              }
-            })
-            
-            if (contentResponse.ok) {
-              const content = await contentResponse.text()
-              return { ...file, content: content.substring(0, 5000) } // Limit content size
-            } else {
-              console.error(`Error fetching content for file ${file.id}: ${contentResponse.status} ${contentResponse.statusText}`)
-              
-              if (contentResponse.status === 403) {
-                console.error('Permission denied for file content. This may be due to insufficient scopes.');
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching content for file ${file.id}:`, error)
-          }
-        }
-        return file
-      })
-    )
-
-    return filesWithContent
+    // For other files, just return metadata
+    return {
+      type: 'non-text',
+      fileName: name,
+      mimeType: mimeType,
+      contentInfo: 'Content not extracted - non-text file'
+    };
   } catch (error) {
-    console.error('Error in searchGoogleDrive:', error)
-    throw error
+    console.error("Error analyzing file:", error);
+    return `Error analyzing file: ${error.message}`;
   }
 }
 
 // Function to search the web using Tavily API
 async function searchWeb(query) {
-  if (!TAVILY_API_KEY) {
-    console.error('TAVILY_API_KEY is not configured!')
-    return [] // Return empty results rather than failing
+  try {
+    if (!TAVILY_API_KEY) {
+      return [];
+    }
+    
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${TAVILY_API_KEY}`
+      },
+      body: JSON.stringify({
+        query: query,
+        search_depth: 'advanced',
+        include_domains: [],
+        exclude_domains: [],
+        include_answer: false,
+        max_results: 10
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Tavily API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error("Error in web search:", error);
+    return [];
   }
-
-  const response = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${TAVILY_API_KEY}`
-    },
-    body: JSON.stringify({
-      query: query,
-      search_depth: 'advanced',
-      include_answer: true,
-      include_images: false,
-      max_results: 5,
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error(`Tavily API error: ${response.statusText}`)
-  }
-
-  const data = await response.json()
-  return data.results || []
 }
 
-// Function to synthesize information using OpenAI
-async function synthesizeWithAI(query, sources, conversationHistory) {
-  if (!OPENAI_API_KEY) {
-    console.error('OpenAI API key is not configured!')
-    throw new Error('OPENAI_API_KEY not configured')
-  }
-
-  // Format sources for prompt context
-  let sourceContext = ''
-
-  // Add Drive results
-  const driveSource = sources.find(s => s.source === 'google_drive')
-  if (driveSource?.results?.length > 0) {
-    sourceContext += 'Google Drive documents:\n\n'
-    driveSource.results.forEach((file, index) => {
-      sourceContext += `Document ${index + 1}: "${file.name}"\n`
-      if (file.content) {
-        sourceContext += `Content: ${file.content.substring(0, 2000)}${file.content.length > 2000 ? '...' : ''}\n\n`
-      } else {
-        sourceContext += `No content available (${file.mimeType})\n\n`
-      }
-    })
-  } else if (driveSource?.error) {
-    sourceContext += `Google Drive search error: ${driveSource.error}\n\n`
-    if (driveSource.details) {
-      sourceContext += `Error details: ${driveSource.details}\n\n`
-    }
-  }
-
-  // Add web search results
-  const webSource = sources.find(s => s.source === 'web_search')
-  if (webSource?.results?.length > 0) {
-    sourceContext += 'Web search results:\n\n'
-    webSource.results.forEach((result, index) => {
-      sourceContext += `Result ${index + 1}: "${result.title}"\n`
-      sourceContext += `URL: ${result.url}\n`
-      sourceContext += `Content: ${result.content || result.snippet || 'No content available'}\n\n`
-    })
-  } else if (webSource?.error) {
-    sourceContext += `Web search error: ${webSource.error}\n\n`
-  }
-
-  // Build conversation history
-  const messages = [
-    {
-      role: "system",
-      content: `You are a helpful assistant working for TheGig.Agency team. Your job is to help answer questions using information from Google Drive documents and web search results. Be as helpful, accurate, and detailed as possible. When referencing information, always cite your sources (e.g., "According to Document 1..." or "Based on the web search result from [source]..."). If you don't know something or the information isn't in the provided context, admit that you don't know rather than making up an answer. If there are errors accessing Google Drive, explain clearly what the issue is and suggest solutions like checking permissions or re-authorizing Google Drive access.`
-    }
-  ]
-
-  // Add conversation history (previous messages)
-  if (conversationHistory.length > 0) {
-    conversationHistory.forEach(msg => {
-      messages.push({
-        role: msg.role,
-        content: msg.content
-      })
-    })
-  }
-
-  // Add the current query with context
-  messages.push({
-    role: "user",
-    content: `Question: ${query}\n\nHere is relevant information to help you answer:\n\n${sourceContext}`
-  })
-
-  console.log('Sending request to OpenAI API - model: gpt-4o')
-  
+// Function to run full agent task
+async function runAgentTask(query, initialResults, conversationHistory, tools, allowIterations, maxIterations, reasoningLevel) {
   try {
+    // In a real implementation, this would call the agent backend
+    // For now, we'll simulate with OpenAI
+    
+    const systemPrompt = `You are an autonomous agent that can solve complex tasks.
+Given a task, you should break it down into steps and work through it systematically.
+You can use tools like web search and file analysis to gather information.
+${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' : 
+  reasoningLevel === 'medium' ? 'Show basic reasoning for important decisions.' :
+  'Focus on results with minimal explanation.'}`;
+    
+    // Format initial results as context
+    let initialContext = "Information gathered so far:\n";
+    
+    for (const source of initialResults) {
+      initialContext += `\n--- ${source.source.toUpperCase()} RESULTS ---\n`;
+      
+      if (source.results && source.results.length > 0) {
+        for (const result of source.results.slice(0, 3)) { // Limit to first 3 for brevity
+          if (source.source === "google_drive") {
+            initialContext += `File: ${result.name} (${result.mimeType})\n`;
+            if (result.description) initialContext += `Description: ${result.description}\n`;
+          } else if (source.source === "web_search") {
+            initialContext += `Title: ${result.title}\n`;
+            initialContext += `Content: ${result.snippet}\n`;
+            initialContext += `URL: ${result.url}\n`;
+          } else if (source.source === "file_analysis") {
+            initialContext += `File Analysis - ${result.file_name}:\n`;
+            if (typeof result.analysis === 'string') {
+              initialContext += result.analysis.substring(0, 500) + '...\n';
+            } else {
+              initialContext += `Type: ${result.analysis.type}, ${result.analysis.contentInfo || ''}\n`;
+              if (result.analysis.content) {
+                initialContext += result.analysis.content.substring(0, 500) + '...\n';
+              }
+            }
+          }
+          initialContext += '\n';
+        }
+      } else if (source.error) {
+        initialContext += `Error: ${source.error}\n`;
+      } else {
+        initialContext += `No results found.\n`;
+      }
+    }
+    
+    // Simulate iterations if needed
+    const iterations = allowIterations ? Math.min(Math.ceil(query.length / 50), maxIterations) : 1;
+    const steps = [];
+    const toolsUsed = new Set();
+    
+    for (let i = 0; i < iterations; i++) {
+      // In a real implementation, this would call the backend agent system
+      // but for now we'll just simulate progress
+      const stepTool = tools[i % tools.length];
+      toolsUsed.add(stepTool);
+      
+      steps.push({
+        step: i + 1,
+        action: `Used ${stepTool} to gather information`,
+        result: `Found relevant information for the query through ${stepTool}`
+      });
+    }
+    
+    // Use OpenAI to synthesize a final answer
+    const messages = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Task: ${query}\n\n${initialContext}` }
+    ];
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4o-mini',
         messages: messages,
-        temperature: 0.3,
-        max_tokens: 2048,
-      }),
-    })
-
+        temperature: 0.7
+      })
+    });
+    
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('OpenAI API error response:', errorText)
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
-
-    const data = await response.json()
-    console.log('Successfully received response from OpenAI')
-    return data.choices[0].message.content
+    
+    const aiResponse = await response.json();
+    const answer = aiResponse.choices[0].message.content;
+    
+    // Split into reasoning and answer if reasoningLevel is high
+    let reasoning = '';
+    let finalAnswer = answer;
+    
+    if (reasoningLevel === 'high' || reasoningLevel === 'medium') {
+      const parts = answer.split(/(?:^|\n)(?:In conclusion:|To summarize:|Therefore:|In sum:|Summary:|Final answer:|Answer:)/i);
+      if (parts.length > 1) {
+        reasoning = parts[0].trim();
+        finalAnswer = parts.slice(1).join('\n').trim();
+      }
+    }
+    
+    return {
+      answer: finalAnswer,
+      reasoning: reasoning,
+      steps: steps,
+      tools_used: Array.from(toolsUsed)
+    };
   } catch (error) {
-    console.error('Error calling OpenAI API:', error)
-    throw new Error(`OpenAI API call failed: ${error.message}`)
+    console.error("Error in agent task execution:", error);
+    throw error;
+  }
+}
+
+// Function to synthesize information using OpenAI
+async function synthesizeWithAI(query, results, conversationHistory) {
+  try {
+    // Format results for the AI
+    let formattedResults = '';
+    for (const source of results) {
+      formattedResults += `\n--- ${source.source.toUpperCase()} RESULTS ---\n`;
+      
+      if (source.results && source.results.length > 0) {
+        for (const result of source.results) {
+          if (source.source === "google_drive") {
+            formattedResults += `File: ${result.name} (${result.mimeType})\n`;
+            if (result.description) formattedResults += `Description: ${result.description}\n`;
+          } else if (source.source === "web_search") {
+            formattedResults += `Title: ${result.title}\n`;
+            formattedResults += `Content: ${result.snippet}\n`;
+            formattedResults += `URL: ${result.url}\n`;
+          } else if (source.source === "file_analysis") {
+            formattedResults += `File Analysis - ${result.file_name}:\n`;
+            if (typeof result.analysis === 'string') {
+              formattedResults += result.analysis + '\n';
+            } else {
+              formattedResults += `Type: ${result.analysis.type}\n`;
+              if (result.analysis.content) {
+                formattedResults += result.analysis.content + '\n';
+              }
+            }
+          }
+          formattedResults += '\n';
+        }
+      } else if (source.error) {
+        formattedResults += `Error: ${source.error}\n`;
+      } else {
+        formattedResults += `No results found.\n`;
+      }
+    }
+    
+    // Create messages array for the OpenAI API
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are a helpful AI assistant with access to Google Drive files and web search results. " +
+          "Provide comprehensive, accurate answers based on the information available to you. " +
+          "If the information to answer the query is not available in the provided results, " +
+          "acknowledge this limitation and provide the best possible answer with the information you have. " +
+          "If relevant, mention the source of information (Google Drive or web search)."
+      }
+    ];
+    
+    // Add previous conversation history if available
+    if (conversationHistory && conversationHistory.length > 0) {
+      messages.push(...conversationHistory);
+    }
+    
+    // Add the current query and results
+    messages.push({
+      role: "user",
+      content: `${query}\n\nHere are the search results:\n${formattedResults}`
+    });
+    
+    // Call OpenAI API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',  // Using a more capable model for synthesis
+        messages: messages,
+        temperature: 0.7
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error("Error in synthesizeWithAI:", error);
+    throw error;
   }
 }

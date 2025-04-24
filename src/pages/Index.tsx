@@ -1,3 +1,4 @@
+
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
@@ -8,7 +9,7 @@ import ChatInput from "@/components/chat/ChatInput"
 import { sendMessage } from "@/services/api"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { Loader2 } from "lucide-react"
+import { Loader2, Bot, MessageSquare, FileSearch } from "lucide-react"
 import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth"
 
 const Index = () => {
@@ -75,11 +76,35 @@ const Index = () => {
             <p className="text-muted-foreground mb-4">
               Your intelligent assistant that seamlessly searches both your Google Drive files and the web to provide comprehensive answers
             </p>
-            {!user && (
-              <Button asChild>
-                <Link to="/auth">Sign In to Access All Features</Link>
+            
+            <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+              {!user && (
+                <Button asChild>
+                  <Link to="/auth">Sign In to Access All Features</Link>
+                </Button>
+              )}
+              
+              <Button asChild variant="outline">
+                <Link to="/chat" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Chat
+                </Link>
               </Button>
-            )}
+              
+              <Button asChild variant="outline">
+                <Link to="/drive" className="flex items-center gap-2">
+                  <FileSearch className="h-4 w-4" />
+                  Drive Files
+                </Link>
+              </Button>
+              
+              <Button asChild variant="default">
+                <Link to="/agent" className="flex items-center gap-2">
+                  <Bot className="h-4 w-4" />
+                  AI Agent
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
       </div>
