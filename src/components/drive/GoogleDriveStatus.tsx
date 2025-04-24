@@ -1,15 +1,17 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { RefreshCw, AlertCircle, Check, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertCircle, Check, AlertTriangle, LogIn } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useGoogleDriveAuth } from "@/hooks/useGoogleDriveAuth";
 
 export const GoogleDriveStatus = () => {
   const [tokenStatus, setTokenStatus] = useState<'checking' | 'valid' | 'invalid' | 'unknown'>('checking');
   const [scopeStatus, setScopeStatus] = useState<'checking' | 'valid' | 'invalid' | 'unknown'>('checking');
   const [isChecking, setIsChecking] = useState(false);
   const { toast } = useToast();
+  const { initiateGoogleAuth } = useGoogleDriveAuth();
 
   const checkDriveToken = async () => {
     setIsChecking(true);
@@ -37,13 +39,8 @@ export const GoogleDriveStatus = () => {
       }
       
       if (!accessToken) {
-        setTokenStatus('unknown');
+        setTokenStatus('invalid');
         setScopeStatus('unknown');
-        toast({
-          variant: "destructive",
-          title: "No Access Token",
-          description: "Could not find a Google Drive access token"
-        });
         return;
       }
       
@@ -66,7 +63,7 @@ export const GoogleDriveStatus = () => {
         if (!hasReadScope || !hasMetadataScope || !hasFileScope) {
           setScopeStatus('invalid');
           toast({
-            variant: "default", // Changed from "warning"
+            variant: "default",
             title: "Token Scope Issue",
             description: "Your Google Drive token is missing some required scopes. Consider reconnecting."
           });
@@ -87,47 +84,27 @@ export const GoogleDriveStatus = () => {
           });
           
           if (!filesResponse.ok) {
+            setTokenStatus('invalid');
             console.error(`API test failed: ${filesResponse.status} ${filesResponse.statusText}`);
             const errorText = await filesResponse.text();
             console.error(`API error: ${errorText}`);
-            
-            toast({
-              variant: "destructive", // Changed from "warning"
-              title: "API Access Issue",
-              description: `API call test failed: ${filesResponse.status} ${filesResponse.statusText}`
-            });
           } else {
             const filesData = await filesResponse.json();
             console.log(`API test returned ${filesData.files?.length || 0} files`);
-            
-            toast({
-              variant: "default",
-              title: "API Access Confirmed",
-              description: "Successfully accessed Google Drive API"
-            });
           }
         } catch (apiError) {
           console.error("API test error:", apiError);
+          setTokenStatus('invalid');
         }
         
       } else {
         setTokenStatus('invalid');
         setScopeStatus('unknown');
-        toast({
-          variant: "destructive",
-          title: "Invalid Token",
-          description: "Your Google Drive token is invalid or expired"
-        });
       }
     } catch (error) {
       console.error("Error checking token:", error);
       setTokenStatus('unknown');
       setScopeStatus('unknown');
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not verify Google Drive token status"
-      });
     } finally {
       setIsChecking(false);
     }
@@ -137,6 +114,10 @@ export const GoogleDriveStatus = () => {
   useEffect(() => {
     checkDriveToken();
   }, []);
+
+  const handleReconnect = () => {
+    initiateGoogleAuth();
+  };
   
   return (
     <div className="p-4 bg-muted/40 rounded-lg">
@@ -161,7 +142,7 @@ export const GoogleDriveStatus = () => {
             </p>
             <p className="text-xs text-muted-foreground">
               {tokenStatus === 'valid' && "Your account is successfully connected to Google Drive"}
-              {tokenStatus === 'invalid' && "Your connection has expired or is invalid. Please reconnect."}
+              {tokenStatus === 'invalid' && "Your connection has expired or is invalid"}
               {tokenStatus === 'checking' && "Verifying your Google Drive connection..."}
               {tokenStatus === 'unknown' && "Could not determine connection status"}
             </p>
@@ -188,24 +169,38 @@ export const GoogleDriveStatus = () => {
             </p>
             <p className="text-xs text-muted-foreground">
               {scopeStatus === 'valid' && "Your connection has all required permissions"}
-              {scopeStatus === 'invalid' && "Some required permissions are missing. Consider reconnecting."}
+              {scopeStatus === 'invalid' && "Some required permissions are missing"}
               {scopeStatus === 'checking' && "Verifying access permissions..."}
               {scopeStatus === 'unknown' && "Could not determine permission status"}
             </p>
           </div>
         </div>
         
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={checkDriveToken}
-          disabled={isChecking}
-          className="self-end mt-2"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
-          Check Status
-        </Button>
+        <div className="flex justify-end gap-2">
+          {(tokenStatus === 'invalid' || scopeStatus === 'invalid') && (
+            <Button 
+              variant="default"
+              onClick={handleReconnect}
+              disabled={isChecking}
+              className="bg-primary"
+            >
+              <LogIn className="h-4 w-4 mr-2" />
+              Reconnect to Google Drive
+            </Button>
+          )}
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={checkDriveToken}
+            disabled={isChecking}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
+            Check Status
+          </Button>
+        </div>
       </div>
     </div>
   );
 };
+
