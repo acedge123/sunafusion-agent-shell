@@ -34,8 +34,8 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
     {
       id: "creator_iq",
       name: "Creator IQ",
-      description: "Access publisher, campaign, and list data from Creator IQ platform",
-      icon: <Briefcase className="h-4 w-4" />
+      description: "Access lists, publishers, and campaigns from the Creator IQ platform",
+      icon: <ListFilter className="h-4 w-4" />
     }
   ];
 
