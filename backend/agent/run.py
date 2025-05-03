@@ -58,12 +58,7 @@ async def run_agent(
     
     # Print environment variables for debugging
     print("Checking environment variables for data providers:")
-    print(f"CREATOR_IQ_API_KEY available: {bool(os.getenv('CREATOR_IQ_API_KEY'))}")
-    print(f"RAPID_API_KEY available: {bool(os.getenv('RAPID_API_KEY'))}")
     print(f"TAVILY_API_KEY available: {bool(os.getenv('TAVILY_API_KEY'))}")
-    
-    if not os.getenv('CREATOR_IQ_API_KEY'):
-        print("WARNING: CREATOR_IQ_API_KEY is not set. Creator IQ features will not work!")
     
     # Initialize tools with project_id instead of sandbox object
     # This ensures each tool independently verifies it's operating on the correct project
@@ -80,15 +75,12 @@ async def run_agent(
     else:
         logger.warning("TAVILY_API_KEY not found, WebSearchTool will not be available.")
     
-    if os.getenv("RAPID_API_KEY") and os.getenv("CREATOR_IQ_API_KEY"):
+    if os.getenv("RAPID_API_KEY"):
         # Initialize DataProvidersTool with explicit real data only settings
         thread_manager.add_tool(DataProvidersTool)
         print("DataProvidersTool initialized successfully with forced real data mode.")
     else:
-        if not os.getenv("RAPID_API_KEY"):
-            logger.warning("RAPID_API_KEY not found, data providers may be limited.")
-        if not os.getenv("CREATOR_IQ_API_KEY"):
-            logger.warning("CREATOR_IQ_API_KEY not found, Creator IQ features will not be available.")
+        logger.warning("RAPID_API_KEY not found, data providers may be limited.")
 
     system_message = { "role": "system", "content": get_system_prompt() }
 
@@ -161,7 +153,6 @@ async def run_agent(
             "real_data_only": True,
             "force_live_data": True,
             "agent_capabilities": {
-                "creator_iq_access": True,
                 "web_search": True,
                 "file_access": True,
                 "real_time_data": True,

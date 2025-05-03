@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -38,7 +37,7 @@ const AgentTaskRunner = ({
 }: AgentTaskRunnerProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
-  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis", "creator_iq"]);
+  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis"]);
   const [reasoningLevel, setReasoningLevel] = useState<"low" | "medium" | "high">("medium");
   const [driveError, setDriveError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -128,7 +127,6 @@ const AgentTaskRunner = ({
           include_web: selectedTools.includes("web_search"),
           include_drive: includeDrive && driveToken !== null,
           include_slack: selectedTools.includes("slack_search"),
-          include_creator_iq: selectedTools.includes("creator_iq"),
           provider_token: driveToken,
           debug_token_info: {
             hasProviderToken: !!driveToken,
@@ -154,7 +152,6 @@ const AgentTaskRunner = ({
           real_data_only: true,
           force_live_data: true,
           agent_capabilities: {
-            creator_iq_access: true,
             web_search: true,
             file_access: true,
             real_time_data: true,

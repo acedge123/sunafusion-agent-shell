@@ -1,3 +1,4 @@
+
 import json
 
 from agentpress.tool import Tool, ToolResult, openapi_schema, xml_schema
@@ -6,7 +7,6 @@ from agent.tools.data_providers.YahooFinanceProvider import YahooFinanceProvider
 from agent.tools.data_providers.AmazonProvider import AmazonProvider
 from agent.tools.data_providers.ZillowProvider import ZillowProvider
 from agent.tools.data_providers.TwitterProvider import TwitterProvider
-from agent.tools.data_providers.CreatorIQProvider import CreatorIQProvider
 
 class DataProvidersTool(Tool):
     """Tool for making requests to various data providers."""
@@ -19,8 +19,7 @@ class DataProvidersTool(Tool):
             "yahoo_finance": YahooFinanceProvider(),
             "amazon": AmazonProvider(),
             "zillow": ZillowProvider(),
-            "twitter": TwitterProvider(),
-            "creator_iq": CreatorIQProvider()
+            "twitter": TwitterProvider()
         }
 
     @openapi_schema({
@@ -156,7 +155,7 @@ Use this tool when you need to discover what endpoints are available.
             
             data_provider = self.register_data_providers[service_name]
             if route == service_name:
-                return self.fail_response(f"route '{route}' is the same as service_name '{service_name}'. YOU FUCKING IDIOT!")
+                return self.fail_response(f"route '{route}' is the same as service_name '{service_name}'.")
             
             if route not in data_provider.get_endpoints().keys():
                 return self.fail_response(f"Endpoint '{route}' not found in {service_name} data provider.")

@@ -73,7 +73,6 @@ export async function sendMessage(content: string): Promise<Message> {
         include_web: true,
         include_drive: true,
         include_slack: true,
-        include_creator_iq: true,
         provider_token: providerToken || storedToken,
         debug_token_info: {
           hasProviderToken: !!providerToken,
@@ -84,7 +83,7 @@ export async function sendMessage(content: string): Promise<Message> {
           simulationDisabled: true
         },
         task_mode: true,
-        tools: ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"],
+        tools: ["web_search", "file_search", "file_analysis", "slack_search"],
         allow_iterations: true,
         max_iterations: 5,
         reasoning_level: "medium",
@@ -95,7 +94,6 @@ export async function sendMessage(content: string): Promise<Message> {
         real_data_only: true,
         force_live_data: true,
         agent_capabilities: {
-          creator_iq_access: true,
           web_search: true,
           file_access: true,
           real_time_data: true,
