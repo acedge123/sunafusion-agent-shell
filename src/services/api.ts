@@ -85,7 +85,14 @@ export async function sendMessage(content: string): Promise<Message> {
         max_iterations: 5,
         reasoning_level: "medium",
         enable_real_data: true, // Explicitly enable real data usage
-        use_external_apis: true  // Explicitly enable external API usage
+        use_external_apis: true,  // Explicitly enable external API usage
+        external_access: true,    // Additional flag to emphasize external data access
+        agent_capabilities: {     // Add detailed capabilities object
+          creator_iq_access: true,
+          web_search: true,
+          file_access: true,
+          real_time_data: true
+        }
       },
       headers: authToken ? {
         Authorization: `Bearer ${authToken}`

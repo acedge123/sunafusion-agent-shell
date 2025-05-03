@@ -122,6 +122,7 @@ const AgentTaskRunner = ({
           conversation_history: [],
           include_web: selectedTools.includes("web_search"),
           include_drive: includeDrive && driveToken !== null,
+          include_slack: selectedTools.includes("slack_search"),
           include_creator_iq: selectedTools.includes("creator_iq"),
           provider_token: driveToken,
           task_mode: true,
@@ -135,6 +136,15 @@ const AgentTaskRunner = ({
           allow_iterations: true,
           max_iterations: 5,
           reasoning_level: reasoningLevel,
+          enable_real_data: true, // Explicitly enable real data usage
+          use_external_apis: true,  // Explicitly enable external API usage
+          external_access: true,    // Additional flag to emphasize external data access
+          agent_capabilities: {     // Add detailed capabilities object
+            creator_iq_access: true,
+            web_search: true,
+            file_access: true,
+            real_time_data: true
+          }
         },
         headers: authToken ? {
           Authorization: `Bearer ${authToken}`
