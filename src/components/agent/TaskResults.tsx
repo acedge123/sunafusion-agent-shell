@@ -116,26 +116,31 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                         )}
                       </div>
                       <div className="space-y-2 mt-3">
-                        {endpoint.data.CampaignCollection.map((campaignItem: any, cIdx: number) => (
-                          <div key={cIdx} className="border rounded p-3 bg-muted/30">
-                            <h5 className="font-medium">
-                              {campaignItem.Campaign?.CampaignName || "Unnamed Campaign"}
-                            </h5>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
-                              <div>ID: <span className="text-muted-foreground">{campaignItem.Campaign?.CampaignId}</span></div>
-                              <div>Status: <span className="text-muted-foreground">{campaignItem.Campaign?.CampaignStatus || "Unknown"}</span></div>
-                              {campaignItem.Campaign?.StartDate && (
-                                <div>Start: <span className="text-muted-foreground">{campaignItem.Campaign.StartDate}</span></div>
-                              )}
-                              {campaignItem.Campaign?.EndDate && (
-                                <div>End: <span className="text-muted-foreground">{campaignItem.Campaign.EndDate}</span></div>
-                              )}
-                              {campaignItem.Campaign?.PublishersCount !== undefined && (
-                                <div>Publishers: <span className="text-muted-foreground">{campaignItem.Campaign.PublishersCount}</span></div>
-                              )}
+                        {endpoint.data.CampaignCollection.map((campaignItem: any, cIdx: number) => {
+                          // Make sure we're accessing the nested campaign data correctly
+                          const campaignData = campaignItem.Campaign || {};
+                          
+                          return (
+                            <div key={cIdx} className="border rounded p-3 bg-muted/30">
+                              <h5 className="font-medium">
+                                {campaignData.CampaignName || "Unnamed Campaign"}
+                              </h5>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
+                                <div>ID: <span className="text-muted-foreground">{campaignData.CampaignId}</span></div>
+                                <div>Status: <span className="text-muted-foreground">{campaignData.CampaignStatus || "Unknown"}</span></div>
+                                {campaignData.StartDate && (
+                                  <div>Start: <span className="text-muted-foreground">{campaignData.StartDate}</span></div>
+                                )}
+                                {campaignData.EndDate && (
+                                  <div>End: <span className="text-muted-foreground">{campaignData.EndDate}</span></div>
+                                )}
+                                {campaignData.PublishersCount !== undefined && (
+                                  <div>Publishers: <span className="text-muted-foreground">{campaignData.PublishersCount}</span></div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </Fragment>
                   )}
@@ -146,22 +151,27 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                         {endpoint.data.total} lists found (page {endpoint.data.page} of {endpoint.data.total_pages || 1})
                       </div>
                       <div className="space-y-2 mt-3">
-                        {endpoint.data.ListsCollection.map((listItem: any, lIdx: number) => (
-                          <div key={lIdx} className="border rounded p-3 bg-muted/30">
-                            <h5 className="font-medium">
-                              {listItem.List?.Name || "Unnamed List"}
-                            </h5>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
-                              <div>ID: <span className="text-muted-foreground">{listItem.List?.Id}</span></div>
-                              {listItem.List?.Description && (
-                                <div className="col-span-2">Description: <span className="text-muted-foreground">{listItem.List.Description}</span></div>
-                              )}
-                              {listItem.List?.Publishers && (
-                                <div className="col-span-2">Publishers: <span className="text-muted-foreground">{listItem.List.Publishers.length}</span></div>
-                              )}
+                        {endpoint.data.ListsCollection.map((listItem: any, lIdx: number) => {
+                          // Make sure we're accessing the nested list data correctly
+                          const listData = listItem.List || {};
+                          
+                          return (
+                            <div key={lIdx} className="border rounded p-3 bg-muted/30">
+                              <h5 className="font-medium">
+                                {listData.Name || "Unnamed List"}
+                              </h5>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
+                                <div>ID: <span className="text-muted-foreground">{listData.Id}</span></div>
+                                {listData.Description && (
+                                  <div className="col-span-2">Description: <span className="text-muted-foreground">{listData.Description}</span></div>
+                                )}
+                                {listData.Publishers && (
+                                  <div className="col-span-2">Publishers: <span className="text-muted-foreground">{listData.Publishers.length}</span></div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </Fragment>
                   )}
@@ -172,22 +182,27 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                         {endpoint.data.total} publishers found (page {endpoint.data.page} of {endpoint.data.total_pages || 1})
                       </div>
                       <div className="space-y-2 mt-3">
-                        {endpoint.data.PublisherCollection.map((publisherItem: any, pIdx: number) => (
-                          <div key={pIdx} className="border rounded p-3 bg-muted/30">
-                            <h5 className="font-medium">
-                              {publisherItem.Publisher?.PublisherName || "Unnamed Publisher"}
-                            </h5>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
-                              <div>ID: <span className="text-muted-foreground">{publisherItem.Publisher?.Id}</span></div>
-                              {publisherItem.Publisher?.Status && (
-                                <div>Status: <span className="text-muted-foreground">{publisherItem.Publisher.Status}</span></div>
-                              )}
-                              {publisherItem.Publisher?.TotalSubscribers && (
-                                <div>Subscribers: <span className="text-muted-foreground">{publisherItem.Publisher.TotalSubscribers}</span></div>
-                              )}
+                        {endpoint.data.PublisherCollection.map((publisherItem: any, pIdx: number) => {
+                          // Make sure we're accessing the nested publisher data correctly
+                          const publisherData = publisherItem.Publisher || {};
+                          
+                          return (
+                            <div key={pIdx} className="border rounded p-3 bg-muted/30">
+                              <h5 className="font-medium">
+                                {publisherData.PublisherName || "Unnamed Publisher"}
+                              </h5>
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
+                                <div>ID: <span className="text-muted-foreground">{publisherData.Id}</span></div>
+                                {publisherData.Status && (
+                                  <div>Status: <span className="text-muted-foreground">{publisherData.Status}</span></div>
+                                )}
+                                {publisherData.TotalSubscribers && (
+                                  <div>Subscribers: <span className="text-muted-foreground">{publisherData.TotalSubscribers}</span></div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </Fragment>
                   )}
@@ -199,6 +214,13 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                     <pre className="overflow-auto text-xs p-3 bg-muted/30 rounded-md max-h-96">
                       {JSON.stringify(endpoint.data, null, 2)}
                     </pre>
+                  )}
+                  
+                  {/* Display error if there was an issue with this endpoint */}
+                  {endpoint.error && (
+                    <div className="text-sm text-red-500 border border-red-200 rounded p-2 mt-2">
+                      Error: {endpoint.error}
+                    </div>
                   )}
                 </div>
               ))}
