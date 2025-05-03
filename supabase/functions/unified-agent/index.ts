@@ -77,7 +77,6 @@ serve(async (req) => {
     
     // 1. Search Google Drive if requested and tool is enabled
     if (include_drive && tools.includes("file_search")) {
-      // ... keep existing code (Google Drive search)
       try {
         console.log(`Starting Google Drive search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
@@ -152,7 +151,6 @@ serve(async (req) => {
 
     // 2. Search the web if requested and tool is enabled
     if (include_web && tools.includes("web_search")) {
-      // ... keep existing code (Web search)
       try {
         console.log("Starting web search")
         if (!TAVILY_API_KEY) {
@@ -175,7 +173,6 @@ serve(async (req) => {
 
     // 3. Search Slack if requested and tool is enabled
     if (include_slack && tools.includes("slack_search")) {
-      // ... keep existing code (Slack search)
       try {
         console.log(`Starting Slack search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
@@ -524,39 +521,224 @@ async function searchWeb(query) {
   }
 }
 
-// Updated function to query Creator IQ
+// Updated function to query Creator IQ - implementing proper two-step approach
 async function queryCreatorIQ(query) {
   try {
     if (!CREATOR_IQ_API_KEY) {
+      console.log("CREATOR_IQ_API_KEY is not configured")
       return [];
     }
 
     // Use NLP to determine which Creator IQ endpoint to query based on the query
     const endpoints = determineCreatorIQEndpoints(query);
     const results = [];
-
+    
     // Updated base URL
     const baseUrl = 'https://apis.creatoriq.com/crm/v1/api';
     
     console.log(`Using Creator IQ base URL: ${baseUrl}`);
+    console.log(`Selected ${endpoints.length} endpoints for query: "${query}"`);
 
     for (const endpoint of endpoints) {
-      const payload = buildCreatorIQPayload(endpoint, query);
+      console.log(`Processing endpoint: ${endpoint.name} (${endpoint.route})`);
       
-      // Set up headers for Creator IQ API
-      const headers = {
-        'Authorization': `Bearer ${CREATOR_IQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      };
+      // STEP 1: If endpoint requires an ID, first search to find the correct ID
+      let entityId = null;
+      let entityDetails = null;
+      const requiresIdSearch = endpoint.route.includes("{list_id}") || 
+                               endpoint.route.includes("{publisher_id}") || 
+                               endpoint.route.includes("{campaign_id}");
       
-      const url = `${baseUrl}${endpoint.route}`;
-      
-      console.log(`Querying Creator IQ endpoint: ${endpoint.route} with payload:`, payload);
+      if (requiresIdSearch) {
+        let searchEndpoint;
+        let searchTerm;
+        
+        // Determine which type of entity we need to search for
+        if (endpoint.route.includes("{list_id}")) {
+          searchEndpoint = endpoints.find(e => e.name === "Get Lists") || {
+            route: "/lists",
+            method: "GET",
+            name: "Get Lists"
+          };
+          
+          // Extract list name from query
+          const listNameMatch = query.toLowerCase().match(/list\s+([a-z0-9\s]+)/i) || 
+                                query.toLowerCase().match(/([a-z0-9\s]+)\s+list/i);
+                                
+          searchTerm = listNameMatch && listNameMatch[1] ? listNameMatch[1].trim() : query;
+          console.log(`Searching for list name: "${searchTerm}"`);
+        } 
+        else if (endpoint.route.includes("{campaign_id}")) {
+          searchEndpoint = endpoints.find(e => e.name === "List Campaigns") || {
+            route: "/campaigns",
+            method: "GET",
+            name: "List Campaigns"
+          };
+          
+          // Extract campaign name from query
+          const campaignNameMatch = query.toLowerCase().match(/campaign\s+([a-z0-9\s]+)/i) || 
+                                   query.toLowerCase().match(/([a-z0-9\s]+)\s+campaign/i);
+                                   
+          searchTerm = campaignNameMatch && campaignNameMatch[1] ? campaignNameMatch[1].trim() : query;
+          console.log(`Searching for campaign name: "${searchTerm}"`);
+        }
+        else if (endpoint.route.includes("{publisher_id}")) {
+          searchEndpoint = endpoints.find(e => e.name === "List Publishers") || {
+            route: "/publishers",
+            method: "GET",
+            name: "List Publishers"
+          };
+          
+          // Extract publisher name from query
+          const publisherNameMatch = query.toLowerCase().match(/publisher\s+([a-z0-9\s]+)/i) || 
+                                    query.toLowerCase().match(/([a-z0-9\s]+)\s+publisher/i) ||
+                                    query.toLowerCase().match(/influencer\s+([a-z0-9\s]+)/i) || 
+                                    query.toLowerCase().match(/([a-z0-9\s]+)\s+influencer/i);
+                                    
+          searchTerm = publisherNameMatch && publisherNameMatch[1] ? publisherNameMatch[1].trim() : query;
+          console.log(`Searching for publisher name: "${searchTerm}"`);
+        }
+        
+        if (searchEndpoint) {
+          // Build search payload
+          const searchPayload = {
+            search: searchTerm,
+            limit: 10
+          };
+          
+          console.log(`STEP 1: Searching for ID using ${searchEndpoint.name} (${searchEndpoint.route}) with term: "${searchTerm}"`);
+          
+          // Make the search request
+          try {
+            // Set up headers for Creator IQ API
+            const headers = {
+              'Authorization': `Bearer ${CREATOR_IQ_API_KEY}`,
+              'Content-Type': 'application/json'
+            };
+            
+            // Build URL with query parameters for GET request
+            let url = `${baseUrl}${searchEndpoint.route}`;
+            const urlParams = new URLSearchParams();
+            Object.entries(searchPayload).forEach(([key, value]) => {
+              urlParams.append(key, value.toString());
+            });
+            
+            const fullUrl = `${url}?${urlParams.toString()}`;
+            console.log(`Making ID search request to: ${fullUrl}`);
+            
+            const searchResponse = await fetch(fullUrl, {
+              method: 'GET',
+              headers: headers
+            });
+            
+            if (!searchResponse.ok) {
+              const errorText = await searchResponse.text();
+              console.error(`Creator IQ API error during ID search (${searchResponse.status}): ${errorText}`);
+              throw new Error(`Creator IQ API search error: ${searchResponse.status} ${searchResponse.statusText}`);
+            }
+            
+            const searchData = await searchResponse.json();
+            console.log(`ID search returned ${searchData.data?.length || 0} results with total ${searchData.meta?.total || 0}`);
+            
+            // Find matching entity in search results
+            if (searchData.data && searchData.data.length > 0) {
+              let foundEntity = null;
+              
+              // First try exact name match
+              foundEntity = searchData.data.find(item => {
+                const itemName = item.name || 
+                                 (item.first_name && item.last_name ? 
+                                  `${item.first_name} ${item.last_name}`.trim() : "");
+                                  
+                return itemName.toLowerCase() === searchTerm.toLowerCase();
+              });
+              
+              // If no exact match, try partial match
+              if (!foundEntity) {
+                foundEntity = searchData.data.find(item => {
+                  const itemName = item.name || 
+                                   (item.first_name && item.last_name ? 
+                                    `${item.first_name} ${item.last_name}`.trim() : "");
+                                    
+                  return itemName.toLowerCase().includes(searchTerm.toLowerCase());
+                });
+              }
+              
+              // If still no match, use first result
+              if (!foundEntity && searchData.data.length > 0) {
+                foundEntity = searchData.data[0];
+                console.log(`No exact match found, using first result as best match`);
+              }
+              
+              if (foundEntity) {
+                entityId = foundEntity.id;
+                entityDetails = foundEntity;
+                
+                const entityName = foundEntity.name || 
+                                  (foundEntity.first_name && foundEntity.last_name ? 
+                                   `${foundEntity.first_name} ${foundEntity.last_name}`.trim() : "");
+                                   
+                console.log(`Found entity "${entityName}" with ID ${entityId}`);
+              }
+            } else {
+              console.log(`No matching entities found for search term: "${searchTerm}"`);
+            }
+          } catch (searchError) {
+            console.error(`Error searching for entity ID: ${searchError.message}`);
+            results.push({
+              endpoint: searchEndpoint.route,
+              name: searchEndpoint.name,
+              error: `Error searching for entity ID: ${searchError.message}`
+            });
+            continue;  // Skip to next endpoint
+          }
+        }
+        
+        // If we couldn't find an ID, skip this endpoint
+        if (!entityId) {
+          console.log(`Skipping endpoint ${endpoint.name} as no matching entity ID was found`);
+          results.push({
+            endpoint: endpoint.route,
+            name: endpoint.name,
+            error: `No matching entity ID found for search term: "${searchTerm}"`
+          });
+          continue;  // Skip to next endpoint
+        }
+      }
 
-      // Improved request handling
+      // STEP 2: Make the actual API call with the found ID or direct endpoint
       try {
+        // Prepare the payload with the found ID if applicable
+        const payload = {};
+        
+        if (entityId) {
+          if (endpoint.route.includes("{list_id}")) {
+            payload.list_id = entityId;
+            // Replace the placeholder in route with actual ID
+            endpoint.route = endpoint.route.replace("{list_id}", entityId);
+          } else if (endpoint.route.includes("{campaign_id}")) {
+            payload.campaign_id = entityId;
+            endpoint.route = endpoint.route.replace("{campaign_id}", entityId);
+          } else if (endpoint.route.includes("{publisher_id}")) {
+            payload.publisher_id = entityId;
+            endpoint.route = endpoint.route.replace("{publisher_id}", entityId);
+          }
+        }
+        
+        // Add limit parameter
+        payload.limit = 50;  // Fetch up to 50 items
+        
+        console.log(`STEP 2: Calling endpoint ${endpoint.name} (${endpoint.route}) with payload:`, payload);
+        
+        // Set up headers for Creator IQ API
+        const headers = {
+          'Authorization': `Bearer ${CREATOR_IQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        };
+        
         let response;
         if (endpoint.method === 'POST') {
+          const url = `${baseUrl}${endpoint.route}`;
           console.log(`Making POST request to ${url}`);
           response = await fetch(url, {
             method: 'POST',
@@ -564,25 +746,28 @@ async function queryCreatorIQ(query) {
             body: JSON.stringify(payload)
           });
         } else {
-          // For GET requests, properly build URL with query parameters
+          // For GET requests, build URL with query parameters
+          const url = `${baseUrl}${endpoint.route}`;
           const urlParams = new URLSearchParams();
-          if (payload) {
-            Object.entries(payload).forEach(([key, value]) => {
-              if (!endpoint.route.includes(`{${key}}`)) { // Only add if not used in route path
-                urlParams.append(key, value.toString());
-              }
-            });
-          }
+          
+          // Add payload values as URL parameters
+          Object.entries(payload).forEach(([key, value]) => {
+            // Skip adding parameter if it was already used in the route
+            if (!endpoint.route.includes(`{${key}}`)) { 
+              urlParams.append(key, value.toString());
+            }
+          });
           
           const fullUrl = `${url}${urlParams.toString() ? `?${urlParams.toString()}` : ''}`;
           console.log(`Making GET request to ${fullUrl}`);
+          
           response = await fetch(fullUrl, {
             method: 'GET',
             headers: headers
           });
         }
         
-        // Log response status and handle errors
+        // Log response status
         console.log(`Creator IQ API response status: ${response.status}`);
         
         if (!response.ok) {
@@ -592,13 +777,20 @@ async function queryCreatorIQ(query) {
         }
         
         const data = await response.json();
-        console.log(`Creator IQ response from ${endpoint.route}:`, data);
+        console.log(`Got successful response from ${endpoint.name} with ${data.data?.length || 0} items`);
         
-        results.push({
+        // If this was a related endpoint (like list_publishers), include the parent entity details
+        const result = {
           endpoint: endpoint.route,
           name: endpoint.name,
           data: data
-        });
+        };
+        
+        if (entityDetails) {
+          result.parent_entity = entityDetails;
+        }
+        
+        results.push(result);
       } catch (requestError) {
         console.error(`Error querying Creator IQ endpoint ${endpoint.route}:`, requestError);
         results.push({
@@ -611,7 +803,7 @@ async function queryCreatorIQ(query) {
 
     return results;
   } catch (error) {
-    console.error("Error querying Creator IQ:", error);
+    console.error("Error in queryCreatorIQ:", error);
     throw error;
   }
 }
@@ -653,439 +845,14 @@ function determineCreatorIQEndpoints(query) {
       name: "Get Campaign Details",
       keywords: ["campaign details", "campaign information", "campaign stats"]
     },
+    campaign_publishers: {
+      route: "/campaigns/{campaign_id}/publishers",
+      method: "GET",
+      name: "Get Campaign Publishers",
+      keywords: ["campaign publishers", "influencers in campaign", "campaign members", "campaign creators"]
+    },
     content: {
       route: "/content",
       method: "GET",
       name: "List Content",
-      keywords: ["content", "posts", "influencer content", "campaign content", "creator posts"]
-    },
-    // New List endpoints with keywords
-    lists: {
-      route: "/lists",
-      method: "GET",
-      name: "Get Lists",
-      keywords: ["lists", "publisher lists", "influencer lists", "get lists", "search lists", "list", "find list"]
-    },
-    list_details: {
-      route: "/lists/{list_id}",
-      method: "GET", 
-      name: "Get List Details",
-      keywords: ["list details", "list information", "specific list", "list data"]
-    },
-    list_publishers: {
-      route: "/lists/{list_id}/publishers",
-      method: "GET",
-      name: "Get Publishers in List",
-      keywords: ["list members", "publishers in list", "list publishers", "influencers in list", "count publishers", "list count"]
-    }
-  };
-  
-  // Check if query is asking for a specific list by name (e.g., "Ready Rocker Autism 4")
-  const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
-                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
-  
-  let listName = null;
-  if (listNameMatch && listNameMatch[1]) {
-    listName = listNameMatch[1].trim();
-    console.log(`Detected possible list name: "${listName}"`);
-  }
-  
-  // Check which endpoints match the query
-  let matchedEndpoints = false;
-  for (const [key, endpoint] of Object.entries(availableEndpoints)) {
-    const isRelevant = endpoint.keywords.some(keyword => lowerQuery.includes(keyword.toLowerCase()));
-    if (isRelevant) {
-      endpoints.push(endpoint);
-      matchedEndpoints = true;
-      console.log(`Matched endpoint: ${key} based on keywords`);
-    }
-  }
-  
-  // Special handling for list-related queries
-  if ((lowerQuery.includes("list") && !matchedEndpoints) || listName) {
-    // If there's a specific list name mentioned, prioritize list_details and list_publishers
-    if (listName) {
-      console.log(`Adding list endpoints for list name: "${listName}"`);
-      endpoints.push(availableEndpoints.lists);
-      
-      // If query is about counting or finding publishers in a list, add list_publishers endpoint
-      if (lowerQuery.includes("count") || 
-          lowerQuery.includes("publishers") || 
-          lowerQuery.includes("influencers")) {
-        endpoints.push(availableEndpoints.list_publishers);
-      }
-    } else {
-      // Generic list query without specific list name
-      endpoints.push(availableEndpoints.lists);
-    }
-  }
-  
-  // If no specific endpoints matched, return a default set
-  if (endpoints.length === 0) {
-    // Default to lists endpoint for this request as it's likely list related
-    if (lowerQuery.includes("list")) {
-      console.log("No specific endpoints matched, defaulting to lists endpoint");
-      endpoints.push(availableEndpoints.lists);
-    } else {
-      // Fall back to publishers and campaigns as most common use cases
-      console.log("No specific endpoints matched, defaulting to publishers and campaigns");
-      endpoints.push(availableEndpoints.publishers);
-      endpoints.push(availableEndpoints.campaigns);
-    }
-  }
-  
-  console.log(`Selected ${endpoints.length} endpoints for the query`);
-  return endpoints;
-}
-
-// Helper function to build the payload for Creator IQ API calls
-function buildCreatorIQPayload(endpoint, query) {
-  const payload = {
-    limit: 10
-  };
-  
-  // Extract any specific parameters from the query
-  const lowerQuery = query.toLowerCase();
-  
-  // Check for list name in the query
-  const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
-                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
-  
-  if (listNameMatch && listNameMatch[1]) {
-    const listName = listNameMatch[1].trim();
-    console.log(`Adding search parameter for list name: "${listName}"`);
-    payload.search = listName;
-  }
-  
-  // Handle list_id or campaign_id or publisher_id in the endpoint route
-  if (endpoint.route.includes("{list_id}")) {
-    // For demo purposes, use placeholder or extracted ID
-    // In a real implementation, we'd need a two-step process:
-    // 1. First search for the list to get its ID
-    // 2. Then use that ID for subsequent calls
-    if (payload.search) {
-      console.log(`List name search parameter exists: "${payload.search}", would use this to find ID first`);
-      // Note: In a complete implementation, we would first call the lists endpoint to find the ID
-      // Then use that ID in the next call. Simulating with placeholder for now.
-    }
-    payload.list_id = "placeholder-list-id";
-    console.log("Using placeholder list_id. In production, this would be determined dynamically.");
-  } else if (endpoint.route.includes("{publisher_id}")) {
-    payload.publisher_id = "placeholder-id";
-  } else if (endpoint.route.includes("{campaign_id}")) {
-    payload.campaign_id = "placeholder-id";
-  }
-  
-  // Add search parameter if it seems like a search query
-  if (lowerQuery.includes("search") || lowerQuery.includes("find") || lowerQuery.includes("look for")) {
-    if (!payload.search) {  // Only set if not already set from list name
-      payload.search = query;
-    }
-  }
-  
-  // Add status filter if mentioned
-  if (lowerQuery.includes("active")) {
-    payload.status = "active";
-  } else if (lowerQuery.includes("inactive")) {
-    payload.status = "inactive";
-  }
-  
-  return payload;
-}
-
-// Function to run full agent task
-async function runAgentTask(query, initialResults, conversationHistory, tools, allowIterations, maxIterations, reasoningLevel) {
-  try {
-    // In a real implementation, this would call the agent backend
-    // For now, we'll simulate with OpenAI
-    
-    const systemPrompt = `You are an autonomous agent that can solve complex tasks.
-Given a task, you should break it down into steps and work through it systematically.
-You can use tools like web search, file analysis, and Creator IQ to gather information.
-${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' : 
-  reasoningLevel === 'medium' ? 'Show basic reasoning for important decisions.' :
-  'Focus on results with minimal explanation.'}`;
-    
-    // Format initial results as context
-    let initialContext = "Information gathered so far:\n";
-    
-    // Process Google Drive results
-    const driveSource = initialResults.find(source => source.source === "google_drive");
-    if (driveSource) {
-      initialContext += "\n--- GOOGLE DRIVE FILES ---\n";
-      
-      if (driveSource.error) {
-        initialContext += `Error accessing Google Drive: ${driveSource.error}\n`;
-      } else if (driveSource.results && driveSource.results.length > 0) {
-        initialContext += `Found ${driveSource.results.length} relevant files in Google Drive:\n`;
-        for (const file of driveSource.results.slice(0, 5)) { // Limit to first 5 for brevity
-          initialContext += `- ${file.name} (${file.mimeType})\n`;
-          if (file.description) initialContext += `  Description: ${file.description}\n`;
-        }
-      } else {
-        initialContext += "No relevant files found in Google Drive.\n";
-      }
-    }
-    
-    // Process file analysis results
-    const analysisSource = initialResults.find(source => source.source === "file_analysis");
-    if (analysisSource) {
-      initialContext += "\n--- FILE ANALYSES ---\n";
-      
-      if (analysisSource.results && analysisSource.results.length > 0) {
-        for (const result of analysisSource.results) {
-          initialContext += `Analysis of "${result.file_name}":\n`;
-          if (typeof result.analysis === 'string') {
-            initialContext += result.analysis.substring(0, 1000) + '...\n\n';
-          } else if (result.analysis.content) {
-            initialContext += `Content: ${result.analysis.content.substring(0, 1000)}...\n\n`;
-          } else {
-            initialContext += `${result.analysis.contentInfo || 'No content available'}\n\n`;
-          }
-        }
-      } else {
-        initialContext += "No file analyses available.\n";
-      }
-    }
-    
-    // Process web search results
-    const webSource = initialResults.find(source => source.source === "web_search");
-    if (webSource) {
-      initialContext += "\n--- WEB SEARCH RESULTS ---\n";
-      
-      if (webSource.error) {
-        initialContext += `Error searching the web: ${webSource.error}\n`;
-      } else if (webSource.results && webSource.results.length > 0) {
-        for (const result of webSource.results.slice(0, 3)) { // Limit to first 3 for brevity
-          initialContext += `Title: ${result.title}\n`;
-          initialContext += `Content: ${result.snippet || ''}\n`;
-          initialContext += `URL: ${result.url}\n\n`;
-        }
-      } else {
-        initialContext += "No relevant web search results found.\n";
-      }
-    }
-    
-    // Process Slack results
-    const slackSource = initialResults.find(source => source.source === "slack");
-    if (slackSource) {
-      initialContext += "\n--- SLACK RESULTS ---\n";
-      
-      if (slackSource.error) {
-        initialContext += `Error accessing Slack: ${slackSource.error}\n`;
-      } else if (slackSource.results && slackSource.results.length > 0) {
-        for (const result of slackSource.results.slice(0, 3)) { // Limit to first 3 for brevity
-          initialContext += `Slack Message in ${result.channel || 'a channel'}:\n`;
-          initialContext += `Content: ${result.text}\n`;
-          initialContext += `User: ${result.user}\n`;
-          initialContext += `Timestamp: ${result.timestamp}\n`;
-          if (result.permalink) initialContext += `Link: ${result.permalink}\n`;
-        }
-      } else {
-        initialContext += "No relevant Slack messages found.\n";
-      }
-    }
-
-    // Process Creator IQ results
-    const creatorIQSource = initialResults.find(source => source.source === "creator_iq");
-    if (creatorIQSource) {
-      initialContext += "\n--- CREATOR IQ RESULTS ---\n";
-      
-      if (creatorIQSource.error) {
-        initialContext += `Error accessing Creator IQ: ${creatorIQSource.error}\n`;
-      } else if (creatorIQSource.results && creatorIQSource.results.length > 0) {
-        for (const result of creatorIQSource.results) {
-          initialContext += `Creator IQ Endpoint: ${result.name}\n`;
-          // Format data appropriately based on the endpoint
-          if (result.data) {
-            if (Array.isArray(result.data)) {
-              initialContext += `Found ${result.data.length} items\n`;
-              for (const item of result.data.slice(0, 3)) {
-                initialContext += `- ${JSON.stringify(item).substring(0, 200)}...\n`;
-              }
-            } else {
-              initialContext += `Data: ${JSON.stringify(result.data).substring(0, 300)}...\n`;
-            }
-          }
-          initialContext += '\n';
-        }
-      } else {
-        initialContext += "No relevant Creator IQ data found.\n";
-      }
-    }
-    
-    // Simulate iterations if needed
-    const iterations = allowIterations ? Math.min(Math.ceil(query.length / 50), maxIterations) : 1;
-    const steps = [];
-    const toolsUsed = new Set();
-    
-    for (let i = 0; i < iterations; i++) {
-      // In a real implementation, this would call the backend agent system
-      // but for now we'll just simulate progress
-      const stepTool = tools[i % tools.length];
-      toolsUsed.add(stepTool);
-      
-      steps.push({
-        step: i + 1,
-        action: `Used ${stepTool} to gather information`,
-        result: `Found relevant information for the query through ${stepTool}`
-      });
-    }
-    
-    // Use OpenAI to synthesize a final answer
-    const messages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `Task: ${query}\n\n${initialContext}` }
-    ];
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',  // Using a more capable model for synthesis
-        messages: messages,
-        temperature: 0.7
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-    
-    const aiResponse = await response.json();
-    const answer = aiResponse.choices[0].message.content;
-    
-    // Split into reasoning and answer if reasoningLevel is high
-    let reasoning = '';
-    let finalAnswer = answer;
-    
-    if (reasoningLevel === 'high' || reasoningLevel === 'medium') {
-      const parts = answer.split(/(?:^|\n)(?:In conclusion:|To summarize:|Therefore:|In sum:|Summary:|Final answer:|Answer:)/i);
-      if (parts.length > 1) {
-        reasoning = parts[0].trim();
-        finalAnswer = parts.slice(1).join('\n').trim();
-      }
-    }
-    
-    return {
-      answer: finalAnswer,
-      reasoning: reasoning,
-      steps: steps,
-      tools_used: Array.from(toolsUsed)
-    };
-  } catch (error) {
-    console.error("Error in agent task execution:", error)
-    throw error;
-  }
-}
-
-// Function to synthesize information using OpenAI
-async function synthesizeWithAI(query, results, conversationHistory) {
-  try {
-    // Format results for the AI
-    let formattedResults = '';
-    for (const source of results) {
-      formattedResults += `\n--- ${source.source.toUpperCase()} RESULTS ---\n`;
-      
-      if (source.results && source.results.length > 0) {
-        for (const result of source.results) {
-          if (source.source === "google_drive") {
-            formattedResults += `File: ${result.name} (${result.mimeType})\n`;
-            if (result.description) formattedResults += `Description: ${result.description}\n`;
-          } else if (source.source === "web_search") {
-            formattedResults += `Title: ${result.title}\n`;
-            formattedResults += `Content: ${result.snippet}\n`;
-            formattedResults += `URL: ${result.url}\n`;
-          } else if (source.source === "file_analysis") {
-            formattedResults += `File Analysis - ${result.file_name}:\n`;
-            if (typeof result.analysis === 'string') {
-              formattedResults += result.analysis + '\n';
-            } else {
-              formattedResults += `Type: ${result.analysis.type}\n`;
-              if (result.analysis.content) {
-                formattedResults += result.analysis.content + '\n';
-              } else if (result.analysis.contentInfo) {
-                formattedResults += result.analysis.contentInfo + '\n';
-              }
-            }
-          } else if (source.source === "slack") {
-            formattedResults += `Slack Message in ${result.channel || 'a channel'}:\n`;
-            formattedResults += `Content: ${result.text}\n`;
-            formattedResults += `User: ${result.user}\n`;
-            formattedResults += `Timestamp: ${result.timestamp}\n`;
-            if (result.permalink) formattedResults += `Link: ${result.permalink}\n`;
-          } else if (source.source === "creator_iq") {
-            formattedResults += `Creator IQ Data from ${result.name || 'API'}:\n`;
-            if (result.data) {
-              if (Array.isArray(result.data)) {
-                formattedResults += `Found ${result.data.length} items\n`;
-                for (const item of result.data.slice(0, 3)) {
-                  formattedResults += `Item: ${JSON.stringify(item).substring(0, 200)}...\n`;
-                }
-              } else {
-                formattedResults += `Data: ${JSON.stringify(result.data).substring(0, 300)}...\n`;
-              }
-            }
-          }
-          formattedResults += '\n';
-        }
-      } else if (source.error) {
-        formattedResults += `Error: ${source.error}\n`;
-      } else {
-        formattedResults += `No results found.\n`;
-      }
-    }
-    
-    // Create messages array for the OpenAI API
-    const messages = [
-      {
-        role: "system",
-        content:
-          "You are a helpful AI assistant with access to Google Drive files, web search results, Slack conversations, and Creator IQ data. " +
-          "Provide comprehensive, accurate answers based on the information available to you. " +
-          "If the information to answer the query is not available in the provided results, " +
-          "acknowledge this limitation and provide the best possible answer with the information you have. " +
-          "If relevant, mention the source of information (Google Drive, web search, Slack, or Creator IQ). " +
-          "If there are issues accessing any data sources, explain clearly what happened and suggest alternatives."
-      }
-    ];
-    
-    // Add previous conversation history if available
-    if (conversationHistory && conversationHistory.length > 0) {
-      messages.push(...conversationHistory);
-    }
-    
-    // Add the current query and results
-    messages.push({
-      role: "user",
-      content: `${query}\n\nHere are the search results:\n${formattedResults}`
-    });
-    
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',  // Using a more capable model for synthesis
-        messages: messages,
-        temperature: 0.7
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    console.error("Error in synthesizeWithAI:", error);
-    throw error;
-  }
-}
+      keywords: ["content
