@@ -1,96 +1,94 @@
 
-import { Badge } from "@/components/ui/badge";
-import { LockIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Check, X, Search, File, FileSearch, LogIn, Briefcase, ListFilter } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface ToolSelectorProps {
   selectedTools: string[];
   onToolToggle: (toolId: string) => void;
-  driveConnected: boolean;
+  driveConnected?: boolean;
 }
 
-type Tool = {
-  id: string;
-  name: string;
-  description: string;
-  disabled?: boolean;
-  needsAuth?: boolean;
-  authType?: "drive" | "slack";
-};
-
-export function ToolSelector({ selectedTools, onToolToggle, driveConnected }: ToolSelectorProps) {
-  const availableTools: Tool[] = [
+export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = false }: ToolSelectorProps) => {
+  const tools = [
     {
       id: "web_search",
       name: "Web Search",
-      description: "Search the web for real-time information"
+      description: "Search the web for information",
+      icon: <Search className="h-4 w-4" />
     },
     {
       id: "file_search",
-      name: "File Search",
+      name: "Google Drive Search",
       description: "Search through your Google Drive files",
-      disabled: !driveConnected,
-      needsAuth: true,
-      authType: "drive"
+      icon: <FileSearch className="h-4 w-4" />,
+      requiresDrive: true
     },
     {
       id: "file_analysis",
       name: "File Analysis",
-      description: "Analyze the content of your Google Drive files",
-      disabled: !driveConnected,
-      needsAuth: true,
-      authType: "drive"
+      description: "Analyze files from Google Drive",
+      icon: <File className="h-4 w-4" />,
+      requiresDrive: true
     },
     {
-      id: "slack_search",
-      name: "Slack Search",
-      description: "Search through your Slack messages and channels",
-      disabled: true, // Disabled until Slack is connected
-      needsAuth: true,
-      authType: "slack"
+      id: "creator_iq",
+      name: "Creator IQ",
+      description: "Access publisher, campaign, and list data from Creator IQ platform",
+      icon: <Briefcase className="h-4 w-4" />
     }
   ];
 
   return (
-    <div className="space-y-3">
-      <div className="text-sm font-medium">Available Tools</div>
-      <div className="flex flex-wrap gap-2">
-        {availableTools.map((tool) => {
+    <div className="space-y-2">
+      <h3 className="font-medium text-sm">Select tools to use:</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+        {tools.map((tool) => {
           const isSelected = selectedTools.includes(tool.id);
+          const isDriveAndDisconnected = tool.requiresDrive && !driveConnected;
+          
           return (
-            <div key={tool.id} className="relative">
-              <Badge
-                className={`px-3 py-1.5 text-xs cursor-pointer hover:bg-accent ${
-                  isSelected
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "bg-secondary text-secondary-foreground"
-                } ${tool.disabled ? "opacity-60 cursor-not-allowed" : ""}`}
-                onClick={() => {
-                  if (!tool.disabled) {
-                    onToolToggle(tool.id);
-                  }
-                }}
-              >
-                {tool.name}
-                {tool.needsAuth && !driveConnected && tool.authType === "drive" && (
-                  <LockIcon className="w-3 h-3 ml-1.5 inline-block" />
-                )}
-              </Badge>
-              {tool.disabled && tool.needsAuth && (
-                <div className="absolute -top-1 -right-1">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                  </span>
+            <div 
+              key={tool.id}
+              className={`border rounded-md p-3 cursor-pointer transition-colors ${
+                isSelected 
+                  ? 'bg-primary/10 border-primary/30' 
+                  : 'bg-muted/40 hover:bg-muted'
+              } ${isDriveAndDisconnected ? 'opacity-70' : ''}`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {tool.icon}
+                  <span className="font-medium">{tool.name}</span>
                 </div>
-              )}
+                {isDriveAndDisconnected ? (
+                  <Button asChild size="sm" variant="ghost" className="px-2 h-7">
+                    <Link to="/drive">
+                      <LogIn className="h-3 w-3 mr-1" /> Connect
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant={isSelected ? "default" : "outline"}
+                    className="px-2 h-7"
+                    onClick={() => onToolToggle(tool.id)}
+                  >
+                    {isSelected ? (
+                      <><Check className="h-3 w-3 mr-1" /> On</>
+                    ) : (
+                      <><X className="h-3 w-3 mr-1" /> Off</>
+                    )}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {tool.description}
+              </p>
             </div>
           );
         })}
       </div>
-      
-      <div className="text-xs text-muted-foreground">
-        Select the tools you want the agent to use. Some tools require authentication.
-      </div>
     </div>
   );
-}
+};

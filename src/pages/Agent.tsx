@@ -1,12 +1,13 @@
-
 import React, { useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth";
 import AgentTaskRunner from "@/components/agent/AgentTaskRunner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ListChecks, Brain, Bot } from "lucide-react";
+import { Brain, ListChecks, MessageSquare, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { v4 as uuidv4 } from "uuid";
 import ChatContainer, { Message } from "@/components/chat/ChatContainer";
 import { Link } from "react-router-dom";
@@ -19,14 +20,14 @@ const Agent = () => {
     "Find information about climate change impacts in coastal areas and compile the key findings",
     "Search for articles about machine learning applications in healthcare and identify the top trends",
     "Look through my Google Drive files related to project management and summarize the key points",
-    "Analyze my Google Drive documents about marketing strategies and compare different approaches",
-    "Search for research papers about artificial intelligence and summarize the key findings"
+    "Find influencer campaigns in Creator IQ with engagement rates above 5% from the last quarter",
+    "Analyze the performance of our top creators in Creator IQ and compare their metrics"
   ]);
   const [customPrompt, setCustomPrompt] = useState("");
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-message",
-      content: "Hello! I'm your AI agent assistant. I can help you complete complex tasks by using tools like web search and Google Drive integration.",
+      content: "Hello! I'm your AI agent assistant. I can help you complete complex tasks by using tools like web search, Google Drive integration, and Creator IQ data access.",
       role: "assistant",
       timestamp: new Date()
     }
@@ -53,7 +54,7 @@ const Agent = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">AI Agent</h1>
           <p className="text-muted-foreground mt-2">
-            Your autonomous AI agent that can complete complex tasks using tools like web search and Google Drive
+            Your autonomous AI agent that can complete complex tasks using tools like web search, Google Drive, and Creator IQ
           </p>
         </div>
 

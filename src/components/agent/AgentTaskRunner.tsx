@@ -37,7 +37,7 @@ const AgentTaskRunner = ({
 }: AgentTaskRunnerProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
-  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis"]);
+  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis", "creator_iq"]);
   const [reasoningLevel, setReasoningLevel] = useState<"low" | "medium" | "high">("medium");
   const [driveError, setDriveError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -65,8 +65,6 @@ const AgentTaskRunner = ({
     setDriveError(null);
 
     try {
-      console.log("Starting task execution with real data only");
-      
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData?.session?.access_token;
       
@@ -118,22 +116,14 @@ const AgentTaskRunner = ({
         }
       }
 
-      console.log("Invoking unified-agent with real_data_only=true and force_live_data=true");
-      
       const response = await supabase.functions.invoke('unified-agent', {
         body: {
           query: task,
           conversation_history: [],
           include_web: selectedTools.includes("web_search"),
           include_drive: includeDrive && driveToken !== null,
-          include_slack: selectedTools.includes("slack_search"),
+          include_creator_iq: selectedTools.includes("creator_iq"),
           provider_token: driveToken,
-          debug_token_info: {
-            hasProviderToken: !!driveToken,
-            userHasSession: !!sessionData?.session,
-            usingRealData: true,
-            simulationDisabled: true
-          },
           task_mode: true,
           tools: selectedTools.filter(tool => {
             // Filter out Drive tools if we don't have a valid token
@@ -145,19 +135,6 @@ const AgentTaskRunner = ({
           allow_iterations: true,
           max_iterations: 5,
           reasoning_level: reasoningLevel,
-          enable_real_data: true,
-          use_external_apis: true,
-          external_access: true,
-          simulation_mode: false,
-          real_data_only: true,
-          force_live_data: true,
-          agent_capabilities: {
-            web_search: true,
-            file_access: true,
-            real_time_data: true,
-            use_simulations: false,
-            force_real_data: true
-          }
         },
         headers: authToken ? {
           Authorization: `Bearer ${authToken}`
@@ -166,7 +143,6 @@ const AgentTaskRunner = ({
 
       if (response.error) throw response.error;
       
-      console.log("Received response from unified-agent:", response.data);
       setResult(response.data);
       
       // Handle Drive-specific errors from the response
@@ -215,7 +191,7 @@ const AgentTaskRunner = ({
             Task Runner
           </CardTitle>
           <CardDescription>
-            Describe your task and the agent will execute it using available tools with real data
+            Describe your task and the agent will execute it using available tools
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

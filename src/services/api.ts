@@ -3,6 +3,10 @@ import { Message } from "@/components/chat/ChatContainer";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 
+// Import useGoogleDrive hook from the correct location
+// Note: Since this is a non-component file, we can't use hooks directly
+// We'll need to modify how this function works
+
 export async function sendMessage(content: string): Promise<Message> {
   try {
     // Get the current session for the auth token
@@ -63,8 +67,6 @@ export async function sendMessage(content: string): Promise<Message> {
       }
     }
 
-    console.log("Starting unified-agent invocation with real_data_only=true");
-    
     // Use the unified-agent edge function to process the message
     const response = await supabase.functions.invoke('unified-agent', {
       body: {
@@ -72,33 +74,12 @@ export async function sendMessage(content: string): Promise<Message> {
         conversation_history: [],
         include_web: true,
         include_drive: true,
-        include_slack: true,
-        provider_token: providerToken || storedToken,
+        provider_token: providerToken || storedToken, // Try both tokens
         debug_token_info: {
           hasProviderToken: !!providerToken,
           hasStoredToken: !!storedToken,
           userHasSession: !!sessionData?.session,
-          tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none'),
-          usingRealData: true,
-          simulationDisabled: true
-        },
-        task_mode: true,
-        tools: ["web_search", "file_search", "file_analysis", "slack_search"],
-        allow_iterations: true,
-        max_iterations: 5,
-        reasoning_level: "medium",
-        enable_real_data: true,
-        use_external_apis: true,
-        external_access: true,
-        simulation_mode: false,
-        real_data_only: true,
-        force_live_data: true,
-        agent_capabilities: {
-          web_search: true,
-          file_access: true,
-          real_time_data: true,
-          use_simulations: false,
-          force_real_data: true
+          tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none')
         }
       },
       headers: authToken ? {
