@@ -77,7 +77,6 @@ serve(async (req) => {
     
     // 1. Search Google Drive if requested and tool is enabled
     if (include_drive && tools.includes("file_search")) {
-      // ... keep existing code (Google Drive search)
       try {
         console.log(`Starting Google Drive search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
@@ -152,7 +151,6 @@ serve(async (req) => {
 
     // 2. Search the web if requested and tool is enabled
     if (include_web && tools.includes("web_search")) {
-      // ... keep existing code (Web search)
       try {
         console.log("Starting web search")
         if (!TAVILY_API_KEY) {
@@ -175,7 +173,6 @@ serve(async (req) => {
 
     // 3. Search Slack if requested and tool is enabled
     if (include_slack && tools.includes("slack_search")) {
-      // ... keep existing code (Slack search)
       try {
         console.log(`Starting Slack search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
@@ -524,81 +521,181 @@ async function searchWeb(query) {
   }
 }
 
-// Updated function to query Creator IQ
+// Updated function to query Creator IQ with a two-step process
 async function queryCreatorIQ(query) {
   try {
     if (!CREATOR_IQ_API_KEY) {
       return [];
     }
 
-    // Use NLP to determine which Creator IQ endpoint to query based on the query
+    console.log(`Processing Creator IQ query: "${query}"`);
+
+    // Step 1: Determine relevant endpoints based on the query
     const endpoints = determineCreatorIQEndpoints(query);
     const results = [];
-
-    // Updated base URL
-    const baseUrl = 'https://apis.creatoriq.com/crm/v1/api';
     
+    // Base URL for Creator IQ API
+    const baseUrl = 'https://apis.creatoriq.com/crm/v1/api';
     console.log(`Using Creator IQ base URL: ${baseUrl}`);
 
+    // Process each endpoint
     for (const endpoint of endpoints) {
-      const payload = buildCreatorIQPayload(endpoint, query);
-      
-      // Set up headers for Creator IQ API
-      const headers = {
-        'Authorization': `Bearer ${CREATOR_IQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      };
-      
-      const url = `${baseUrl}${endpoint.route}`;
-      
-      console.log(`Querying Creator IQ endpoint: ${endpoint.route} with payload:`, payload);
-
-      // Improved request handling
       try {
-        let response;
-        if (endpoint.method === 'POST') {
-          console.log(`Making POST request to ${url}`);
-          response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-        } else {
-          // For GET requests, properly build URL with query parameters
+        console.log(`Processing endpoint: ${endpoint.route}`);
+        
+        // Handle special cases that need two-step process: campaign + publishers and list + publishers
+        if (endpoint.route.includes("{campaign_id}") || endpoint.route.includes("{list_id}") || endpoint.route.includes("{publisher_id}")) {
+          // Extract entity type and search term from query
+          const entityType = endpoint.route.includes("{campaign_id}") ? "campaigns" : 
+                             endpoint.route.includes("{list_id}") ? "lists" : "publishers";
+          
+          // Extract name pattern from query - look for "called X" or similar phrases
+          let searchName = extractNameFromQuery(query, entityType);
+          console.log(`Extracted search name for ${entityType}: "${searchName}"`);
+          
+          if (searchName) {
+            // Step 1: First search for the entity by name to get its ID
+            const searchPayload = { limit: 10, search: searchName };
+            console.log(`Searching for ${entityType} with name: "${searchName}"`);
+            
+            // Make the search request
+            const searchUrl = `${baseUrl}/${entityType}`;
+            const searchHeaders = {
+              'Authorization': `Bearer ${CREATOR_IQ_API_KEY}`,
+              'Content-Type': 'application/json'
+            };
+            
+            // Execute the search
+            console.log(`Making GET request to: ${searchUrl}`);
+            const searchResponse = await fetch(searchUrl, {
+              method: 'GET',
+              headers: searchHeaders,
+              params: searchPayload
+            });
+            
+            if (!searchResponse.ok) {
+              const errorText = await searchResponse.text();
+              throw new Error(`Creator IQ API error (${searchResponse.status}): ${errorText}`);
+            }
+            
+            const searchData = await searchResponse.json();
+            console.log(`Search returned ${searchData.count || 0} results`);
+            
+            // Check if we found any matches
+            const collectionKey = `${entityType.charAt(0).toUpperCase() + entityType.slice(1)}Collection`;
+            const items = searchData[collectionKey] || [];
+            
+            if (items.length > 0) {
+              // Found a match - get the ID
+              console.log(`Found ${items.length} matching ${entityType}`);
+              
+              // Get the first matching item ID
+              const firstItem = items[0];
+              const entityId = entityType === 'publishers' ? 
+                firstItem.Publisher?.Id || firstItem.Publisher?.PublisherId : 
+                entityType === 'campaigns' ? 
+                  firstItem.Campaign?.CampaignId : 
+                  firstItem.List?.Id;
+              
+              console.log(`Using ${entityType} ID: ${entityId}`);
+              
+              if (entityId) {
+                // Now make the second API call with the real ID
+                const formattedRoute = endpoint.route.replace(
+                  entityType === 'campaigns' ? '{campaign_id}' : 
+                  entityType === 'lists' ? '{list_id}' : '{publisher_id}', 
+                  entityId.toString()
+                );
+                
+                console.log(`Making second request to: ${baseUrl}${formattedRoute}`);
+                
+                const detailResponse = await fetch(`${baseUrl}${formattedRoute}`, {
+                  method: 'GET',
+                  headers: searchHeaders
+                });
+                
+                if (!detailResponse.ok) {
+                  const errorText = await detailResponse.text();
+                  throw new Error(`Creator IQ API error (${detailResponse.status}): ${errorText}`);
+                }
+                
+                const detailData = await detailResponse.json();
+                console.log(`Successfully retrieved details for ${entityType} ID: ${entityId}`);
+                
+                // Add the search result and the details to our results
+                results.push({
+                  endpoint: endpoint.route,
+                  name: endpoint.name,
+                  searchTerm: searchName,
+                  entityType: entityType,
+                  entityId: entityId,
+                  searchResult: { 
+                    id: entityId, 
+                    name: entityType === 'publishers' ? 
+                          items[0].Publisher?.PublisherName : 
+                          entityType === 'campaigns' ? 
+                          items[0].Campaign?.CampaignName : 
+                          items[0].List?.Name
+                  },
+                  data: detailData
+                });
+                
+                continue; // Skip the standard endpoint processing below
+              }
+            } else {
+              console.log(`No ${entityType} found matching: "${searchName}"`);
+            }
+          }
+        }
+        
+        // Standard endpoint processing for direct queries (no ID replacement)
+        if (!endpoint.route.includes("{") && !endpoint.route.includes("}")) {
+          const payload = buildCreatorIQPayload(endpoint, query);
+          
+          // Set up headers for Creator IQ API
+          const headers = {
+            'Authorization': `Bearer ${CREATOR_IQ_API_KEY}`,
+            'Content-Type': 'application/json'
+          };
+          
+          const url = `${baseUrl}${endpoint.route}`;
+          
+          console.log(`Querying Creator IQ endpoint: ${endpoint.route} with payload:`, payload);
+
+          // Build URL with parameters for GET requests
           const urlParams = new URLSearchParams();
           if (payload) {
             Object.entries(payload).forEach(([key, value]) => {
-              if (!endpoint.route.includes(`{${key}}`)) { // Only add if not used in route path
-                urlParams.append(key, value.toString());
-              }
+              urlParams.append(key, value.toString());
             });
           }
           
-          const fullUrl = `${url}${urlParams.toString() ? `?${urlParams.toString()}` : ''}`;
+          const fullUrl = `${url}?${urlParams.toString()}`;
           console.log(`Making GET request to ${fullUrl}`);
-          response = await fetch(fullUrl, {
+          
+          const response = await fetch(fullUrl, {
             method: 'GET',
             headers: headers
           });
+          
+          // Log response status and handle errors
+          console.log(`Creator IQ API response status: ${response.status}`);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Creator IQ API error (${response.status}): ${errorText}`);
+            throw new Error(`Creator IQ API error: ${response.status} ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          console.log(`Creator IQ response from ${endpoint.route}:`, data);
+          
+          results.push({
+            endpoint: endpoint.route,
+            name: endpoint.name,
+            data: data
+          });
         }
-        
-        // Log response status and handle errors
-        console.log(`Creator IQ API response status: ${response.status}`);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Creator IQ API error (${response.status}): ${errorText}`);
-          throw new Error(`Creator IQ API error: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log(`Creator IQ response from ${endpoint.route}:`, data);
-        
-        results.push({
-          endpoint: endpoint.route,
-          name: endpoint.name,
-          data: data
-        });
       } catch (requestError) {
         console.error(`Error querying Creator IQ endpoint ${endpoint.route}:`, requestError);
         results.push({
@@ -614,6 +711,82 @@ async function queryCreatorIQ(query) {
     console.error("Error querying Creator IQ:", error);
     throw error;
   }
+}
+
+// Helper function to extract entity name from query
+function extractNameFromQuery(query, entityType) {
+  const lowerQuery = query.toLowerCase();
+  
+  // Look for phrases that might indicate a specific name
+  const namePatterns = [
+    // For format "find X called Y"
+    new RegExp(`find\\s+${entityType.slice(0, -1)}\\s+called\\s+([\\w\\s-]+)`, 'i'),
+    // For format "find X named Y"
+    new RegExp(`find\\s+${entityType.slice(0, -1)}\\s+named\\s+([\\w\\s-]+)`, 'i'),
+    // For format "X Y" where X is the entity type
+    new RegExp(`${entityType.slice(0, -1)}\\s+([\\w\\s-]+)`, 'i'),
+    // For format "Y X" where X is the entity type
+    new RegExp(`([\\w\\s-]+)\\s+${entityType.slice(0, -1)}`, 'i'),
+    // Look for quotes which might contain a name
+    /["']([^"']+)["']/,
+  ];
+  
+  for (const pattern of namePatterns) {
+    const match = lowerQuery.match(pattern);
+    if (match && match[1]) {
+      // Clean up the extracted name
+      let name = match[1].trim();
+      
+      // Remove common words that might appear at the beginning or end
+      const wordsToRemove = ['the', 'a', 'an', 'and', 'or', 'campaign', 'program', 'list', 'publisher'];
+      wordsToRemove.forEach(word => {
+        if (name.startsWith(word + ' ')) {
+          name = name.substr(word.length + 1);
+        }
+        if (name.endsWith(' ' + word)) {
+          name = name.substr(0, name.length - word.length - 1);
+        }
+      });
+      
+      return name;
+    }
+  }
+  
+  // If no specific pattern matches, use the entity type as a guide to extract relevant terms
+  const entityTerms = {
+    'campaigns': ['campaign', 'program', 'ambassador', 'promotion'],
+    'lists': ['list', 'group', 'collection', 'segment'],
+    'publishers': ['publisher', 'influencer', 'creator', 'ambassador']
+  };
+  
+  // Try to find relevant terms for the entity type in the query
+  const relevantTerms = entityTerms[entityType] || [];
+  for (const term of relevantTerms) {
+    const index = lowerQuery.indexOf(term);
+    if (index >= 0) {
+      // Extract words around the term (before or after)
+      const beforeTerm = lowerQuery.substring(0, index).trim().split(' ').slice(-3).join(' ');
+      const afterTerm = lowerQuery.substring(index + term.length).trim().split(' ').slice(0, 5).join(' ');
+      
+      // Prefer words after the term if available
+      if (afterTerm) {
+        return afterTerm;
+      } else if (beforeTerm) {
+        return beforeTerm;
+      }
+    }
+  }
+  
+  // Last resort: if looking for a specific entity mentioned by name, extract words after keywords like "find"
+  if (lowerQuery.includes('find')) {
+    const afterFind = lowerQuery.split('find')[1].trim();
+    if (afterFind) {
+      return afterFind.split(' ').slice(0, 5).join(' ');
+    }
+  }
+  
+  // If all else fails, use a broad search with the whole query
+  return query;
 }
 
 // Helper function to determine which Creator IQ endpoint(s) to query based on the query
@@ -653,13 +826,19 @@ function determineCreatorIQEndpoints(query) {
       name: "Get Campaign Details",
       keywords: ["campaign details", "campaign information", "campaign stats"]
     },
+    campaign_publishers: {
+      route: "/campaigns/{campaign_id}/publishers",
+      method: "GET",
+      name: "Get Campaign Publishers",
+      keywords: ["campaign publishers", "publishers in campaign", "influencers in campaign", "campaign influencers", "count publishers"]
+    },
     content: {
       route: "/content",
       method: "GET",
       name: "List Content",
       keywords: ["content", "posts", "influencer content", "campaign content", "creator posts"]
     },
-    // New List endpoints with keywords
+    // List endpoints with keywords
     lists: {
       route: "/lists",
       method: "GET",
@@ -680,14 +859,51 @@ function determineCreatorIQEndpoints(query) {
     }
   };
   
-  // Check if query is asking for a specific list by name (e.g., "Ready Rocker Autism 4")
-  const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
-                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
+  // Check if query is asking for a specific entity by name
+  const campaignNameIndicators = ["campaign called", "campaign named", "find campaign", "search campaign"];
+  const listNameIndicators = ["list called", "list named", "find list", "search list"];
+  const publisherNameIndicators = ["publisher called", "publisher named", "find publisher", "search publisher"];
   
-  let listName = null;
-  if (listNameMatch && listNameMatch[1]) {
-    listName = listNameMatch[1].trim();
-    console.log(`Detected possible list name: "${listName}"`);
+  // Check for campaign publishers query
+  if (campaignNameIndicators.some(indicator => lowerQuery.includes(indicator)) && 
+      lowerQuery.includes("publishers") || lowerQuery.includes("count")) {
+    console.log("Detected query for campaign publishers");
+    endpoints.push(availableEndpoints.campaigns);  // First get campaign
+    endpoints.push(availableEndpoints.campaign_publishers);  // Then get publishers in that campaign
+    return endpoints;
+  }
+  
+  // Check for list publishers query
+  if (listNameIndicators.some(indicator => lowerQuery.includes(indicator)) && 
+      lowerQuery.includes("publishers") || lowerQuery.includes("count")) {
+    console.log("Detected query for list publishers");
+    endpoints.push(availableEndpoints.lists);  // First get list
+    endpoints.push(availableEndpoints.list_publishers);  // Then get publishers in that list
+    return endpoints;
+  }
+  
+  // Check for campaign details
+  if (campaignNameIndicators.some(indicator => lowerQuery.includes(indicator))) {
+    console.log("Detected query for campaign details");
+    endpoints.push(availableEndpoints.campaigns);  // First search campaigns
+    endpoints.push(availableEndpoints.campaign_details);  // Then get details
+    return endpoints;
+  }
+  
+  // Check for list details
+  if (listNameIndicators.some(indicator => lowerQuery.includes(indicator))) {
+    console.log("Detected query for list details");
+    endpoints.push(availableEndpoints.lists);  // First search lists
+    endpoints.push(availableEndpoints.list_details);  // Then get details
+    return endpoints;
+  }
+  
+  // Check for publisher details
+  if (publisherNameIndicators.some(indicator => lowerQuery.includes(indicator))) {
+    console.log("Detected query for publisher details");
+    endpoints.push(availableEndpoints.publishers);  // First search publishers
+    endpoints.push(availableEndpoints.publisher_details);  // Then get details
+    return endpoints;
   }
   
   // Check which endpoints match the query
@@ -701,36 +917,18 @@ function determineCreatorIQEndpoints(query) {
     }
   }
   
-  // Special handling for list-related queries
-  if ((lowerQuery.includes("list") && !matchedEndpoints) || listName) {
-    // If there's a specific list name mentioned, prioritize list_details and list_publishers
-    if (listName) {
-      console.log(`Adding list endpoints for list name: "${listName}"`);
-      endpoints.push(availableEndpoints.lists);
-      
-      // If query is about counting or finding publishers in a list, add list_publishers endpoint
-      if (lowerQuery.includes("count") || 
-          lowerQuery.includes("publishers") || 
-          lowerQuery.includes("influencers")) {
-        endpoints.push(availableEndpoints.list_publishers);
-      }
-    } else {
-      // Generic list query without specific list name
-      endpoints.push(availableEndpoints.lists);
-    }
-  }
-  
   // If no specific endpoints matched, return a default set
   if (endpoints.length === 0) {
-    // Default to lists endpoint for this request as it's likely list related
-    if (lowerQuery.includes("list")) {
-      console.log("No specific endpoints matched, defaulting to lists endpoint");
+    // Default to a most common search strategy based on the query
+    if (lowerQuery.includes("campaign")) {
+      console.log("No specific endpoints matched, defaulting to campaigns");
+      endpoints.push(availableEndpoints.campaigns);
+    } else if (lowerQuery.includes("list")) {
+      console.log("No specific endpoints matched, defaulting to lists");
       endpoints.push(availableEndpoints.lists);
     } else {
-      // Fall back to publishers and campaigns as most common use cases
-      console.log("No specific endpoints matched, defaulting to publishers and campaigns");
+      console.log("No specific endpoints matched, defaulting to publishers");
       endpoints.push(availableEndpoints.publishers);
-      endpoints.push(availableEndpoints.campaigns);
     }
   }
   
@@ -747,40 +945,9 @@ function buildCreatorIQPayload(endpoint, query) {
   // Extract any specific parameters from the query
   const lowerQuery = query.toLowerCase();
   
-  // Check for list name in the query
-  const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
-                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
-  
-  if (listNameMatch && listNameMatch[1]) {
-    const listName = listNameMatch[1].trim();
-    console.log(`Adding search parameter for list name: "${listName}"`);
-    payload.search = listName;
-  }
-  
-  // Handle list_id or campaign_id or publisher_id in the endpoint route
-  if (endpoint.route.includes("{list_id}")) {
-    // For demo purposes, use placeholder or extracted ID
-    // In a real implementation, we'd need a two-step process:
-    // 1. First search for the list to get its ID
-    // 2. Then use that ID for subsequent calls
-    if (payload.search) {
-      console.log(`List name search parameter exists: "${payload.search}", would use this to find ID first`);
-      // Note: In a complete implementation, we would first call the lists endpoint to find the ID
-      // Then use that ID in the next call. Simulating with placeholder for now.
-    }
-    payload.list_id = "placeholder-list-id";
-    console.log("Using placeholder list_id. In production, this would be determined dynamically.");
-  } else if (endpoint.route.includes("{publisher_id}")) {
-    payload.publisher_id = "placeholder-id";
-  } else if (endpoint.route.includes("{campaign_id}")) {
-    payload.campaign_id = "placeholder-id";
-  }
-  
-  // Add search parameter if it seems like a search query
+  // Add search parameter for relevant keywords from query
   if (lowerQuery.includes("search") || lowerQuery.includes("find") || lowerQuery.includes("look for")) {
-    if (!payload.search) {  // Only set if not already set from list name
-      payload.search = query;
-    }
+    payload.search = query;
   }
   
   // Add status filter if mentioned
