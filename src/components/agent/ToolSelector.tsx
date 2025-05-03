@@ -1,6 +1,6 @@
 
 import { Badge } from "@/components/ui/badge";
-import { LockClosedIcon } from "@radix-ui/react-icons";
+import { LockIcon } from "lucide-react";
 
 interface ToolSelectorProps {
   selectedTools: string[];
@@ -72,7 +72,7 @@ export function ToolSelector({ selectedTools, onToolToggle, driveConnected }: To
               >
                 {tool.name}
                 {tool.needsAuth && !driveConnected && tool.authType === "drive" && (
-                  <LockClosedIcon className="w-3 h-3 ml-1.5 inline-block" />
+                  <LockIcon className="w-3 h-3 ml-1.5 inline-block" />
                 )}
               </Badge>
               {tool.disabled && tool.needsAuth && (
