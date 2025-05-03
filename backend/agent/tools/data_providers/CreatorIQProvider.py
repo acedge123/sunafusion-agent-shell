@@ -1,7 +1,7 @@
 
 import os
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from agent.tools.data_providers.RapidDataProviderBase import RapidDataProviderBase, EndpointSchema
 
 class CreatorIQProvider(RapidDataProviderBase):
@@ -172,8 +172,7 @@ class CreatorIQProvider(RapidDataProviderBase):
                 search_term = payload["search"]
                 print(f"Searching for campaigns with term: {search_term}")
                 
-                # We need to handle campaign search in a special way as the API might not have direct search
-                # First make the request without the search parameter
+                # First make the request without the search parameter to get all campaigns
                 search_payload = {k: v for k, v in payload.items() if k != "search"}
                 
                 if method == "GET":
@@ -187,20 +186,57 @@ class CreatorIQProvider(RapidDataProviderBase):
                 # Get the response data
                 full_response = response.json()
                 
+                # Log the raw response for debugging
+                print(f"Raw API response structure: {str(full_response.keys())}")
+                
                 # Process the response to filter by campaign name
                 if "CampaignCollection" in full_response:
                     # Filter campaigns by name containing the search term (case-insensitive)
                     original_campaigns = full_response["CampaignCollection"]
-                    filtered_campaigns = [
-                        campaign for campaign in original_campaigns
-                        if campaign.get("Campaign") and search_term.lower() in (campaign["Campaign"].get("CampaignName") or "").lower()
-                    ]
+                    print(f"Found {len(original_campaigns)} campaigns before filtering")
+                    
+                    # Enhanced debugging for campaign structure
+                    if len(original_campaigns) > 0:
+                        sample_campaign = original_campaigns[0]
+                        print(f"Sample campaign structure: {str(sample_campaign.keys())}")
+                        if "Campaign" in sample_campaign:
+                            print(f"Campaign details: {str(sample_campaign['Campaign'].keys())}")
+                    
+                    filtered_campaigns = []
+                    for campaign in original_campaigns:
+                        if "Campaign" in campaign:
+                            campaign_name = campaign["Campaign"].get("CampaignName", "").lower()
+                            if search_term.lower() in campaign_name:
+                                print(f"Match found: '{campaign_name}' matches '{search_term}'")
+                                filtered_campaigns.append(campaign)
                     
                     # Update the response with filtered results
                     full_response["CampaignCollection"] = filtered_campaigns
                     full_response["count"] = len(filtered_campaigns)
+                    full_response["filtered_by"] = search_term
                     
                     print(f"Found {len(filtered_campaigns)} campaigns matching '{search_term}'")
+                    
+                    # Get campaign details including publisher counts
+                    for campaign in filtered_campaigns:
+                        if "Campaign" in campaign and "CampaignId" in campaign["Campaign"]:
+                            campaign_id = campaign["Campaign"]["CampaignId"]
+                            try:
+                                # Get the count of publishers for this campaign
+                                publishers_url = f"{self.base_url}/campaigns/{campaign_id}/publishers"
+                                publishers_response = requests.get(publishers_url, headers=headers)
+                                
+                                if publishers_response.ok:
+                                    publishers_data = publishers_response.json()
+                                    publisher_count = publishers_data.get("count", 0)
+                                    # Add this information to the campaign object
+                                    campaign["Campaign"]["PublishersCount"] = publisher_count
+                                    print(f"Campaign {campaign_id} has {publisher_count} publishers")
+                                else:
+                                    print(f"Failed to get publishers for campaign {campaign_id}: {publishers_response.status_code}")
+                                    
+                            except Exception as e:
+                                print(f"Error getting publishers for campaign {campaign_id}: {str(e)}")
                     
                     return full_response
             
@@ -224,11 +260,17 @@ class CreatorIQProvider(RapidDataProviderBase):
             # If we have campaign data, let's log a bit more detail for debugging
             if route == "campaigns" and "CampaignCollection" in response_data:
                 campaigns = response_data["CampaignCollection"]
-                campaign_names = [
-                    f"{c['Campaign']['CampaignId']}: {c['Campaign'].get('CampaignName', 'Unnamed')}" 
-                    for c in campaigns if 'Campaign' in c
-                ]
-                print(f"Retrieved {len(campaigns)} campaigns: {', '.join(campaign_names[:5])}")
+                campaign_names = []
+                for c in campaigns:
+                    if 'Campaign' in c and 'CampaignName' in c['Campaign']:
+                        campaign_id = c['Campaign'].get('CampaignId', 'Unknown')
+                        campaign_name = c['Campaign'].get('CampaignName', 'Unnamed')
+                        campaign_names.append(f"{campaign_id}: {campaign_name}")
+                
+                print(f"Retrieved {len(campaigns)} campaigns:")
+                for idx, name in enumerate(campaign_names[:5]):
+                    print(f"  {idx+1}. {name}")
+                    
                 if len(campaigns) > 5:
                     print(f"... and {len(campaigns) - 5} more")
             
@@ -249,3 +291,26 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             print(f"Creator IQ API error: {error_message}")
             raise ValueError(f"Creator IQ API error: {error_message}")
+
+    def search_campaigns_by_name(self, search_term: str) -> List[Dict[str, Any]]:
+        """
+        Helper method to specifically search for campaigns by name
+        
+        Args:
+            search_term: The campaign name or partial name to search for
+            
+        Returns:
+            List of matching campaigns with details
+        """
+        print(f"Searching for campaigns with name containing: {search_term}")
+        
+        try:
+            # Add a higher limit to get more campaigns
+            response = self.call_endpoint("campaigns", {"limit": 50, "search": search_term})
+            
+            if "CampaignCollection" in response:
+                return response["CampaignCollection"]
+            return []
+        except Exception as e:
+            print(f"Error in search_campaigns_by_name: {e}")
+            return []

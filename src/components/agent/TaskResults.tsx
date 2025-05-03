@@ -1,7 +1,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Wrench, Database } from "lucide-react";
+import { Wrench, Database, Search, FileText } from "lucide-react";
 import { Fragment } from "react";
 
 interface TaskResult {
@@ -99,12 +99,21 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
               <h3 className="text-lg font-medium">Creator IQ Data</h3>
               {creatorIQData.results.map((endpoint, idx) => (
                 <div key={idx} className="border rounded-lg p-4 space-y-2">
-                  <h4 className="font-medium">{endpoint.name || endpoint.endpoint}</h4>
+                  <h4 className="font-medium flex items-center">
+                    <FileText className="h-4 w-4 mr-2" />
+                    {endpoint.name || endpoint.endpoint}
+                  </h4>
                   
                   {endpoint.data && endpoint.data.CampaignCollection && (
                     <Fragment>
-                      <div className="text-sm text-muted-foreground">
-                        {endpoint.data.total} campaigns found (page {endpoint.data.page} of {endpoint.data.total_pages || 1})
+                      <div className="text-sm text-muted-foreground flex items-center">
+                        <Search className="h-4 w-4 mr-2" />
+                        {endpoint.data.filtered_by ? (
+                          <span>Found {endpoint.data.CampaignCollection.length} campaigns matching "{endpoint.data.filtered_by}" 
+                            (from {endpoint.data.total} total)</span>
+                        ) : (
+                          <span>{endpoint.data.total} campaigns found (page {endpoint.data.page} of {endpoint.data.total_pages || 1})</span>
+                        )}
                       </div>
                       <div className="space-y-2 mt-3">
                         {endpoint.data.CampaignCollection.map((campaignItem: any, cIdx: number) => (

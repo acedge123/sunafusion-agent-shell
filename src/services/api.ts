@@ -63,6 +63,10 @@ export async function sendMessage(content: string): Promise<Message> {
       }
     }
 
+    // Add specific Creator IQ parameters if the query relates to campaigns
+    const creatorIQParams = buildCreatorIQParams(content);
+    console.log("Using Creator IQ params:", creatorIQParams);
+
     // Use the unified-agent edge function to process the message
     const response = await supabase.functions.invoke('unified-agent', {
       body: {
@@ -77,11 +81,8 @@ export async function sendMessage(content: string): Promise<Message> {
           userHasSession: !!sessionData?.session,
           tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none')
         },
-        // Add specific parameters for Creator IQ searches if the query contains related terms
-        creator_iq_params: content.toLowerCase().includes('campaign') ? {
-          prefer_full_results: true,
-          return_raw_response: true
-        } : undefined
+        // Add specific parameters for Creator IQ searches
+        creator_iq_params: creatorIQParams
       },
       headers: authToken ? {
         Authorization: `Bearer ${authToken}`
@@ -107,6 +108,24 @@ export async function sendMessage(content: string): Promise<Message> {
             dataKeys: r.data ? Object.keys(r.data) : "No data"
           }))
         );
+        
+        // Log specific campaign information if available
+        const campaignData = creatorIQSource.results?.find(r => r.endpoint === "/campaigns");
+        if (campaignData && campaignData.data) {
+          console.log("Campaign data total:", campaignData.data.total);
+          if (campaignData.data.filtered_by) {
+            console.log(`Filtered by: ${campaignData.data.filtered_by}`);
+          }
+          if (campaignData.data.CampaignCollection?.length > 0) {
+            campaignData.data.CampaignCollection.forEach((campaign, idx) => {
+              console.log(`Campaign ${idx + 1}:`, 
+                campaign.Campaign?.CampaignName || "Unnamed", 
+                `(ID: ${campaign.Campaign?.CampaignId})`,
+                `Publishers: ${campaign.Campaign?.PublishersCount || "unknown"}`
+              );
+            });
+          }
+        }
       }
     }
 
@@ -120,4 +139,43 @@ export async function sendMessage(content: string): Promise<Message> {
     console.error("Error in sendMessage:", error);
     throw error;
   }
+}
+
+// Helper function to build Creator IQ parameters based on content
+function buildCreatorIQParams(content: string) {
+  const lowerContent = content.toLowerCase();
+  
+  // Basic parameters for all Creator IQ requests
+  const params: any = {
+    prefer_full_results: true,
+    return_raw_response: true
+  };
+  
+  // Add campaign-specific parameters
+  if (lowerContent.includes('campaign') || lowerContent.includes('ready rocker')) {
+    params.search_campaigns = true;
+    
+    // Extract search terms for campaigns
+    if (lowerContent.includes('ready rocker')) {
+      params.campaign_search_term = 'Ready Rocker';
+    }
+    
+    // Specific campaign name extraction - look for phrases like "find campaign X" or "campaign called X"
+    const campaignNameMatch = content.match(/campaign(?:\s+called|\s+named|\s+titled)?\s+["']([^"']+)["']/i) || 
+                             content.match(/["']([^"']+)["'](?:\s+campaign)/i);
+    if (campaignNameMatch && campaignNameMatch[1]) {
+      params.campaign_search_term = campaignNameMatch[1];
+    }
+  }
+  
+  // Add publisher/list specific parameters if needed
+  if (lowerContent.includes('publisher') || lowerContent.includes('influencer')) {
+    params.include_publishers = true;
+  }
+  
+  if (lowerContent.includes('list')) {
+    params.include_lists = true;
+  }
+  
+  return params;
 }
