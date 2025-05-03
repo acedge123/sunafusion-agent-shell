@@ -3,10 +3,6 @@ import { Message } from "@/components/chat/ChatContainer";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import useGoogleDrive hook from the correct location
-// Note: Since this is a non-component file, we can't use hooks directly
-// We'll need to modify how this function works
-
 export async function sendMessage(content: string): Promise<Message> {
   try {
     // Get the current session for the auth token
@@ -74,6 +70,7 @@ export async function sendMessage(content: string): Promise<Message> {
         conversation_history: [],
         include_web: true,
         include_drive: true,
+        include_creator_iq: true, // Make sure Creator IQ is enabled
         provider_token: providerToken || storedToken, // Try both tokens
         debug_token_info: {
           hasProviderToken: !!providerToken,

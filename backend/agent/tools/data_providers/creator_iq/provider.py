@@ -24,6 +24,8 @@ class CreatorIQProvider(RapidDataProviderBase):
             endpoints=CREATOR_IQ_ENDPOINTS
         )
         
+        logger.info("Initializing Creator IQ Provider")
+        
         # Initialize API client and search utilities
         self.api_client = CreatorIQClient(self.base_url)
         self.search_utils = CreatorIQSearch(self.call_endpoint)
@@ -39,6 +41,7 @@ class CreatorIQProvider(RapidDataProviderBase):
         Returns:
             Entity details if found
         """
+        logger.info(f"Finding {entity_type} by name: {name}")
         return self.search_utils.find_by_name(entity_type, name)
     
     def get_publishers_in_list(self, list_name):
@@ -51,6 +54,7 @@ class CreatorIQProvider(RapidDataProviderBase):
         Returns:
             Publishers in the list
         """
+        logger.info(f"Getting publishers in list: {list_name}")
         return self.search_utils.get_publishers_in_list(list_name)
     
     def get_publishers_in_campaign(self, campaign_name):
@@ -63,6 +67,7 @@ class CreatorIQProvider(RapidDataProviderBase):
         Returns:
             Publishers in the campaign
         """
+        logger.info(f"Getting publishers in campaign: {campaign_name}")
         return self.search_utils.get_publishers_in_campaign(campaign_name)
     
     def call_endpoint(self, route, payload=None):
@@ -85,6 +90,8 @@ class CreatorIQProvider(RapidDataProviderBase):
             # Get route and method from endpoint config
             api_route = endpoint["route"]
             method = endpoint.get("method", "GET").upper()
+            
+            logger.info(f"Calling Creator IQ endpoint {route} with payload: {payload}")
             
             # Call the API using the client
             return self.api_client.call_api(api_route, method, payload)

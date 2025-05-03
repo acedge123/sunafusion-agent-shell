@@ -23,6 +23,7 @@ class CreatorIQClient:
             base_url: Base URL for the Creator IQ API
         """
         self.base_url = base_url
+        logger.info(f"Using Creator IQ base URL: {base_url}")
     
     def call_api(self, route: str, method: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -63,8 +64,8 @@ class CreatorIQClient:
             }
             
             # Log the request for debugging
-            logger.info(f"Making Creator IQ API request to: {url}")
-            logger.debug(f"Method: {method}, Headers: {headers}, Payload: {payload}")
+            logger.info(f"Making {method} request to: {url}")
+            logger.debug(f"Headers: {headers}, Payload: {payload}")
             
             # Make the request with proper parameter handling
             if method == "GET":

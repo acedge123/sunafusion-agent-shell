@@ -43,6 +43,9 @@ class CreatorIQSearch:
                 "search": name
             }
             
+            # Log the search request
+            logger.info(f"Searching for {entity_type} with name: '{name}'")
+            
             # Call the endpoint to search entities
             response = self.call_endpoint(entity_type, search_payload)
             
@@ -53,6 +56,8 @@ class CreatorIQSearch:
                 
             items = response.get('data', [])
             total = response.get('meta', {}).get('total', 0)
+            
+            logger.info(f"Found {total} {entity_type} matching search for '{name}'")
             
             if not items or total == 0:
                 logger.info(f"No {entity_type} found matching '{name}'")
@@ -102,13 +107,17 @@ class CreatorIQSearch:
         Returns:
             Dictionary with list details and publishers
         """
+        logger.info(f"Starting two-step process to get publishers in list '{list_name}'")
+        
         # Step 1: Find the list by name
         list_data = self.find_by_name('lists', list_name)
         if not list_data or 'id' not in list_data:
+            logger.warning(f"Could not find list with name '{list_name}'")
             return {"error": f"Could not find list with name '{list_name}'"}
         
         list_id = list_data["id"]
         list_details = list_data["details"]
+        logger.info(f"Found list '{list_name}' with ID: {list_id}")
         
         # Step 2: Get publishers in the list
         try:
@@ -116,7 +125,11 @@ class CreatorIQSearch:
                 "list_id": list_id,
                 "limit": 50  # Fetch up to 50 publishers
             }
+            logger.info(f"Retrieving publishers for list ID: {list_id}")
             publishers_response = self.call_endpoint("list_publishers", payload)
+            
+            publishers_count = len(publishers_response.get("data", []))
+            logger.info(f"Retrieved {publishers_count} publishers from list '{list_name}'")
             
             # Prepare a comprehensive response with list details and publishers
             return {
@@ -126,8 +139,10 @@ class CreatorIQSearch:
                 "list_id": list_id
             }
         except Exception as e:
+            error_msg = f"Error getting publishers for list '{list_name}' (ID: {list_id}): {str(e)}"
+            logger.error(error_msg)
             return {
-                "error": f"Error getting publishers for list '{list_name}' (ID: {list_id}): {str(e)}",
+                "error": error_msg,
                 "list_id": list_id,
                 "list": list_details
             }
@@ -144,13 +159,17 @@ class CreatorIQSearch:
         Returns:
             Dictionary with campaign details and publishers
         """
+        logger.info(f"Starting two-step process to get publishers in campaign '{campaign_name}'")
+        
         # Step 1: Find the campaign by name
         campaign_data = self.find_by_name('campaigns', campaign_name)
         if not campaign_data or 'id' not in campaign_data:
+            logger.warning(f"Could not find campaign with name '{campaign_name}'")
             return {"error": f"Could not find campaign with name '{campaign_name}'"}
         
         campaign_id = campaign_data["id"]
         campaign_details = campaign_data["details"]
+        logger.info(f"Found campaign '{campaign_name}' with ID: {campaign_id}")
         
         # Step 2: Get publishers in the campaign
         try:
@@ -158,7 +177,11 @@ class CreatorIQSearch:
                 "campaign_id": campaign_id,
                 "limit": 50  # Fetch up to 50 publishers
             }
+            logger.info(f"Retrieving publishers for campaign ID: {campaign_id}")
             publishers_response = self.call_endpoint("campaign_publishers", payload)
+            
+            publishers_count = len(publishers_response.get("data", []))
+            logger.info(f"Retrieved {publishers_count} publishers from campaign '{campaign_name}'")
             
             # Prepare a comprehensive response
             return {
@@ -168,8 +191,10 @@ class CreatorIQSearch:
                 "campaign_id": campaign_id
             }
         except Exception as e:
+            error_msg = f"Error getting publishers for campaign '{campaign_name}' (ID: {campaign_id}): {str(e)}"
+            logger.error(error_msg)
             return {
-                "error": f"Error getting publishers for campaign '{campaign_name}' (ID: {campaign_id}): {str(e)}",
+                "error": error_msg,
                 "campaign_id": campaign_id,
                 "campaign": campaign_details
             }
