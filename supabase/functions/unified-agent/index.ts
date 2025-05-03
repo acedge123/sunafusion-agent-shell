@@ -6,6 +6,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') ?? ''
 const TAVILY_API_KEY = Deno.env.get('TAVILY_API_KEY') ?? ''
+const CREATOR_IQ_API_KEY = Deno.env.get('CREATOR_IQ_API_KEY') ?? ''
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -33,14 +34,15 @@ serve(async (req) => {
       conversation_history = [], 
       include_web = true, 
       include_drive = true,
-      include_slack = true, // New parameter to include Slack
+      include_slack = true, 
+      include_creator_iq = true, // New parameter to include Creator IQ
       provider_token = null,
       debug_token_info = {},
-      task_mode = false, // New parameter to enable full agent capabilities
-      tools = ["web_search", "file_search", "file_analysis", "slack_search"], // Added slack_search
-      allow_iterations = true, // Allow multiple iterations for complex tasks
-      max_iterations = 5, // Maximum number of iterations
-      reasoning_level = "medium" // How much reasoning to show
+      task_mode = false, 
+      tools = ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"], // Added creator_iq
+      allow_iterations = true,
+      max_iterations = 5, 
+      reasoning_level = "medium"
     } = requestData
     
     if (!query) {
@@ -75,6 +77,7 @@ serve(async (req) => {
     
     // 1. Search Google Drive if requested and tool is enabled
     if (include_drive && tools.includes("file_search")) {
+      // ... keep existing code (Google Drive search)
       try {
         console.log(`Starting Google Drive search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
@@ -149,6 +152,7 @@ serve(async (req) => {
 
     // 2. Search the web if requested and tool is enabled
     if (include_web && tools.includes("web_search")) {
+      // ... keep existing code (Web search)
       try {
         console.log("Starting web search")
         if (!TAVILY_API_KEY) {
@@ -171,6 +175,7 @@ serve(async (req) => {
 
     // 3. Search Slack if requested and tool is enabled
     if (include_slack && tools.includes("slack_search")) {
+      // ... keep existing code (Slack search)
       try {
         console.log(`Starting Slack search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
         
@@ -195,6 +200,33 @@ serve(async (req) => {
         results.push({
           source: "slack",
           error: error.message || "Failed to search Slack",
+          details: typeof error === 'object' ? JSON.stringify(error) : 'No details available'
+        })
+      }
+    }
+
+    // 4. Query Creator IQ if requested and tool is enabled
+    if (include_creator_iq && tools.includes("creator_iq")) {
+      try {
+        console.log(`Starting Creator IQ search ${userId ? `for user: ${userId}` : '(no user ID)'}`)
+        
+        if (!CREATOR_IQ_API_KEY) {
+          console.warn("CREATOR_IQ_API_KEY is not configured, Creator IQ search will not work!")
+          throw new Error("Creator IQ API key is not configured")
+        }
+        
+        const creatorIQResults = await queryCreatorIQ(query)
+        console.log(`Creator IQ search returned ${creatorIQResults.length} results`)
+        
+        results.push({
+          source: "creator_iq",
+          results: creatorIQResults
+        })
+      } catch (error) {
+        console.error("Creator IQ search error:", error)
+        results.push({
+          source: "creator_iq",
+          error: error.message || "Failed to search Creator IQ",
           details: typeof error === 'object' ? JSON.stringify(error) : 'No details available'
         })
       }
@@ -492,6 +524,155 @@ async function searchWeb(query) {
   }
 }
 
+// New function to query Creator IQ
+async function queryCreatorIQ(query) {
+  try {
+    if (!CREATOR_IQ_API_KEY) {
+      return [];
+    }
+
+    // Use NLP to determine which Creator IQ endpoint to query based on the query
+    const endpoints = determineCreatorIQEndpoints(query);
+    const results = [];
+
+    for (const endpoint of endpoints) {
+      const payload = buildCreatorIQPayload(endpoint, query);
+      
+      // Set up headers for Creator IQ API
+      const headers = {
+        'Authorization': `Bearer ${CREATOR_IQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      };
+      
+      // Hard-coded base URL - this would be replaced with the actual Creator IQ API URL
+      const baseUrl = 'https://api.creatoriq.com/v1';
+      const url = `${baseUrl}${endpoint.route}`;
+      
+      console.log(`Querying Creator IQ endpoint: ${endpoint.route} with payload:`, payload);
+
+      const response = await fetch(url, {
+        method: endpoint.method || 'GET',
+        headers: headers,
+        ...(endpoint.method === 'POST' ? { body: JSON.stringify(payload) } : 
+           { params: new URLSearchParams(payload) })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Creator IQ API error: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Creator IQ response from ${endpoint.route}:`, data);
+      
+      results.push({
+        endpoint: endpoint.route,
+        name: endpoint.name,
+        data: data
+      });
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Error querying Creator IQ:", error);
+    throw error;
+  }
+}
+
+// Helper function to determine which Creator IQ endpoint(s) to query based on the query
+function determineCreatorIQEndpoints(query) {
+  const lowerQuery = query.toLowerCase();
+  const endpoints = [];
+  
+  // Define all available endpoints
+  const availableEndpoints = {
+    creators: {
+      route: "/creators",
+      method: "GET",
+      name: "List Creators",
+      keywords: ["creators", "influencers", "list creators", "find creators", "influencer list"]
+    },
+    creator_details: {
+      route: "/creators/{creator_id}",
+      method: "GET",
+      name: "Get Creator Details",
+      keywords: ["creator details", "influencer details", "creator profile", "influencer information"]
+    },
+    creator_performance: {
+      route: "/creators/{creator_id}/performance",
+      method: "GET",
+      name: "Get Creator Performance",
+      keywords: ["creator performance", "influencer performance", "performance metrics", "engagement stats"]
+    },
+    campaigns: {
+      route: "/campaigns",
+      method: "GET",
+      name: "List Campaigns",
+      keywords: ["campaigns", "marketing campaigns", "influencer campaigns", "list campaigns"]
+    },
+    campaign_details: {
+      route: "/campaigns/{campaign_id}",
+      method: "GET",
+      name: "Get Campaign Details",
+      keywords: ["campaign details", "campaign information", "campaign stats"]
+    },
+    content: {
+      route: "/content",
+      method: "GET",
+      name: "List Content",
+      keywords: ["content", "posts", "influencer content", "campaign content", "creator posts"]
+    }
+  };
+  
+  // Check which endpoints match the query
+  for (const [key, endpoint] of Object.entries(availableEndpoints)) {
+    const isRelevant = endpoint.keywords.some(keyword => lowerQuery.includes(keyword));
+    if (isRelevant) {
+      endpoints.push(endpoint);
+    }
+  }
+  
+  // If no specific endpoints matched, return a default set
+  if (endpoints.length === 0) {
+    // Default to creators and campaigns as most common use cases
+    endpoints.push(availableEndpoints.creators);
+    endpoints.push(availableEndpoints.campaigns);
+  }
+  
+  return endpoints;
+}
+
+// Helper function to build the payload for Creator IQ API calls
+function buildCreatorIQPayload(endpoint, query) {
+  const payload = {
+    limit: 10
+  };
+  
+  // Extract any specific parameters from the query
+  const lowerQuery = query.toLowerCase();
+  
+  // Handle creator_id or campaign_id in the endpoint route
+  // This is simplified - in a real implementation, we'd need more sophisticated extraction
+  if (endpoint.route.includes("{creator_id}") || endpoint.route.includes("{campaign_id}")) {
+    // For demo purposes, use a placeholder ID
+    // In a real implementation, we'd need to extract the ID from the query or previous results
+    payload.id = "placeholder-id";
+  }
+  
+  // Add search parameter if it seems like a search query
+  if (lowerQuery.includes("search") || lowerQuery.includes("find") || lowerQuery.includes("look for")) {
+    payload.search = query;
+  }
+  
+  // Add status filter if mentioned
+  if (lowerQuery.includes("active")) {
+    payload.status = "active";
+  } else if (lowerQuery.includes("inactive")) {
+    payload.status = "inactive";
+  }
+  
+  return payload;
+}
+
 // Function to run full agent task
 async function runAgentTask(query, initialResults, conversationHistory, tools, allowIterations, maxIterations, reasoningLevel) {
   try {
@@ -500,7 +681,7 @@ async function runAgentTask(query, initialResults, conversationHistory, tools, a
     
     const systemPrompt = `You are an autonomous agent that can solve complex tasks.
 Given a task, you should break it down into steps and work through it systematically.
-You can use tools like web search and file analysis to gather information.
+You can use tools like web search, file analysis, and Creator IQ to gather information.
 ${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' : 
   reasoningLevel === 'medium' ? 'Show basic reasoning for important decisions.' :
   'Focus on results with minimal explanation.'}`;
@@ -584,6 +765,34 @@ ${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' :
         initialContext += "No relevant Slack messages found.\n";
       }
     }
+
+    // Process Creator IQ results
+    const creatorIQSource = initialResults.find(source => source.source === "creator_iq");
+    if (creatorIQSource) {
+      initialContext += "\n--- CREATOR IQ RESULTS ---\n";
+      
+      if (creatorIQSource.error) {
+        initialContext += `Error accessing Creator IQ: ${creatorIQSource.error}\n`;
+      } else if (creatorIQSource.results && creatorIQSource.results.length > 0) {
+        for (const result of creatorIQSource.results) {
+          initialContext += `Creator IQ Endpoint: ${result.name}\n`;
+          // Format data appropriately based on the endpoint
+          if (result.data) {
+            if (Array.isArray(result.data)) {
+              initialContext += `Found ${result.data.length} items\n`;
+              for (const item of result.data.slice(0, 3)) {
+                initialContext += `- ${JSON.stringify(item).substring(0, 200)}...\n`;
+              }
+            } else {
+              initialContext += `Data: ${JSON.stringify(result.data).substring(0, 300)}...\n`;
+            }
+          }
+          initialContext += '\n';
+        }
+      } else {
+        initialContext += "No relevant Creator IQ data found.\n";
+      }
+    }
     
     // Simulate iterations if needed
     const iterations = allowIterations ? Math.min(Math.ceil(query.length / 50), maxIterations) : 1;
@@ -648,7 +857,7 @@ ${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' :
       tools_used: Array.from(toolsUsed)
     };
   } catch (error) {
-    console.error("Error in agent task execution:", error);
+    console.error("Error in agent task execution:", error)
     throw error;
   }
 }
@@ -688,6 +897,18 @@ async function synthesizeWithAI(query, results, conversationHistory) {
             formattedResults += `User: ${result.user}\n`;
             formattedResults += `Timestamp: ${result.timestamp}\n`;
             if (result.permalink) formattedResults += `Link: ${result.permalink}\n`;
+          } else if (source.source === "creator_iq") {
+            formattedResults += `Creator IQ Data from ${result.name || 'API'}:\n`;
+            if (result.data) {
+              if (Array.isArray(result.data)) {
+                formattedResults += `Found ${result.data.length} items\n`;
+                for (const item of result.data.slice(0, 3)) {
+                  formattedResults += `Item: ${JSON.stringify(item).substring(0, 200)}...\n`;
+                }
+              } else {
+                formattedResults += `Data: ${JSON.stringify(result.data).substring(0, 300)}...\n`;
+              }
+            }
           }
           formattedResults += '\n';
         }
@@ -703,11 +924,11 @@ async function synthesizeWithAI(query, results, conversationHistory) {
       {
         role: "system",
         content:
-          "You are a helpful AI assistant with access to Google Drive files, web search results, and Slack conversations. " +
+          "You are a helpful AI assistant with access to Google Drive files, web search results, Slack conversations, and Creator IQ data. " +
           "Provide comprehensive, accurate answers based on the information available to you. " +
           "If the information to answer the query is not available in the provided results, " +
           "acknowledge this limitation and provide the best possible answer with the information you have. " +
-          "If relevant, mention the source of information (Google Drive, web search, or Slack). " +
+          "If relevant, mention the source of information (Google Drive, web search, Slack, or Creator IQ). " +
           "If there are issues accessing any data sources, explain clearly what happened and suggest alternatives."
       }
     ];

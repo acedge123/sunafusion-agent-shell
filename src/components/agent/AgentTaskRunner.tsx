@@ -37,7 +37,7 @@ const AgentTaskRunner = ({
 }: AgentTaskRunnerProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
-  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis"]);
+  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis", "creator_iq"]);
   const [reasoningLevel, setReasoningLevel] = useState<"low" | "medium" | "high">("medium");
   const [driveError, setDriveError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -122,6 +122,7 @@ const AgentTaskRunner = ({
           conversation_history: [],
           include_web: selectedTools.includes("web_search"),
           include_drive: includeDrive && driveToken !== null,
+          include_creator_iq: selectedTools.includes("creator_iq"),
           provider_token: driveToken,
           task_mode: true,
           tools: selectedTools.filter(tool => {

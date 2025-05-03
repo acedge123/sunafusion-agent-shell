@@ -1,3 +1,4 @@
+
 import React, { useState } from "react"
 import { Link } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
@@ -15,7 +16,7 @@ const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-message",
-      content: "Hello! I'm your AI assistant with access to Google Drive, Slack, and web search. Ask me anything or give me a complex task - I'll break it down into steps and solve it for you.",
+      content: "Hello! I'm your AI assistant with access to Google Drive, Slack, Creator IQ, and web search. Ask me anything or give me a complex task - I'll break it down into steps and solve it for you.",
       role: "assistant",
       timestamp: new Date()
     }
@@ -72,7 +73,7 @@ const Index = () => {
           <div className="text-center md:text-left">
             <h1 className="text-2xl font-bold mb-2">TheGig.Agency Unified Assistant</h1>
             <p className="text-muted-foreground mb-2">
-              Your intelligent assistant that autonomously searches your Google Drive files, Slack messages, and the web to solve complex tasks
+              Your intelligent assistant that autonomously searches your Google Drive files, Slack messages, Creator IQ data, and the web to solve complex tasks
             </p>
             
             {!user && (
@@ -88,7 +89,7 @@ const Index = () => {
         <div className="max-w-4xl mx-auto">
           <AgentTaskRunner 
             showToolSelection={true}
-            initialTask="Example: Summarize all meeting minutes for our client Copper Fit or Find all Slack messages about the Q2 marketing campaign" 
+            initialTask="Example: Summarize all meeting minutes for our client Copper Fit or Find all influencers with over 1M followers from Creator IQ" 
           />
         </div>
       </div>

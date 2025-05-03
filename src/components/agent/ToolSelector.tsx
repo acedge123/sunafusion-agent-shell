@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Check, X, Search, File, FileSearch, LogIn } from "lucide-react";
+import { Check, X, Search, File, FileSearch, LogIn, Briefcase } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface ToolSelectorProps {
@@ -30,6 +30,12 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
       description: "Analyze files from Google Drive",
       icon: <File className="h-4 w-4" />,
       requiresDrive: true
+    },
+    {
+      id: "creator_iq",
+      name: "Creator IQ",
+      description: "Access creator and influencer data from Creator IQ",
+      icon: <Briefcase className="h-4 w-4" />
     }
   ];
 
