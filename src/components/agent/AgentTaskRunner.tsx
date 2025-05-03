@@ -125,6 +125,12 @@ const AgentTaskRunner = ({
           include_slack: selectedTools.includes("slack_search"),
           include_creator_iq: selectedTools.includes("creator_iq"),
           provider_token: driveToken,
+          debug_token_info: {
+            hasProviderToken: !!driveToken,
+            userHasSession: !!sessionData?.session,
+            usingRealData: true,
+            simulationDisabled: true
+          },
           task_mode: true,
           tools: selectedTools.filter(tool => {
             // Filter out Drive tools if we don't have a valid token
@@ -139,11 +145,14 @@ const AgentTaskRunner = ({
           enable_real_data: true, // Explicitly enable real data usage
           use_external_apis: true,  // Explicitly enable external API usage
           external_access: true,    // Additional flag to emphasize external data access
+          simulation_mode: false,   // Explicitly disable simulation mode
           agent_capabilities: {     // Add detailed capabilities object
             creator_iq_access: true,
             web_search: true,
             file_access: true,
-            real_time_data: true
+            real_time_data: true,
+            use_simulations: false, // Explicitly disable simulations
+            force_real_data: true   // Force the use of real data
           }
         },
         headers: authToken ? {

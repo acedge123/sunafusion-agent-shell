@@ -77,7 +77,9 @@ export async function sendMessage(content: string): Promise<Message> {
           hasProviderToken: !!providerToken,
           hasStoredToken: !!storedToken,
           userHasSession: !!sessionData?.session,
-          tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none')
+          tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none'),
+          usingRealData: true, // Explicitly indicate we're using real data
+          simulationDisabled: true // Explicitly indicate simulation is disabled
         },
         task_mode: true, // Enable task mode for more detailed responses
         tools: ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"],
@@ -85,13 +87,16 @@ export async function sendMessage(content: string): Promise<Message> {
         max_iterations: 5,
         reasoning_level: "medium",
         enable_real_data: true, // Explicitly enable real data usage
-        use_external_apis: true,  // Explicitly enable external API usage
-        external_access: true,    // Additional flag to emphasize external data access
-        agent_capabilities: {     // Add detailed capabilities object
+        use_external_apis: true, // Explicitly enable external API usage
+        external_access: true, // Additional flag to emphasize external data access
+        simulation_mode: false, // Explicitly disable simulation mode
+        agent_capabilities: { // Add detailed capabilities object
           creator_iq_access: true,
           web_search: true,
           file_access: true,
-          real_time_data: true
+          real_time_data: true,
+          use_simulations: false, // Explicitly disable simulations
+          force_real_data: true // Force the use of real data
         }
       },
       headers: authToken ? {

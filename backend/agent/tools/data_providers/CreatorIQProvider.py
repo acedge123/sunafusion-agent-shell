@@ -9,7 +9,7 @@ class CreatorIQProvider(RapidDataProviderBase):
     Provider for Creator IQ API - a CRM system for managing Influencer/Creator relationships.
     """
     
-    def __init__(self):
+    def __init__(self, use_real_data_only=True):
         # Define available endpoints
         endpoints = {
             "publishers": {
@@ -131,6 +131,12 @@ class CreatorIQProvider(RapidDataProviderBase):
             base_url="https://apis.creatoriq.com/crm/v1/api",
             endpoints=endpoints
         )
+        
+        # Flag to ensure we always use real data and never use simulations
+        self.use_real_data_only = use_real_data_only
+        self.api_key = os.getenv("CREATOR_IQ_API_KEY")
+        if not self.api_key:
+            print("WARNING: CREATOR_IQ_API_KEY environment variable not set! API calls will fail.")
     
     def find_by_name(self, entity_type: str, name: str) -> Optional[Dict[str, Any]]:
         """
@@ -154,6 +160,7 @@ class CreatorIQProvider(RapidDataProviderBase):
             }
             
             # Call the endpoint to search entities
+            print(f"Searching for {entity_type} with name: \"{name}\"")
             response = self.call_endpoint(entity_type, search_payload)
             
             # Extract response data
@@ -163,6 +170,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                 
             items = response.get('data', [])
             total = response.get('meta', {}).get('total', 0)
+            
+            print(f"Search returned {total} results")
             
             if not items or total == 0:
                 print(f"No {entity_type} found matching '{name}'")
@@ -255,6 +264,7 @@ class CreatorIQProvider(RapidDataProviderBase):
             Dictionary with campaign details and publishers
         """
         # Step 1: Find the campaign by name
+        print(f"Searching for campaign with name: \"{campaign_name}\"")
         campaign_data = self.find_by_name('campaigns', campaign_name)
         if not campaign_data or 'id' not in campaign_data:
             return {"error": f"Could not find campaign with name '{campaign_name}'"}
@@ -262,8 +272,11 @@ class CreatorIQProvider(RapidDataProviderBase):
         campaign_id = campaign_data["id"]
         campaign_details = campaign_data["details"]
         
+        print(f"Found campaign ID: {campaign_id}")
+        
         # Step 2: Get publishers in the campaign
         try:
+            print(f"Processing endpoint: /campaigns/{campaign_id}/publishers")
             payload = {
                 "campaign_id": campaign_id,
                 "limit": 50  # Fetch up to 50 publishers
@@ -271,13 +284,18 @@ class CreatorIQProvider(RapidDataProviderBase):
             publishers_response = self.call_endpoint("campaign_publishers", payload)
             
             # Prepare a comprehensive response
-            return {
+            result = {
                 "campaign": campaign_details,
                 "publishers": publishers_response.get("data", []),
                 "total_publishers": publishers_response.get("meta", {}).get("total", 0),
                 "campaign_id": campaign_id
             }
+            
+            print(f"Retrieved {result['total_publishers']} publishers for campaign ID {campaign_id}")
+            
+            return result
         except Exception as e:
+            print(f"Error getting publishers for campaign '{campaign_name}' (ID: {campaign_id}): {str(e)}")
             return {
                 "error": f"Error getting publishers for campaign '{campaign_name}' (ID: {campaign_id}): {str(e)}",
                 "campaign_id": campaign_id,
@@ -317,7 +335,7 @@ class CreatorIQProvider(RapidDataProviderBase):
             url = f"{self.base_url}{formatted_route}"
             
             # Get API key from environment variables
-            api_key = os.getenv("CREATOR_IQ_API_KEY")
+            api_key = self.api_key
             if not api_key:
                 raise ValueError("CREATOR_IQ_API_KEY environment variable not set")
             
@@ -328,8 +346,9 @@ class CreatorIQProvider(RapidDataProviderBase):
             }
             
             # Log the request for debugging
-            print(f"Making Creator IQ API request to: {url}")
-            print(f"Method: {method}, Headers: {headers}, Payload: {payload}")
+            print(f"Making {method} request to: {url}")
+            if payload:
+                print(f"Method: {method}, Payload: {payload}")
             
             # Make the request with proper parameter handling
             if method == "GET":
@@ -364,3 +383,11 @@ class CreatorIQProvider(RapidDataProviderBase):
             print(f"Creator IQ API error: {error_message}")
             raise ValueError(f"Creator IQ API error: {error_message}")
 
+    # Helper method to explain that simulations are disabled
+    def explain_simulation_status(self):
+        return {
+            "simulation_mode": False, 
+            "using_real_data": True, 
+            "message": "This provider is configured to use only real data from the Creator IQ API. " +
+                       "Simulations and placeholder data have been disabled."
+        }

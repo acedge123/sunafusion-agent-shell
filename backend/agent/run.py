@@ -56,6 +56,12 @@ async def run_agent(
     if not sandbox_info.get('id'):
         raise ValueError(f"No sandbox found for project {project_id}")
     
+    # Print environment variables for debugging
+    print("Checking environment variables for data providers:")
+    print(f"CREATOR_IQ_API_KEY available: {bool(os.getenv('CREATOR_IQ_API_KEY'))}")
+    print(f"RAPID_API_KEY available: {bool(os.getenv('RAPID_API_KEY'))}")
+    print(f"TAVILY_API_KEY available: {bool(os.getenv('TAVILY_API_KEY'))}")
+    
     # Initialize tools with project_id instead of sandbox object
     # This ensures each tool independently verifies it's operating on the correct project
     thread_manager.add_tool(SandboxShellTool, project_id=project_id, thread_manager=thread_manager)
@@ -67,11 +73,16 @@ async def run_agent(
  
     if os.getenv("TAVILY_API_KEY"):
         thread_manager.add_tool(WebSearchTool)
+        print("WebSearchTool initialized successfully.")
     else:
         logger.warning("TAVILY_API_KEY not found, WebSearchTool will not be available.")
     
     if os.getenv("RAPID_API_KEY"):
-        thread_manager.add_tool(DataProvidersTool)
+        # Initialize DataProvidersTool with real_data_only=True to force real data usage
+        thread_manager.add_tool(DataProvidersTool, real_data_only=True)
+        print("DataProvidersTool initialized successfully with real_data_only=True.")
+    else:
+        logger.warning("RAPID_API_KEY not found, DataProvidersTool will not be available.")
 
     system_message = { "role": "system", "content": get_system_prompt() }
 
@@ -144,7 +155,7 @@ async def run_agent(
             llm_max_tokens=max_tokens,
             tool_choice="auto",
             max_xml_tool_calls=1,
-            temporary_message=temporary_message,
+            temporary_message=None, # We adjusted this as we had an issue with this variable
             processor_config=ProcessorConfig(
                 xml_tool_calling=True,
                 native_tool_calling=False,
@@ -157,7 +168,23 @@ async def run_agent(
             include_xml_examples=True,
             enable_thinking=enable_thinking,
             reasoning_effort=reasoning_effort,
-            enable_context_manager=enable_context_manager
+            enable_context_manager=enable_context_manager,
+            # Add these parameters to explicitly enable real data access
+            extra_context={
+                "enable_real_data": True,
+                "use_external_apis": True,
+                "external_access": True,
+                "simulation_mode": False,
+                "use_real_data_only": True,
+                "agent_capabilities": {
+                    "creator_iq_access": True,
+                    "web_search": True,
+                    "file_access": True,
+                    "real_time_data": True,
+                    "use_simulations": False,
+                    "force_real_data": True
+                }
+            }
         )
             
         if isinstance(response, dict) and "status" in response and response["status"] == "error":
@@ -358,126 +385,4 @@ async def run_agent(
 #                              # Maybe just print a summary if it's too long or contains complex XML
 #                              if '</ask>' in actual_content: print("<ask>...</ask>", end='', flush=True)
 #                              elif '</complete>' in actual_content: print("<complete>...</complete>", end='', flush=True)
-#                              else: print("<tool_call>...</tool_call>", end='', flush=True) # Generic case
-#                     else:
-#                         # Regular text content
-#                          print(actual_content, end='', flush=True)
-#                     current_response += actual_content # Accumulate only text part
-#             except json.JSONDecodeError:
-#                  # If content is not JSON (e.g., just a string chunk), print directly
-#                  raw_content = chunk.get('content', '')
-#                  print(raw_content, end='', flush=True)
-#                  current_response += raw_content
-#             except Exception as e:
-#                  print(f"\nError processing assistant chunk: {e}\n")
-
-#         elif chunk.get('type') == 'tool': # Updated from 'tool_result'
-#             # Add timestamp and format tool result nicely
-#             tool_name = "UnknownTool" # Try to get from metadata if available
-#             result_content = "No content"
-            
-#             # Parse metadata - handle both string and dict formats
-#             metadata = chunk.get('metadata', {})
-#             if isinstance(metadata, str):
-#                 try:
-#                     metadata = json.loads(metadata)
-#                 except json.JSONDecodeError:
-#                     metadata = {}
-            
-#             linked_assistant_msg_id = metadata.get('assistant_message_id')
-#             parsing_details = metadata.get('parsing_details')
-#             if parsing_details:
-#                 tool_name = parsing_details.get('xml_tag_name', 'UnknownTool') # Get name from parsing details
-
-#             try:
-#                 # Content is a JSON string or object
-#                 content = chunk.get('content', '{}') 
-#                 if isinstance(content, str):
-#                     content_json = json.loads(content)
-#                 else:
-#                     content_json = content
-                
-#                 # The actual tool result is nested inside content.content
-#                 tool_result_str = content_json.get('content', '')
-#                  # Extract the actual tool result string (remove outer <tool_result> tag if present)
-#                 match = re.search(rf'<{tool_name}>(.*?)</{tool_name}>', tool_result_str, re.DOTALL)
-#                 if match:
-#                     result_content = match.group(1).strip()
-#                     # Try to parse the result string itself as JSON for pretty printing
-#                     try:
-#                         result_obj = json.loads(result_content)
-#                         result_content = json.dumps(result_obj, indent=2)
-#                     except json.JSONDecodeError:
-#                          # Keep as string if not JSON
-#                          pass
-#                 else:
-#                      # Fallback if tag extraction fails
-#                      result_content = tool_result_str
-
-#             except json.JSONDecodeError:
-#                 result_content = chunk.get('content', 'Error parsing tool content')
-#             except Exception as e:
-#                 result_content = f"Error processing tool chunk: {e}"
-
-#             print(f"\n\n🛠️  TOOL RESULT [{tool_name}] → {result_content}")
-
-#         elif chunk.get('type') == 'status':
-#             # Log tool status changes
-#             try:
-#                 # Handle content as string or object
-#                 status_content = chunk.get('content', '{}')
-#                 if isinstance(status_content, str):
-#                     status_content = json.loads(status_content)
-                
-#                 status_type = status_content.get('status_type')
-#                 function_name = status_content.get('function_name', '')
-#                 xml_tag_name = status_content.get('xml_tag_name', '') # Get XML tag if available
-#                 tool_name = xml_tag_name or function_name # Prefer XML tag name
-
-#                 if status_type == 'tool_started' and tool_name:
-#                     tool_usage_counter += 1
-#                     print(f"\n⏳ TOOL STARTING #{tool_usage_counter} [{tool_name}]")
-#                     print("  " + "-" * 40)
-#                     # Return to the current content display
-#                     if current_response:
-#                         print("\nContinuing response:", flush=True)
-#                         print(current_response, end='', flush=True)
-#                 elif status_type == 'tool_completed' and tool_name:
-#                      status_emoji = "✅"
-#                      print(f"\n{status_emoji} TOOL COMPLETED: {tool_name}")
-#                 elif status_type == 'finish':
-#                      finish_reason = status_content.get('finish_reason', '')
-#                      if finish_reason:
-#                          print(f"\n📌 Finished: {finish_reason}")
-#                 # else: # Print other status types if needed for debugging
-#                 #    print(f"\nℹ️ STATUS: {chunk.get('content')}")
-
-#             except json.JSONDecodeError:
-#                  print(f"\nWarning: Could not parse status content JSON: {chunk.get('content')}")
-#             except Exception as e:
-#                 print(f"\nError processing status chunk: {e}")
-
-
-#         # Removed elif chunk.get('type') == 'tool_call': block
-    
-#     # Update final message
-#     print(f"\n\n✅ Agent run completed with {tool_usage_counter} tool executions")
-    
-#     # Try to clean up the test sandbox if possible
-#     try:
-#         # Attempt to delete/archive the sandbox to clean up resources
-#         # Note: Actual deletion may depend on the Daytona SDK's capabilities
-#         logger.info(f"Attempting to clean up test sandbox {original_sandbox_id}")
-#         # If there's a method to archive/delete the sandbox, call it here
-#         # Example: daytona.archive_sandbox(sandbox.id)
-#     except Exception as e:
-#         logger.warning(f"Failed to clean up test sandbox {original_sandbox_id}: {str(e)}")
-
-# if __name__ == "__main__":
-#     import asyncio
-    
-#     # Configure any environment variables or setup needed for testing
-#     load_dotenv()  # Ensure environment variables are loaded
-    
-#     # Run the test function
-#     asyncio.run(test_agent())
+#                              else: print("
