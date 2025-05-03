@@ -83,7 +83,9 @@ export async function sendMessage(content: string): Promise<Message> {
         tools: ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"],
         allow_iterations: true,
         max_iterations: 5,
-        reasoning_level: "medium"
+        reasoning_level: "medium",
+        enable_real_data: true, // Explicitly enable real data usage
+        use_external_apis: true  // Explicitly enable external API usage
       },
       headers: authToken ? {
         Authorization: `Bearer ${authToken}`
