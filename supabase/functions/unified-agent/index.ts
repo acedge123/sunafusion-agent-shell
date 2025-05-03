@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
@@ -855,4 +856,481 @@ function determineCreatorIQEndpoints(query) {
       route: "/content",
       method: "GET",
       name: "List Content",
-      keywords: ["content
+      keywords: ["content", "posts", "published content", "influencer content", "creator content"]
+    },
+    lists: {
+      route: "/lists",
+      method: "GET",
+      name: "Get Lists",
+      keywords: ["lists", "influencer lists", "creator lists", "publisher lists", "find lists"]
+    },
+    list_publishers: {
+      route: "/lists/{list_id}/publishers",
+      method: "GET",
+      name: "Get List Publishers",
+      keywords: ["list publishers", "publishers in list", "influencers in list", "list members"]
+    }
+  };
+  
+  // Check if the query explicitly mentions an entity type and ID
+  let explicitEntityMatches = {
+    publisher: lowerQuery.match(/publisher\s+(?:id:?\s*|with\s+id:?\s*)([a-z0-9]+)/i) ||
+               lowerQuery.match(/influencer\s+(?:id:?\s*|with\s+id:?\s*)([a-z0-9]+)/i),
+    list: lowerQuery.match(/list\s+(?:id:?\s*|with\s+id:?\s*)([a-z0-9]+)/i),
+    campaign: lowerQuery.match(/campaign\s+(?:id:?\s*|with\s+id:?\s*)([a-z0-9]+)/i)
+  };
+  
+  // If explicit entity ID is mentioned, use those endpoints directly
+  if (explicitEntityMatches.publisher && explicitEntityMatches.publisher[1]) {
+    const publisherId = explicitEntityMatches.publisher[1];
+    endpoints.push({
+      route: `/publishers/${publisherId}`,
+      method: "GET",
+      name: "Get Publisher Details"
+    });
+    endpoints.push({
+      route: `/publishers/${publisherId}/performance`,
+      method: "GET",
+      name: "Get Publisher Performance"
+    });
+  } 
+  else if (explicitEntityMatches.list && explicitEntityMatches.list[1]) {
+    const listId = explicitEntityMatches.list[1];
+    endpoints.push({
+      route: `/lists/${listId}`,
+      method: "GET",
+      name: "Get List Details"
+    });
+    endpoints.push({
+      route: `/lists/${listId}/publishers`,
+      method: "GET",
+      name: "Get List Publishers"
+    });
+  }
+  else if (explicitEntityMatches.campaign && explicitEntityMatches.campaign[1]) {
+    const campaignId = explicitEntityMatches.campaign[1];
+    endpoints.push({
+      route: `/campaigns/${campaignId}`,
+      method: "GET",
+      name: "Get Campaign Details"
+    });
+    endpoints.push({
+      route: `/campaigns/${campaignId}/publishers`,
+      method: "GET",
+      name: "Get Campaign Publishers"
+    });
+  }
+  else {
+    // For name-based searching, add relevant endpoints based on keywords
+    for (const [key, endpoint] of Object.entries(availableEndpoints)) {
+      for (const keyword of endpoint.keywords) {
+        if (lowerQuery.includes(keyword)) {
+          endpoints.push({
+            route: endpoint.route,
+            method: endpoint.method,
+            name: endpoint.name
+          });
+          break;  // Found a match for this endpoint, no need to check other keywords
+        }
+      }
+    }
+    
+    // If no specific endpoints matched or we've matched an endpoint with a placeholder ID
+    // First check if we have any endpoints with placeholders
+    const hasPlaceholderEndpoints = endpoints.some(e => 
+      e.route.includes('{publisher_id}') || 
+      e.route.includes('{list_id}') || 
+      e.route.includes('{campaign_id}')
+    );
+    
+    // If we only found endpoints with placeholders, add the corresponding list endpoint to find the ID
+    if (hasPlaceholderEndpoints) {
+      const hasPublisherEndpoint = endpoints.some(e => e.route.includes('{publisher_id}'));
+      const hasListEndpoint = endpoints.some(e => e.route.includes('{list_id}'));
+      const hasCampaignEndpoint = endpoints.some(e => e.route.includes('{campaign_id}'));
+      
+      // Add list endpoints if needed and not already added
+      if (hasPublisherEndpoint && !endpoints.some(e => e.name === "List Publishers")) {
+        endpoints.unshift({
+          route: "/publishers",
+          method: "GET",
+          name: "List Publishers"
+        });
+      }
+      
+      if (hasListEndpoint && !endpoints.some(e => e.name === "Get Lists")) {
+        endpoints.unshift({
+          route: "/lists",
+          method: "GET",
+          name: "Get Lists"
+        });
+      }
+      
+      if (hasCampaignEndpoint && !endpoints.some(e => e.name === "List Campaigns")) {
+        endpoints.unshift({
+          route: "/campaigns",
+          method: "GET",
+          name: "List Campaigns"
+        });
+      }
+    }
+    
+    // If no specific endpoints matched and we don't have any placeholder endpoints
+    // try to infer appropriate endpoints based on the query terms
+    if (endpoints.length === 0) {
+      // Check for entity types in the query
+      const hasPublisherTerms = /(publisher|influencer|creator)/i.test(lowerQuery);
+      const hasListTerms = /(list)/i.test(lowerQuery);
+      const hasCampaignTerms = /(campaign)/i.test(lowerQuery);
+      
+      if (hasPublisherTerms) {
+        endpoints.push({
+          route: "/publishers",
+          method: "GET",
+          name: "List Publishers"
+        });
+      }
+      
+      if (hasListTerms) {
+        endpoints.push({
+          route: "/lists",
+          method: "GET",
+          name: "Get Lists"
+        });
+      }
+      
+      if (hasCampaignTerms) {
+        endpoints.push({
+          route: "/campaigns",
+          method: "GET",
+          name: "List Campaigns"
+        });
+      }
+      
+      // If still no endpoints matched, default to publishers endpoint
+      if (endpoints.length === 0) {
+        endpoints.push({
+          route: "/publishers",
+          method: "GET",
+          name: "List Publishers"
+        });
+      }
+    }
+  }
+  
+  // Deduplicate endpoints if we have more than one of the same
+  const uniqueEndpoints = [];
+  const routeTracker = new Set();
+  
+  for (const endpoint of endpoints) {
+    // For endpoints with placeholders, only track the route type
+    let routeKey = endpoint.route;
+    if (routeKey.includes('{')) {
+      routeKey = routeKey.replace(/{[^}]+}/g, '{placeholder}');
+    }
+    
+    if (!routeTracker.has(routeKey)) {
+      uniqueEndpoints.push(endpoint);
+      routeTracker.add(routeKey);
+    }
+  }
+  
+  return uniqueEndpoints;
+}
+
+// Helper function to synthesize results with AI
+async function synthesizeWithAI(query, results, history = []) {
+  try {
+    if (!OPENAI_API_KEY) {
+      return "Unable to synthesize results: OpenAI API key not configured";
+    }
+
+    // Prepare the messages for the OpenAI chat API
+    const messages = [
+      {
+        role: "system",
+        content: "You are a helpful assistant that answers questions based on the provided information sources. If the information is not in the sources, acknowledge that you don't have enough information and suggest what the user might search for instead."
+      }
+    ];
+
+    // Add conversation history if provided
+    if (history && history.length > 0) {
+      // Add up to 5 most recent conversation turns to maintain context
+      const recentHistory = history.slice(-5); 
+      recentHistory.forEach(turn => {
+        messages.push({
+          role: turn.role === "user" ? "user" : "assistant",
+          content: turn.content
+        });
+      });
+    }
+
+    // Process results into a readable format
+    let sourceText = '';
+    let sourcesCount = 0;
+
+    for (const source of results) {
+      if (source.error) {
+        continue; // Skip sources that had errors
+      }
+
+      // Process based on source type
+      if (source.source === "web_search") {
+        if (source.results && source.results.length > 0) {
+          sourceText += `\nWEB SEARCH RESULTS:\n`;
+          
+          source.results.forEach((result, index) => {
+            sourceText += `[Web ${index + 1}] "${result.title}"\n`;
+            sourceText += `${result.content}\n`;
+            sourceText += `URL: ${result.url}\n\n`;
+          });
+          
+          sourcesCount += source.results.length;
+        }
+      } else if (source.source === "google_drive") {
+        if (source.results && source.results.length > 0) {
+          sourceText += `\nGOOGLE DRIVE RESULTS:\n`;
+          
+          source.results.forEach((file, index) => {
+            sourceText += `[Drive ${index + 1}] "${file.name}" (${file.mimeType})\n`;
+            sourceText += `Modified: ${file.modifiedTime}\n`;
+            sourceText += `Link: ${file.webViewLink}\n\n`;
+          });
+          
+          sourcesCount += source.results.length;
+        }
+      } else if (source.source === "file_analysis") {
+        if (source.results && source.results.length > 0) {
+          sourceText += `\nFILE CONTENT ANALYSIS:\n`;
+          
+          source.results.forEach((analysis, index) => {
+            sourceText += `[File ${index + 1}] "${analysis.file_name}"\n`;
+            
+            // Different handling based on content format
+            if (typeof analysis.analysis === 'string') {
+              // Plain text analysis
+              sourceText += `${analysis.analysis.substring(0, 1000)}${analysis.analysis.length > 1000 ? '...' : ''}\n\n`;
+            } else if (typeof analysis.analysis === 'object') {
+              // Object with content
+              if (analysis.analysis.content) {
+                sourceText += `${analysis.analysis.content.substring(0, 1000)}${analysis.analysis.content.length > 1000 ? '...' : ''}\n`;
+              }
+              if (analysis.analysis.contentInfo) {
+                sourceText += `Note: ${analysis.analysis.contentInfo}\n`;
+              }
+              sourceText += `Type: ${analysis.analysis.type}\n\n`;
+            }
+          });
+          
+          sourcesCount += source.results.length;
+        }
+      } else if (source.source === "slack") {
+        if (source.results && source.results.length > 0) {
+          sourceText += `\nSLACK MESSAGES:\n`;
+          
+          source.results.forEach((message, index) => {
+            const user = message.user_name || message.user || 'Unknown user';
+            sourceText += `[Slack ${index + 1}] From ${user} in #${message.channel || 'unknown'}\n`;
+            sourceText += `${message.message || message.text}\n`;
+            if (message.timestamp) {
+              sourceText += `Sent: ${new Date(message.timestamp * 1000).toISOString()}\n`;
+            }
+            sourceText += `\n`;
+          });
+          
+          sourcesCount += source.results.length;
+        }
+      } else if (source.source === "creator_iq") {
+        if (source.results && source.results.length > 0) {
+          sourceText += `\nCREATOR IQ DATA:\n`;
+          
+          source.results.forEach((result, index) => {
+            sourceText += `[Creator IQ ${index + 1}] From endpoint: ${result.name}\n`;
+            
+            // Check if there's a parent entity to provide context
+            if (result.parent_entity) {
+              const entityName = result.parent_entity.name || 
+                               (result.parent_entity.first_name && result.parent_entity.last_name ? 
+                                `${result.parent_entity.first_name} ${result.parent_entity.last_name}` : 'Unknown');
+                                
+              sourceText += `Parent: ${entityName} (ID: ${result.parent_entity.id})\n`;
+            }
+            
+            // If there's an error, report it
+            if (result.error) {
+              sourceText += `Error: ${result.error}\n\n`;
+              return;
+            }
+            
+            // Process the data if present
+            if (result.data && result.data.data) {
+              const items = result.data.data;
+              sourceText += `Found ${items.length} items:\n`;
+              
+              if (result.name.includes('Publisher')) {
+                // For publisher data, show key influencer metrics
+                items.slice(0, 5).forEach((item, idx) => {
+                  const name = item.name || 
+                              (item.first_name && item.last_name ? 
+                               `${item.first_name} ${item.last_name}` : 'Unknown');
+                               
+                  sourceText += `- ${name}`;
+                  
+                  if (item.social_reach) sourceText += `, Reach: ${item.social_reach}`;
+                  if (item.total_engagement) sourceText += `, Engagement: ${item.total_engagement}`;
+                  if (item.handles && item.handles.length > 0) {
+                    const platforms = item.handles.map(h => h.platform).join(', ');
+                    sourceText += `, Platforms: ${platforms}`;
+                  }
+                  
+                  sourceText += `\n`;
+                });
+                
+                if (items.length > 5) {
+                  sourceText += `... and ${items.length - 5} more publishers\n`;
+                }
+              } 
+              else if (result.name.includes('Campaign')) {
+                // For campaign data
+                items.slice(0, 5).forEach((item, idx) => {
+                  sourceText += `- ${item.name}`;
+                  
+                  if (item.start_date && item.end_date) {
+                    sourceText += `, Period: ${item.start_date.substring(0, 10)} to ${item.end_date.substring(0, 10)}`;
+                  }
+                  
+                  if (item.status) sourceText += `, Status: ${item.status}`;
+                  if (item.budget) sourceText += `, Budget: ${item.budget}`;
+                  
+                  sourceText += `\n`;
+                });
+                
+                if (items.length > 5) {
+                  sourceText += `... and ${items.length - 5} more campaigns\n`;
+                }
+              }
+              else if (result.name.includes('List')) {
+                // For list data
+                items.slice(0, 5).forEach((item, idx) => {
+                  sourceText += `- ${item.name}`;
+                  
+                  if (item.description) sourceText += `, Description: ${item.description.substring(0, 50)}...`;
+                  if (item.created_at) sourceText += `, Created: ${item.created_at.substring(0, 10)}`;
+                  
+                  sourceText += `\n`;
+                });
+                
+                if (items.length > 5) {
+                  sourceText += `... and ${items.length - 5} more lists\n`;
+                }
+              }
+              else if (result.name.includes('Content')) {
+                // For content data
+                items.slice(0, 5).forEach((item, idx) => {
+                  sourceText += `- ${item.title || item.description || 'Untitled content'}`;
+                  
+                  if (item.platform) sourceText += `, Platform: ${item.platform}`;
+                  if (item.published_at) sourceText += `, Published: ${item.published_at.substring(0, 10)}`;
+                  if (item.engagements) sourceText += `, Engagements: ${item.engagements}`;
+                  
+                  sourceText += `\n`;
+                });
+                
+                if (items.length > 5) {
+                  sourceText += `... and ${items.length - 5} more content items\n`;
+                }
+              }
+              else {
+                // Generic handling for other data types
+                sourceText += `${JSON.stringify(items.slice(0, 2), null, 2)}\n`;
+                
+                if (items.length > 2) {
+                  sourceText += `... and ${items.length - 2} more items\n`;
+                }
+              }
+            } else {
+              sourceText += `No data available for this endpoint.\n`;
+            }
+            
+            sourceText += `\n`;
+          });
+          
+          // Count each Creator IQ result as a source
+          sourcesCount += source.results.length;
+        }
+      }
+    }
+
+    // If we don't have any data from the sources, note that
+    if (sourcesCount === 0) {
+      sourceText = "No relevant information found in the available sources.";
+    }
+
+    // Add the user query and source information to the messages
+    messages.push({
+      role: "user",
+      content: `I need information about: "${query}"\n\nHere are the sources of information available:\n${sourceText}`
+    });
+
+    // Call OpenAI to generate an answer
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: messages,
+        temperature: 0.5,
+        max_tokens: 1000
+      })
+    });
+
+    // Process the response
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${error}`);
+    }
+
+    const result = await response.json();
+    return result.choices[0].message.content;
+  } catch (error) {
+    console.error("Error synthesizing with AI:", error);
+    return `Error synthesizing results: ${error.message}. Please try again later.`;
+  }
+}
+
+// This function would handle running the full-featured AI agent with multiple tools
+// In this skeleton, we'll use a simplified version that just uses the synthesizeWithAI function
+async function runAgentTask(query, results, conversation_history, tools, allow_iterations, max_iterations, reasoning_level) {
+  try {
+    // In a real implementation, this would implement the full agent loop with tools
+    // For this skeleton, we'll just use synthesizeWithAI
+    const answer = await synthesizeWithAI(query, results, conversation_history);
+    
+    return {
+      answer,
+      reasoning: "The agent analyzed the available sources to provide this answer.",
+      steps: ["1. Collected data from sources", "2. Synthesized information to generate response"],
+      tools_used: tools.filter(tool => {
+        // Check which tools actually returned results
+        if (tool === "web_search") {
+          return results.some(r => r.source === "web_search" && r.results && r.results.length > 0);
+        } else if (tool === "file_search") {
+          return results.some(r => r.source === "google_drive" && r.results && r.results.length > 0);
+        } else if (tool === "file_analysis") {
+          return results.some(r => r.source === "file_analysis" && r.results && r.results.length > 0);
+        } else if (tool === "slack_search") {
+          return results.some(r => r.source === "slack" && r.results && r.results.length > 0);
+        } else if (tool === "creator_iq") {
+          return results.some(r => r.source === "creator_iq" && r.results && r.results.length > 0);
+        }
+        return false;
+      })
+    };
+  } catch (error) {
+    console.error("Error running agent task:", error);
+    throw error;
+  }
+}
