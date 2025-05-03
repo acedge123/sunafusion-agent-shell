@@ -658,24 +658,83 @@ function determineCreatorIQEndpoints(query) {
       method: "GET",
       name: "List Content",
       keywords: ["content", "posts", "influencer content", "campaign content", "creator posts"]
+    },
+    // New List endpoints with keywords
+    lists: {
+      route: "/lists",
+      method: "GET",
+      name: "Get Lists",
+      keywords: ["lists", "publisher lists", "influencer lists", "get lists", "search lists", "list", "find list"]
+    },
+    list_details: {
+      route: "/lists/{list_id}",
+      method: "GET", 
+      name: "Get List Details",
+      keywords: ["list details", "list information", "specific list", "list data"]
+    },
+    list_publishers: {
+      route: "/lists/{list_id}/publishers",
+      method: "GET",
+      name: "Get Publishers in List",
+      keywords: ["list members", "publishers in list", "list publishers", "influencers in list", "count publishers", "list count"]
     }
   };
   
+  // Check if query is asking for a specific list by name (e.g., "Ready Rocker Autism 4")
+  const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
+                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
+  
+  let listName = null;
+  if (listNameMatch && listNameMatch[1]) {
+    listName = listNameMatch[1].trim();
+    console.log(`Detected possible list name: "${listName}"`);
+  }
+  
   // Check which endpoints match the query
+  let matchedEndpoints = false;
   for (const [key, endpoint] of Object.entries(availableEndpoints)) {
-    const isRelevant = endpoint.keywords.some(keyword => lowerQuery.includes(keyword));
+    const isRelevant = endpoint.keywords.some(keyword => lowerQuery.includes(keyword.toLowerCase()));
     if (isRelevant) {
       endpoints.push(endpoint);
+      matchedEndpoints = true;
+      console.log(`Matched endpoint: ${key} based on keywords`);
+    }
+  }
+  
+  // Special handling for list-related queries
+  if ((lowerQuery.includes("list") && !matchedEndpoints) || listName) {
+    // If there's a specific list name mentioned, prioritize list_details and list_publishers
+    if (listName) {
+      console.log(`Adding list endpoints for list name: "${listName}"`);
+      endpoints.push(availableEndpoints.lists);
+      
+      // If query is about counting or finding publishers in a list, add list_publishers endpoint
+      if (lowerQuery.includes("count") || 
+          lowerQuery.includes("publishers") || 
+          lowerQuery.includes("influencers")) {
+        endpoints.push(availableEndpoints.list_publishers);
+      }
+    } else {
+      // Generic list query without specific list name
+      endpoints.push(availableEndpoints.lists);
     }
   }
   
   // If no specific endpoints matched, return a default set
   if (endpoints.length === 0) {
-    // Default to publishers and campaigns as most common use cases
-    endpoints.push(availableEndpoints.publishers);
-    endpoints.push(availableEndpoints.campaigns);
+    // Default to lists endpoint for this request as it's likely list related
+    if (lowerQuery.includes("list")) {
+      console.log("No specific endpoints matched, defaulting to lists endpoint");
+      endpoints.push(availableEndpoints.lists);
+    } else {
+      // Fall back to publishers and campaigns as most common use cases
+      console.log("No specific endpoints matched, defaulting to publishers and campaigns");
+      endpoints.push(availableEndpoints.publishers);
+      endpoints.push(availableEndpoints.campaigns);
+    }
   }
   
+  console.log(`Selected ${endpoints.length} endpoints for the query`);
   return endpoints;
 }
 
@@ -688,10 +747,30 @@ function buildCreatorIQPayload(endpoint, query) {
   // Extract any specific parameters from the query
   const lowerQuery = query.toLowerCase();
   
-  // Handle publisher_id or campaign_id in the endpoint route
-  if (endpoint.route.includes("{publisher_id}")) {
-    // For demo purposes, use a placeholder ID
-    // In a real implementation, we'd need to extract the ID from the query or previous results
+  // Check for list name in the query
+  const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
+                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
+  
+  if (listNameMatch && listNameMatch[1]) {
+    const listName = listNameMatch[1].trim();
+    console.log(`Adding search parameter for list name: "${listName}"`);
+    payload.search = listName;
+  }
+  
+  // Handle list_id or campaign_id or publisher_id in the endpoint route
+  if (endpoint.route.includes("{list_id}")) {
+    // For demo purposes, use placeholder or extracted ID
+    // In a real implementation, we'd need a two-step process:
+    // 1. First search for the list to get its ID
+    // 2. Then use that ID for subsequent calls
+    if (payload.search) {
+      console.log(`List name search parameter exists: "${payload.search}", would use this to find ID first`);
+      // Note: In a complete implementation, we would first call the lists endpoint to find the ID
+      // Then use that ID in the next call. Simulating with placeholder for now.
+    }
+    payload.list_id = "placeholder-list-id";
+    console.log("Using placeholder list_id. In production, this would be determined dynamically.");
+  } else if (endpoint.route.includes("{publisher_id}")) {
     payload.publisher_id = "placeholder-id";
   } else if (endpoint.route.includes("{campaign_id}")) {
     payload.campaign_id = "placeholder-id";
@@ -699,7 +778,9 @@ function buildCreatorIQPayload(endpoint, query) {
   
   // Add search parameter if it seems like a search query
   if (lowerQuery.includes("search") || lowerQuery.includes("find") || lowerQuery.includes("look for")) {
-    payload.search = query;
+    if (!payload.search) {  // Only set if not already set from list name
+      payload.search = query;
+    }
   }
   
   // Add status filter if mentioned

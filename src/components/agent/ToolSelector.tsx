@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Check, X, Search, File, FileSearch, LogIn, Briefcase } from "lucide-react";
+import { Check, X, Search, File, FileSearch, LogIn, Briefcase, ListFilter } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface ToolSelectorProps {
@@ -34,7 +34,7 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
     {
       id: "creator_iq",
       name: "Creator IQ",
-      description: "Access publisher and campaign data from Creator IQ platform",
+      description: "Access publisher, campaign, and list data from Creator IQ platform",
       icon: <Briefcase className="h-4 w-4" />
     }
   ];

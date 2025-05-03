@@ -78,6 +78,39 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "campaign_id": "Filter by campaign ID",
                     "content_type": "Filter by content type (e.g., post, video, story)"
                 }
+            },
+            # New endpoints for Lists
+            "lists": {
+                "route": "/lists",
+                "method": "GET",
+                "name": "Get Lists",
+                "description": "Get a list of all publisher lists",
+                "payload": {
+                    "limit": "Number of results to return (default: 10)",
+                    "offset": "Starting position for pagination",
+                    "search": "Search term to filter lists by name or other details",
+                    "status": "Filter by list status"
+                }
+            },
+            "list_details": {
+                "route": "/lists/{list_id}",
+                "method": "GET",
+                "name": "Get List Details", 
+                "description": "Get detailed information about a specific list",
+                "payload": {
+                    "list_id": "ID of the list to retrieve"
+                }
+            },
+            "list_publishers": {
+                "route": "/lists/{list_id}/publishers",
+                "method": "GET",
+                "name": "Get Publishers in List",
+                "description": "Get all publishers that are part of a specific list",
+                "payload": {
+                    "list_id": "ID of the list",
+                    "limit": "Number of results to return (default: 10)",
+                    "offset": "Starting position for pagination"
+                }
             }
         }
         
