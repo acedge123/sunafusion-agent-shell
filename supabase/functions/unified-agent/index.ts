@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
@@ -564,7 +565,7 @@ async function searchWeb(query) {
 }
 
 // Updated function to query Creator IQ endpoints
-async function queryCreatorIQEndpoint(endpoint: any, payload: any) {
+async function queryCreatorIQEndpoint(endpoint, payload) {
   try {
     if (!CREATOR_IQ_API_KEY) {
       throw new Error("CREATOR_IQ_API_KEY is not set");
@@ -628,7 +629,7 @@ async function queryCreatorIQEndpoint(endpoint: any, payload: any) {
       console.log(`Filtering campaigns by search term: ${searchTerm}`);
       
       // Filter campaigns by name
-      const filteredCampaigns = data.CampaignCollection.filter((campaign: any) => {
+      const filteredCampaigns = data.CampaignCollection.filter((campaign) => {
         if (campaign.Campaign && campaign.Campaign.CampaignName) {
           const campaignName = campaign.Campaign.CampaignName.toLowerCase();
           return campaignName.includes(searchTerm);
@@ -683,7 +684,7 @@ async function queryCreatorIQEndpoint(endpoint: any, payload: any) {
 }
 
 // Helper function to determine which Creator IQ endpoint(s) to query based on the query
-function determineCreatorIQEndpoints(query: string) {
+function determineCreatorIQEndpoints(query) {
   const lowerQuery = query.toLowerCase();
   const endpoints = [];
   
@@ -815,11 +816,11 @@ function determineCreatorIQEndpoints(query: string) {
 }
 
 // Helper function to build the payload for Creator IQ API calls
-function buildCreatorIQPayload(endpoint: any, query: string, creator_iq_params: any = {}) {
+function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}) {
   const lowerQuery = query.toLowerCase();
   
   // Start with basic parameters
-  const payload: any = {
+  const payload = {
     limit: 50 // Increase default limit to get more results
   };
   
@@ -854,3 +855,402 @@ function buildCreatorIQPayload(endpoint: any, query: string, creator_iq_params: 
   if (campaignNameMatch && campaignNameMatch[1] && !payload.search) {
     const campaignName = campaignNameMatch[1].trim();
     console.log(`Adding search parameter for campaign name: "${campaignName}"`);
+    payload.search = campaignName;
+  }
+  
+  // Check specifically for Ready Rocker Ambassador Program
+  if (lowerQuery.includes("ready rocker") && !payload.search) {
+    console.log("Adding search parameter for Ready Rocker");
+    payload.search = "Ready Rocker";
+  }
+  
+  // If endpoint is campaigns and we still don't have a search term, check for any campaign-related terms
+  if (endpoint.route === "/campaigns" && !payload.search) {
+    const campaignTerms = ["ambassador", "program", "marketing"];
+    for (const term of campaignTerms) {
+      if (lowerQuery.includes(term)) {
+        console.log(`Adding search parameter for campaign term: "${term}"`);
+        payload.search = term;
+        break;
+      }
+    }
+  }
+  
+  return payload;
+}
+
+// Function to synthesize results with OpenAI
+async function synthesizeWithAI(query, results, conversation_history) {
+  try {
+    if (!OPENAI_API_KEY) {
+      throw new Error('OpenAI API key is not configured');
+    }
+    
+    console.log("Preparing context for AI synthesis");
+    
+    // Prepare context from results
+    const context = buildContextFromResults(results);
+    
+    // Prepare messages for OpenAI API
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a helpful assistant that can search the web, access Google Drive files, and query corporate data APIs like Creator IQ. Answer the user\'s question based on the context provided. If you cannot find the answer, say so clearly and provide your best suggestion.'
+      }
+    ];
+    
+    // Add conversation history if available
+    if (conversation_history && conversation_history.length > 0) {
+      for (const msg of conversation_history) {
+        messages.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        });
+      }
+    }
+    
+    // Add the current query and context
+    messages.push({
+      role: 'user',
+      content: `${query}\n\nContext information:\n${context}`
+    });
+    
+    console.log(`Sending ${messages.length} messages to OpenAI`);
+    
+    // Make the API request
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages,
+        temperature: 0.5
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${error}`);
+    }
+    
+    const data = await response.json();
+    const answer = data.choices[0].message.content;
+    
+    return answer;
+  } catch (error) {
+    console.error("Error in synthesizeWithAI:", error);
+    return `I encountered an error while trying to process your request: ${error.message}. Please try again or contact support if the issue persists.`;
+  }
+}
+
+// Function to execute an agent task with more advanced capabilities
+async function runAgentTask(query, results, conversation_history = [], tools = [], allow_iterations = true, max_iterations = 3, reasoning_level = "medium") {
+  try {
+    if (!OPENAI_API_KEY) {
+      throw new Error('OpenAI API key is not configured');
+    }
+    
+    console.log(`Running agent task for query: "${query}"`);
+    console.log(`Tools enabled: ${tools.join(', ')}`);
+    console.log(`Reasoning level: ${reasoning_level}`);
+    
+    // Prepare the initial context
+    const initialContext = buildContextFromResults(results);
+    
+    // Configure the reasoning prompt based on the reasoning level
+    let reasoningPrompt = "";
+    switch(reasoning_level) {
+      case "high":
+        reasoningPrompt = "Explain your reasoning process in detail. Consider multiple perspectives, evaluate evidence critically, and justify your conclusions thoroughly.";
+        break;
+      case "medium":
+        reasoningPrompt = "Explain your key reasoning steps clearly. Share how you evaluated the information to reach your conclusions.";
+        break;
+      case "low":
+        reasoningPrompt = "Provide minimal explanation of your reasoning process, focusing primarily on your conclusion.";
+        break;
+      default:
+        reasoningPrompt = "Explain your key reasoning steps clearly. Share how you evaluated the information to reach your conclusions.";
+    }
+    
+    // Make the request to OpenAI
+    const response = await getAgentResponse(query, initialContext, tools, reasoningPrompt);
+    
+    return response;
+  } catch (error) {
+    console.error("Error in runAgentTask:", error);
+    return {
+      answer: `I encountered an error while trying to process your task: ${error.message}. Please try again or contact support if the issue persists.`,
+      reasoning: "An error occurred during processing.",
+      steps: [],
+      tools_used: []
+    };
+  }
+}
+
+// Helper function to get an agent response from OpenAI
+async function getAgentResponse(query, context, tools, reasoningPrompt) {
+  try {
+    console.log("Getting agent response from OpenAI");
+    
+    // Build system prompt
+    const systemPrompt = `You are an advanced AI agent capable of solving complex tasks using multiple tools.
+${reasoningPrompt}
+
+Available tools: ${tools.join(', ')}
+
+For your response, format it as follows:
+1. REASONING: Explain your thought process
+2. STEPS_TAKEN: List the steps you took to solve the problem, numbered
+3. ANSWER: Provide your final answer to the user's query
+4. TOOLS_USED: List which tools you used
+
+Base your response only on the provided context information. If you don't have enough information to answer confidently, say so clearly.`;
+    
+    // Build user prompt
+    const userPrompt = `Task: ${query}
+
+Context information:
+${context}
+
+Remember to format your response according to the instructions.`;
+    
+    // Make the API request
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.5
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${error}`);
+    }
+    
+    const data = await response.json();
+    const responseText = data.choices[0].message.content;
+    
+    // Parse the structured response
+    const parsed = parseStructuredResponse(responseText);
+    
+    return parsed;
+  } catch (error) {
+    console.error("Error in getAgentResponse:", error);
+    throw error;
+  }
+}
+
+// Helper function to parse the structured response from the agent
+function parseStructuredResponse(responseText) {
+  // Default structure
+  const result = {
+    reasoning: "",
+    steps: [],
+    answer: "",
+    tools_used: []
+  };
+  
+  try {
+    // Extract reasoning
+    const reasoningMatch = responseText.match(/REASONING:(.*?)(?:STEPS_TAKEN:|ANSWER:|TOOLS_USED:|$)/s);
+    if (reasoningMatch) {
+      result.reasoning = reasoningMatch[1].trim();
+    }
+    
+    // Extract steps taken
+    const stepsMatch = responseText.match(/STEPS_TAKEN:(.*?)(?:ANSWER:|TOOLS_USED:|$)/s);
+    if (stepsMatch) {
+      const stepsText = stepsMatch[1].trim();
+      const stepLines = stepsText.split('\n').filter(line => line.trim());
+      
+      // Parse steps with numbers and descriptions
+      for (const line of stepLines) {
+        const stepMatch = line.match(/(\d+)[\.\)\]]+\s*(.*)/);
+        if (stepMatch) {
+          result.steps.push({
+            step: parseInt(stepMatch[1], 10),
+            action: stepMatch[2].trim(),
+            result: "" // We don't have results for individual steps in this format
+          });
+        } else if (result.steps.length > 0) {
+          // Append to the previous step's action if it's a continuation
+          result.steps[result.steps.length - 1].action += " " + line.trim();
+        }
+      }
+    }
+    
+    // Extract answer
+    const answerMatch = responseText.match(/ANSWER:(.*?)(?:TOOLS_USED:|$)/s);
+    if (answerMatch) {
+      result.answer = answerMatch[1].trim();
+    } else {
+      // If we can't find an explicit ANSWER section, use the entire response as the answer
+      result.answer = responseText.trim();
+    }
+    
+    // Extract tools used
+    const toolsMatch = responseText.match(/TOOLS_USED:(.*?)$/s);
+    if (toolsMatch) {
+      const toolsText = toolsMatch[1].trim();
+      // Split by commas, newlines, or bullet points and clean up
+      result.tools_used = toolsText
+        .split(/[,\n•\-]+/)
+        .map(tool => tool.trim())
+        .filter(tool => tool.length > 0);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Error parsing structured response:", error);
+    return {
+      reasoning: "Error parsing response.",
+      steps: [],
+      answer: responseText, // Return the full text as the answer in case of parsing errors
+      tools_used: []
+    };
+  }
+}
+
+// Helper function to build context from results
+function buildContextFromResults(results) {
+  try {
+    let context = "--- CONTEXT START ---\n\n";
+    
+    // Process web search results
+    const webResults = results.find(r => r.source === "web_search");
+    if (webResults && webResults.results && webResults.results.length > 0) {
+      context += "WEB SEARCH RESULTS:\n";
+      webResults.results.forEach((result, index) => {
+        context += `[${index + 1}] Title: ${result.title}\n`;
+        context += `URL: ${result.url}\n`;
+        context += `Content: ${result.content}\n\n`;
+      });
+    }
+    
+    // Process Google Drive results
+    const driveResults = results.find(r => r.source === "google_drive");
+    if (driveResults && driveResults.results && driveResults.results.length > 0) {
+      context += "GOOGLE DRIVE RESULTS:\n";
+      driveResults.results.forEach((file, index) => {
+        context += `[${index + 1}] ${file.name} (${file.mimeType})\n`;
+      });
+      context += "\n";
+    }
+    
+    // Process file analysis results
+    const analysisResults = results.find(r => r.source === "file_analysis");
+    if (analysisResults && analysisResults.results && analysisResults.results.length > 0) {
+      context += "FILE ANALYSIS RESULTS:\n";
+      analysisResults.results.forEach((analysis, index) => {
+        context += `[${index + 1}] File: ${analysis.file_name}\n`;
+        if (typeof analysis.analysis === 'string') {
+          context += `Content: ${analysis.analysis.substring(0, 500)}...\n\n`;
+        } else if (analysis.analysis && analysis.analysis.content) {
+          context += `Content: ${analysis.analysis.content.substring(0, 500)}...\n\n`;
+        }
+      });
+    }
+    
+    // Process Slack results
+    const slackResults = results.find(r => r.source === "slack");
+    if (slackResults && slackResults.results && slackResults.results.length > 0) {
+      context += "SLACK MESSAGES:\n";
+      slackResults.results.forEach((message, index) => {
+        context += `[${index + 1}] From: ${message.user || 'Unknown'}\n`;
+        context += `Message: ${message.text}\n`;
+        if (message.timestamp) context += `Time: ${new Date(message.timestamp * 1000).toISOString()}\n`;
+        context += "\n";
+      });
+    }
+    
+    // Process Creator IQ results
+    const creatorIQResults = results.find(r => r.source === "creator_iq");
+    if (creatorIQResults && creatorIQResults.results && creatorIQResults.results.length > 0) {
+      context += "CREATOR IQ DATA:\n";
+      
+      creatorIQResults.results.forEach((result, index) => {
+        context += `[${index + 1}] Endpoint: ${result.name || result.endpoint}\n`;
+        
+        // Handle campaign data
+        if (result.data && result.data.CampaignCollection) {
+          context += `Found ${result.data.CampaignCollection.length} campaigns`;
+          if (result.data.filtered_by) {
+            context += ` matching "${result.data.filtered_by}"`;
+          }
+          context += `\n`;
+          
+          // Add campaign details
+          result.data.CampaignCollection.forEach((campaign, cIdx) => {
+            if (campaign.Campaign) {
+              const c = campaign.Campaign;
+              context += `  Campaign ${cIdx + 1}: ${c.CampaignName || 'Unnamed'} (ID: ${c.CampaignId})\n`;
+              if (c.CampaignStatus) context += `    Status: ${c.CampaignStatus}\n`;
+              if (c.StartDate) context += `    Start: ${c.StartDate}\n`;
+              if (c.EndDate) context += `    End: ${c.EndDate}\n`;
+              if (c.PublishersCount !== undefined) context += `    Publishers: ${c.PublishersCount}\n`;
+            }
+          });
+          context += "\n";
+        }
+        
+        // Handle publisher data
+        if (result.data && result.data.PublisherCollection) {
+          context += `Found ${result.data.PublisherCollection.length} publishers\n`;
+          
+          // Add publisher details
+          result.data.PublisherCollection.slice(0, 5).forEach((publisher, pIdx) => {
+            if (publisher.Publisher) {
+              const p = publisher.Publisher;
+              context += `  Publisher ${pIdx + 1}: ${p.PublisherName || 'Unnamed'} (ID: ${p.Id})\n`;
+              if (p.Status) context += `    Status: ${p.Status}\n`;
+              if (p.TotalSubscribers) context += `    Subscribers: ${p.TotalSubscribers}\n`;
+            }
+          });
+          if (result.data.PublisherCollection.length > 5) {
+            context += `  ... and ${result.data.PublisherCollection.length - 5} more publishers\n`;
+          }
+          context += "\n";
+        }
+        
+        // Handle lists data
+        if (result.data && result.data.ListsCollection) {
+          context += `Found ${result.data.ListsCollection.length} lists\n`;
+          
+          // Add list details
+          result.data.ListsCollection.slice(0, 5).forEach((list, lIdx) => {
+            if (list.List) {
+              const l = list.List;
+              context += `  List ${lIdx + 1}: ${l.Name || 'Unnamed'} (ID: ${l.Id})\n`;
+              if (l.Description) context += `    Description: ${l.Description}\n`;
+              if (l.Publishers) context += `    Publishers: ${l.Publishers.length}\n`;
+            }
+          });
+          if (result.data.ListsCollection.length > 5) {
+            context += `  ... and ${result.data.ListsCollection.length - 5} more lists\n`;
+          }
+          context += "\n";
+        }
+      });
+    }
+    
+    context += "--- CONTEXT END ---";
+    
+    return context;
+  } catch (error) {
+    console.error("Error building context from results:", error);
+    return "Error building context from search results.";
+  }
+}
