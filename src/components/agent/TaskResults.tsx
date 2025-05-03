@@ -104,7 +104,7 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                   {endpoint.data && endpoint.data.CampaignCollection && (
                     <Fragment>
                       <div className="text-sm text-muted-foreground">
-                        {endpoint.data.total} campaigns found (page {endpoint.data.page} of {endpoint.data.total_pages})
+                        {endpoint.data.total} campaigns found (page {endpoint.data.page} of {endpoint.data.total_pages || 1})
                       </div>
                       <div className="space-y-2 mt-3">
                         {endpoint.data.CampaignCollection.map((campaignItem: any, cIdx: number) => (
@@ -121,7 +121,7 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                               {campaignItem.Campaign?.EndDate && (
                                 <div>End: <span className="text-muted-foreground">{campaignItem.Campaign.EndDate}</span></div>
                               )}
-                              {campaignItem.Campaign?.PublishersCount && (
+                              {campaignItem.Campaign?.PublishersCount !== undefined && (
                                 <div>Publishers: <span className="text-muted-foreground">{campaignItem.Campaign.PublishersCount}</span></div>
                               )}
                             </div>
@@ -181,6 +181,15 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                         ))}
                       </div>
                     </Fragment>
+                  )}
+                  
+                  {/* Display raw data if none of the known collections are found */}
+                  {!endpoint.data?.CampaignCollection && 
+                   !endpoint.data?.ListsCollection && 
+                   !endpoint.data?.PublisherCollection && (
+                    <pre className="overflow-auto text-xs p-3 bg-muted/30 rounded-md max-h-96">
+                      {JSON.stringify(endpoint.data, null, 2)}
+                    </pre>
                   )}
                 </div>
               ))}

@@ -70,12 +70,18 @@ export async function sendMessage(content: string): Promise<Message> {
         conversation_history: [],
         include_web: true,
         include_drive: true,
+        include_creator_iq: true,
         debug_token_info: {
           hasProviderToken: !!providerToken,
           hasStoredToken: !!storedToken,
           userHasSession: !!sessionData?.session,
           tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none')
-        }
+        },
+        // Add specific parameters for Creator IQ searches if the query contains related terms
+        creator_iq_params: content.toLowerCase().includes('campaign') ? {
+          prefer_full_results: true,
+          return_raw_response: true
+        } : undefined
       },
       headers: authToken ? {
         Authorization: `Bearer ${authToken}`
@@ -85,6 +91,23 @@ export async function sendMessage(content: string): Promise<Message> {
     if (response.error) {
       console.error("Edge function error:", response.error);
       throw new Error(response.error.message || "Failed to get AI response");
+    }
+    
+    // Log the response structure to help with debugging
+    console.log("AI response structure:", Object.keys(response.data));
+    if (response.data.sources) {
+      console.log("Sources:", response.data.sources.map(s => s.source));
+      
+      // Log Creator IQ data structure if present
+      const creatorIQSource = response.data.sources.find(s => s.source === "creator_iq");
+      if (creatorIQSource) {
+        console.log("Creator IQ data structure:", 
+          creatorIQSource.results?.map(r => ({
+            endpoint: r.endpoint,
+            dataKeys: r.data ? Object.keys(r.data) : "No data"
+          }))
+        );
+      }
     }
 
     return {

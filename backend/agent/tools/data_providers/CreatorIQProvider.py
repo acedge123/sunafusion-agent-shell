@@ -54,7 +54,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "limit": "Number of results to return (default: 10)",
                     "offset": "Starting position for pagination",
                     "status": "Filter by campaign status",
-                    "brand_id": "Filter by brand ID"
+                    "brand_id": "Filter by brand ID",
+                    "search": "Search term to filter campaigns by name"
                 }
             },
             "campaign_details": {
@@ -79,7 +80,7 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "content_type": "Filter by content type (e.g., post, video, story)"
                 }
             },
-            # New endpoints for Lists
+            # Lists endpoints
             "lists": {
                 "route": "/lists",
                 "method": "GET",
@@ -165,9 +166,47 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             # Log the request for debugging
             print(f"Making Creator IQ API request to: {url}")
+            
+            # Handle search parameter for campaigns specially
+            if route == "campaigns" and payload and "search" in payload:
+                search_term = payload["search"]
+                print(f"Searching for campaigns with term: {search_term}")
+                
+                # We need to handle campaign search in a special way as the API might not have direct search
+                # First make the request without the search parameter
+                search_payload = {k: v for k, v in payload.items() if k != "search"}
+                
+                if method == "GET":
+                    response = requests.get(url, params=search_payload, headers=headers)
+                else:
+                    response = requests.post(url, json=search_payload, headers=headers)
+                
+                # Check for errors
+                response.raise_for_status()
+                
+                # Get the response data
+                full_response = response.json()
+                
+                # Process the response to filter by campaign name
+                if "CampaignCollection" in full_response:
+                    # Filter campaigns by name containing the search term (case-insensitive)
+                    original_campaigns = full_response["CampaignCollection"]
+                    filtered_campaigns = [
+                        campaign for campaign in original_campaigns
+                        if campaign.get("Campaign") and search_term.lower() in (campaign["Campaign"].get("CampaignName") or "").lower()
+                    ]
+                    
+                    # Update the response with filtered results
+                    full_response["CampaignCollection"] = filtered_campaigns
+                    full_response["count"] = len(filtered_campaigns)
+                    
+                    print(f"Found {len(filtered_campaigns)} campaigns matching '{search_term}'")
+                    
+                    return full_response
+            
+            # Make the regular request if not a special case
             print(f"Method: {method}, Headers: {headers}, Payload: {payload}")
             
-            # Make the request with proper parameter handling
             if method == "GET":
                 response = requests.get(url, params=payload, headers=headers)
             elif method == "POST":
@@ -178,11 +217,22 @@ class CreatorIQProvider(RapidDataProviderBase):
             # Check for errors
             response.raise_for_status()
             
-            # Log response status
+            # Log response status and preview
             print(f"Creator IQ API response status: {response.status_code}")
+            response_data = response.json()
             
-            # Return the response data
-            return response.json()
+            # If we have campaign data, let's log a bit more detail for debugging
+            if route == "campaigns" and "CampaignCollection" in response_data:
+                campaigns = response_data["CampaignCollection"]
+                campaign_names = [
+                    f"{c['Campaign']['CampaignId']}: {c['Campaign'].get('CampaignName', 'Unnamed')}" 
+                    for c in campaigns if 'Campaign' in c
+                ]
+                print(f"Retrieved {len(campaigns)} campaigns: {', '.join(campaign_names[:5])}")
+                if len(campaigns) > 5:
+                    print(f"... and {len(campaigns) - 5} more")
+            
+            return response_data
             
         except requests.exceptions.RequestException as e:
             # Handle API errors with more detailed information
