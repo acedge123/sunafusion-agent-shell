@@ -35,11 +35,11 @@ serve(async (req) => {
       include_web = true, 
       include_drive = true,
       include_slack = true, 
-      include_creator_iq = true, // New parameter to include Creator IQ
+      include_creator_iq = true,
       provider_token = null,
       debug_token_info = {},
       task_mode = false, 
-      tools = ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"], // Added creator_iq
+      tools = ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"],
       allow_iterations = true,
       max_iterations = 5, 
       reasoning_level = "medium"
@@ -524,7 +524,7 @@ async function searchWeb(query) {
   }
 }
 
-// New function to query Creator IQ
+// Updated function to query Creator IQ
 async function queryCreatorIQ(query) {
   try {
     if (!CREATOR_IQ_API_KEY) {
@@ -535,6 +535,11 @@ async function queryCreatorIQ(query) {
     const endpoints = determineCreatorIQEndpoints(query);
     const results = [];
 
+    // Updated base URL
+    const baseUrl = 'https://apis.creatoriq.com/crm/v1/api';
+    
+    console.log(`Using Creator IQ base URL: ${baseUrl}`);
+
     for (const endpoint of endpoints) {
       const payload = buildCreatorIQPayload(endpoint, query);
       
@@ -544,31 +549,64 @@ async function queryCreatorIQ(query) {
         'Content-Type': 'application/json'
       };
       
-      // Hard-coded base URL - this would be replaced with the actual Creator IQ API URL
-      const baseUrl = 'https://api.creatoriq.com/v1';
       const url = `${baseUrl}${endpoint.route}`;
       
       console.log(`Querying Creator IQ endpoint: ${endpoint.route} with payload:`, payload);
 
-      const response = await fetch(url, {
-        method: endpoint.method || 'GET',
-        headers: headers,
-        ...(endpoint.method === 'POST' ? { body: JSON.stringify(payload) } : 
-           { params: new URLSearchParams(payload) })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Creator IQ API error: ${response.status} ${response.statusText}`);
+      // Improved request handling
+      try {
+        let response;
+        if (endpoint.method === 'POST') {
+          console.log(`Making POST request to ${url}`);
+          response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+        } else {
+          // For GET requests, properly build URL with query parameters
+          const urlParams = new URLSearchParams();
+          if (payload) {
+            Object.entries(payload).forEach(([key, value]) => {
+              if (!endpoint.route.includes(`{${key}}`)) { // Only add if not used in route path
+                urlParams.append(key, value.toString());
+              }
+            });
+          }
+          
+          const fullUrl = `${url}${urlParams.toString() ? `?${urlParams.toString()}` : ''}`;
+          console.log(`Making GET request to ${fullUrl}`);
+          response = await fetch(fullUrl, {
+            method: 'GET',
+            headers: headers
+          });
+        }
+        
+        // Log response status and handle errors
+        console.log(`Creator IQ API response status: ${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Creator IQ API error (${response.status}): ${errorText}`);
+          throw new Error(`Creator IQ API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log(`Creator IQ response from ${endpoint.route}:`, data);
+        
+        results.push({
+          endpoint: endpoint.route,
+          name: endpoint.name,
+          data: data
+        });
+      } catch (requestError) {
+        console.error(`Error querying Creator IQ endpoint ${endpoint.route}:`, requestError);
+        results.push({
+          endpoint: endpoint.route,
+          name: endpoint.name,
+          error: requestError.message || "Unknown error"
+        });
       }
-      
-      const data = await response.json();
-      console.log(`Creator IQ response from ${endpoint.route}:`, data);
-      
-      results.push({
-        endpoint: endpoint.route,
-        name: endpoint.name,
-        data: data
-      });
     }
 
     return results;
@@ -583,25 +621,25 @@ function determineCreatorIQEndpoints(query) {
   const lowerQuery = query.toLowerCase();
   const endpoints = [];
   
-  // Define all available endpoints
+  // Define all available endpoints with updated terminology
   const availableEndpoints = {
-    creators: {
-      route: "/creators",
+    publishers: {
+      route: "/publishers",
       method: "GET",
-      name: "List Creators",
-      keywords: ["creators", "influencers", "list creators", "find creators", "influencer list"]
+      name: "List Publishers",
+      keywords: ["publishers", "influencers", "list publishers", "find influencers", "influencer list"]
     },
-    creator_details: {
-      route: "/creators/{creator_id}",
+    publisher_details: {
+      route: "/publishers/{publisher_id}",
       method: "GET",
-      name: "Get Creator Details",
-      keywords: ["creator details", "influencer details", "creator profile", "influencer information"]
+      name: "Get Publisher Details",
+      keywords: ["publisher details", "influencer details", "creator profile", "influencer information"]
     },
-    creator_performance: {
-      route: "/creators/{creator_id}/performance",
+    publisher_performance: {
+      route: "/publishers/{publisher_id}/performance",
       method: "GET",
-      name: "Get Creator Performance",
-      keywords: ["creator performance", "influencer performance", "performance metrics", "engagement stats"]
+      name: "Get Publisher Performance",
+      keywords: ["publisher performance", "influencer performance", "performance metrics", "engagement stats"]
     },
     campaigns: {
       route: "/campaigns",
@@ -633,8 +671,8 @@ function determineCreatorIQEndpoints(query) {
   
   // If no specific endpoints matched, return a default set
   if (endpoints.length === 0) {
-    // Default to creators and campaigns as most common use cases
-    endpoints.push(availableEndpoints.creators);
+    // Default to publishers and campaigns as most common use cases
+    endpoints.push(availableEndpoints.publishers);
     endpoints.push(availableEndpoints.campaigns);
   }
   
@@ -650,12 +688,13 @@ function buildCreatorIQPayload(endpoint, query) {
   // Extract any specific parameters from the query
   const lowerQuery = query.toLowerCase();
   
-  // Handle creator_id or campaign_id in the endpoint route
-  // This is simplified - in a real implementation, we'd need more sophisticated extraction
-  if (endpoint.route.includes("{creator_id}") || endpoint.route.includes("{campaign_id}")) {
+  // Handle publisher_id or campaign_id in the endpoint route
+  if (endpoint.route.includes("{publisher_id}")) {
     // For demo purposes, use a placeholder ID
     // In a real implementation, we'd need to extract the ID from the query or previous results
-    payload.id = "placeholder-id";
+    payload.publisher_id = "placeholder-id";
+  } else if (endpoint.route.includes("{campaign_id}")) {
+    payload.campaign_id = "placeholder-id";
   }
   
   // Add search parameter if it seems like a search query
@@ -825,7 +864,7 @@ ${reasoningLevel === 'high' ? 'Show your detailed reasoning for each step.' :
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o-mini',  // Using a more capable model for synthesis
         messages: messages,
         temperature: 0.7
       })

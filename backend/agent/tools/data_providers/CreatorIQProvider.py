@@ -12,34 +12,34 @@ class CreatorIQProvider(RapidDataProviderBase):
     def __init__(self):
         # Define available endpoints
         endpoints = {
-            "creators": {
-                "route": "/creators",
+            "publishers": {
+                "route": "/publishers",
                 "method": "GET",
-                "name": "List Creators",
-                "description": "Get a list of creators/influencers",
+                "name": "List Publishers",
+                "description": "Get a list of publishers/influencers",
                 "payload": {
                     "limit": "Number of results to return (default: 10)",
                     "offset": "Starting position for pagination",
-                    "status": "Filter by creator status (e.g., active, inactive)",
-                    "search": "Search term to filter creators by name or other details"
+                    "status": "Filter by publisher status (e.g., active, inactive)",
+                    "search": "Search term to filter publishers by name or other details"
                 }
             },
-            "creator_details": {
-                "route": "/creators/{creator_id}",
+            "publisher_details": {
+                "route": "/publishers/{publisher_id}",
                 "method": "GET",
-                "name": "Get Creator Details",
-                "description": "Get detailed information about a specific creator",
+                "name": "Get Publisher Details",
+                "description": "Get detailed information about a specific publisher",
                 "payload": {
-                    "creator_id": "ID of the creator to retrieve"
+                    "publisher_id": "ID of the publisher to retrieve"
                 }
             },
-            "creator_performance": {
-                "route": "/creators/{creator_id}/performance",
+            "publisher_performance": {
+                "route": "/publishers/{publisher_id}/performance",
                 "method": "GET",
-                "name": "Get Creator Performance",
-                "description": "Get performance metrics for a specific creator",
+                "name": "Get Publisher Performance",
+                "description": "Get performance metrics for a specific publisher",
                 "payload": {
-                    "creator_id": "ID of the creator",
+                    "publisher_id": "ID of the publisher",
                     "start_date": "Start date for metrics (YYYY-MM-DD)",
                     "end_date": "End date for metrics (YYYY-MM-DD)",
                     "metrics": "Comma-separated list of metrics to include"
@@ -74,16 +74,16 @@ class CreatorIQProvider(RapidDataProviderBase):
                 "payload": {
                     "limit": "Number of results to return (default: 10)",
                     "offset": "Starting position for pagination",
-                    "creator_id": "Filter by creator ID",
+                    "publisher_id": "Filter by publisher ID",
                     "campaign_id": "Filter by campaign ID",
                     "content_type": "Filter by content type (e.g., post, video, story)"
                 }
             }
         }
         
-        # Initialize with base URL and endpoints
+        # Initialize with the correct base URL and endpoints
         super().__init__(
-            base_url="https://api.creatoriq.com/v1",  # Base URL might need to be updated based on actual Creator IQ API
+            base_url="https://apis.creatoriq.com/crm/v1/api",  # Updated base URL
             endpoints=endpoints
         )
     
@@ -108,7 +108,7 @@ class CreatorIQProvider(RapidDataProviderBase):
             formatted_route = endpoint["route"]
             method = endpoint.get("method", "GET").upper()
             
-            # Handle path parameters (e.g., {creator_id} in the route)
+            # Handle path parameters (e.g., {publisher_id} in the route)
             if payload and "{" in formatted_route:
                 for key, value in payload.items():
                     if "{" + key + "}" in formatted_route:
@@ -130,7 +130,11 @@ class CreatorIQProvider(RapidDataProviderBase):
                 "Content-Type": "application/json"
             }
             
-            # Make the request
+            # Log the request for debugging
+            print(f"Making Creator IQ API request to: {url}")
+            print(f"Method: {method}, Headers: {headers}, Payload: {payload}")
+            
+            # Make the request with proper parameter handling
             if method == "GET":
                 response = requests.get(url, params=payload, headers=headers)
             elif method == "POST":
@@ -141,11 +145,14 @@ class CreatorIQProvider(RapidDataProviderBase):
             # Check for errors
             response.raise_for_status()
             
+            # Log response status
+            print(f"Creator IQ API response status: {response.status_code}")
+            
             # Return the response data
             return response.json()
             
         except requests.exceptions.RequestException as e:
-            # Handle API errors
+            # Handle API errors with more detailed information
             error_message = str(e)
             if hasattr(e, "response") and e.response is not None:
                 try:
@@ -153,8 +160,9 @@ class CreatorIQProvider(RapidDataProviderBase):
                     if isinstance(error_data, dict) and "message" in error_data:
                         error_message = error_data["message"]
                     error_message += f" (Status code: {e.response.status_code})"
+                    print(f"Creator IQ API error response: {error_data}")
                 except:
                     error_message = f"API error: {e.response.status_code} {e.response.reason}"
             
+            print(f"Creator IQ API error: {error_message}")
             raise ValueError(f"Creator IQ API error: {error_message}")
-
