@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Check, X, Search, File, FileSearch, LogIn, Briefcase, ListFilter } from "lucide-react";
+import { Check, X, Search, File, FileSearch, LogIn, Briefcase } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface ToolSelectorProps {
