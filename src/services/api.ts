@@ -63,6 +63,8 @@ export async function sendMessage(content: string): Promise<Message> {
       }
     }
 
+    console.log("Starting unified-agent invocation with real_data_only=true");
+    
     // Use the unified-agent edge function to process the message
     const response = await supabase.functions.invoke('unified-agent', {
       body: {
@@ -72,31 +74,33 @@ export async function sendMessage(content: string): Promise<Message> {
         include_drive: true,
         include_slack: true,
         include_creator_iq: true,
-        provider_token: providerToken || storedToken, // Try both tokens
+        provider_token: providerToken || storedToken,
         debug_token_info: {
           hasProviderToken: !!providerToken,
           hasStoredToken: !!storedToken,
           userHasSession: !!sessionData?.session,
           tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none'),
-          usingRealData: true, // Explicitly indicate we're using real data
-          simulationDisabled: true // Explicitly indicate simulation is disabled
+          usingRealData: true,
+          simulationDisabled: true
         },
-        task_mode: true, // Enable task mode for more detailed responses
+        task_mode: true,
         tools: ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"],
         allow_iterations: true,
         max_iterations: 5,
         reasoning_level: "medium",
-        enable_real_data: true, // Explicitly enable real data usage
-        use_external_apis: true, // Explicitly enable external API usage
-        external_access: true, // Additional flag to emphasize external data access
-        simulation_mode: false, // Explicitly disable simulation mode
-        agent_capabilities: { // Add detailed capabilities object
+        enable_real_data: true,
+        use_external_apis: true,
+        external_access: true,
+        simulation_mode: false,
+        real_data_only: true,
+        force_live_data: true,
+        agent_capabilities: {
           creator_iq_access: true,
           web_search: true,
           file_access: true,
           real_time_data: true,
-          use_simulations: false, // Explicitly disable simulations
-          force_real_data: true // Force the use of real data
+          use_simulations: false,
+          force_real_data: true
         }
       },
       headers: authToken ? {

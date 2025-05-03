@@ -7,9 +7,10 @@ from agent.tools.data_providers.RapidDataProviderBase import RapidDataProviderBa
 class CreatorIQProvider(RapidDataProviderBase):
     """
     Provider for Creator IQ API - a CRM system for managing Influencer/Creator relationships.
+    Always uses real data, simulations are completely disabled.
     """
     
-    def __init__(self, use_real_data_only=True):
+    def __init__(self):
         # Define available endpoints
         endpoints = {
             "publishers": {
@@ -91,7 +92,6 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "content_type": "Filter by content type (e.g., post, video, story)"
                 }
             },
-            # List endpoints
             "lists": {
                 "route": "/lists",
                 "method": "GET",
@@ -132,11 +132,11 @@ class CreatorIQProvider(RapidDataProviderBase):
             endpoints=endpoints
         )
         
-        # Flag to ensure we always use real data and never use simulations
-        self.use_real_data_only = use_real_data_only
+        # Get API key and verify it exists
         self.api_key = os.getenv("CREATOR_IQ_API_KEY")
         if not self.api_key:
-            print("WARNING: CREATOR_IQ_API_KEY environment variable not set! API calls will fail.")
+            print("ERROR: CREATOR_IQ_API_KEY environment variable not set! All API calls will fail.")
+            raise ValueError("CREATOR_IQ_API_KEY environment variable must be set")
     
     def find_by_name(self, entity_type: str, name: str) -> Optional[Dict[str, Any]]:
         """
@@ -276,7 +276,7 @@ class CreatorIQProvider(RapidDataProviderBase):
         
         # Step 2: Get publishers in the campaign
         try:
-            print(f"Processing endpoint: /campaigns/{campaign_id}/publishers")
+            print(f"Retrieving publishers for campaign ID: {campaign_id}")
             payload = {
                 "campaign_id": campaign_id,
                 "limit": 50  # Fetch up to 50 publishers
@@ -304,7 +304,7 @@ class CreatorIQProvider(RapidDataProviderBase):
     
     def call_endpoint(self, route: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Override the call_endpoint method to handle Creator IQ specific authentication and parameters.
+        API call implementation for Creator IQ with detailed logging.
         
         Args:
             route: The endpoint route key
@@ -334,14 +334,13 @@ class CreatorIQProvider(RapidDataProviderBase):
             # Build the complete URL
             url = f"{self.base_url}{formatted_route}"
             
-            # Get API key from environment variables
-            api_key = self.api_key
-            if not api_key:
+            # Verify API key again before request
+            if not self.api_key:
                 raise ValueError("CREATOR_IQ_API_KEY environment variable not set")
             
             # Set up headers for Creator IQ API
             headers = {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
             
@@ -365,7 +364,9 @@ class CreatorIQProvider(RapidDataProviderBase):
             print(f"Creator IQ API response status: {response.status_code}")
             
             # Return the response data
-            return response.json()
+            json_response = response.json()
+            print(f"Creator IQ response from {formatted_route}: {str(json_response)[:1000]}...")
+            return json_response
             
         except requests.exceptions.RequestException as e:
             # Handle API errors with more detailed information
@@ -382,12 +383,3 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             print(f"Creator IQ API error: {error_message}")
             raise ValueError(f"Creator IQ API error: {error_message}")
-
-    # Helper method to explain that simulations are disabled
-    def explain_simulation_status(self):
-        return {
-            "simulation_mode": False, 
-            "using_real_data": True, 
-            "message": "This provider is configured to use only real data from the Creator IQ API. " +
-                       "Simulations and placeholder data have been disabled."
-        }

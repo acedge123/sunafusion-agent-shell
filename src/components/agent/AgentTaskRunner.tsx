@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -65,6 +66,8 @@ const AgentTaskRunner = ({
     setDriveError(null);
 
     try {
+      console.log("Starting task execution with real data only");
+      
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData?.session?.access_token;
       
@@ -116,6 +119,8 @@ const AgentTaskRunner = ({
         }
       }
 
+      console.log("Invoking unified-agent with real_data_only=true and force_live_data=true");
+      
       const response = await supabase.functions.invoke('unified-agent', {
         body: {
           query: task,
@@ -142,17 +147,19 @@ const AgentTaskRunner = ({
           allow_iterations: true,
           max_iterations: 5,
           reasoning_level: reasoningLevel,
-          enable_real_data: true, // Explicitly enable real data usage
-          use_external_apis: true,  // Explicitly enable external API usage
-          external_access: true,    // Additional flag to emphasize external data access
-          simulation_mode: false,   // Explicitly disable simulation mode
-          agent_capabilities: {     // Add detailed capabilities object
+          enable_real_data: true,
+          use_external_apis: true,
+          external_access: true,
+          simulation_mode: false,
+          real_data_only: true,
+          force_live_data: true,
+          agent_capabilities: {
             creator_iq_access: true,
             web_search: true,
             file_access: true,
             real_time_data: true,
-            use_simulations: false, // Explicitly disable simulations
-            force_real_data: true   // Force the use of real data
+            use_simulations: false,
+            force_real_data: true
           }
         },
         headers: authToken ? {
@@ -162,6 +169,7 @@ const AgentTaskRunner = ({
 
       if (response.error) throw response.error;
       
+      console.log("Received response from unified-agent:", response.data);
       setResult(response.data);
       
       // Handle Drive-specific errors from the response
@@ -210,7 +218,7 @@ const AgentTaskRunner = ({
             Task Runner
           </CardTitle>
           <CardDescription>
-            Describe your task and the agent will execute it using available tools
+            Describe your task and the agent will execute it using available tools with real data
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
