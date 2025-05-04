@@ -1,7 +1,7 @@
 
 // Creator IQ API integration
 
-// Updated function to query Creator IQ endpoints
+// Updated function to query Creator IQ endpoints with improved pagination support
 export async function queryCreatorIQEndpoint(endpoint, payload) {
   try {
     const CREATOR_IQ_API_KEY = Deno.env.get('CREATOR_IQ_API_KEY');
@@ -62,58 +62,174 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
     console.log(`Creator IQ response from ${endpoint.route}:`, data);
     
     // Enhanced search handling for campaigns
-    if (endpoint.route === "/campaigns" && payload.search && data.CampaignCollection) {
-      const searchTerm = payload.search.toLowerCase();
-      console.log(`Filtering campaigns by search term: ${searchTerm}`);
-      
-      // Improved case-insensitive search with more flexible matching
-      const filteredCampaigns = data.CampaignCollection.filter((campaign) => {
-        if (campaign.Campaign && campaign.Campaign.CampaignName) {
-          const campaignName = campaign.Campaign.CampaignName.toLowerCase();
-          // Match partial words and handle possible variations
-          return campaignName.includes(searchTerm) || 
-                 campaignName.includes("ready") && campaignName.includes("rocker") ||
-                 campaignName.includes("ambassador") && (campaignName.includes("ready") || campaignName.includes("rocker"));
-        }
-        return false;
-      });
-      
-      console.log(`Found ${filteredCampaigns.length} campaigns matching "${searchTerm}" using enhanced search`);
-      
-      // Add pagination metadata for campaigns
-      data.CampaignCollection = filteredCampaigns;
-      data.filtered_by = payload.search;
-      data.count = filteredCampaigns.length;
-      data.total = data.CampaignCollection.length || 0;
-      data.page = payload.page || 1;
-      data.total_pages = Math.ceil(data.total / (payload.limit || 50)) || 1;
-      
-      // For each campaign, get publisher counts
-      for (const campaign of filteredCampaigns) {
-        if (campaign.Campaign && campaign.Campaign.CampaignId) {
-          try {
-            const campaignId = campaign.Campaign.CampaignId;
-            const publishersUrl = `${baseUrl}/campaigns/${campaignId}/publishers`;
-            const publishersResponse = await fetch(publishersUrl, {
-              method: 'GET',
-              headers: headers
+    if (endpoint.route === "/campaigns") {
+      // Special handling for campaign searches that need to check all pages
+      if (payload.search) {
+        const searchTerm = payload.search.toLowerCase();
+        console.log(`Searching for campaigns by term: "${searchTerm}" across all pages`);
+        
+        // Store the first page results
+        let allCampaigns = [...(data.CampaignCollection || [])];
+        let currentPage = 1;
+        const totalPages = data.total_pages || 1;
+        
+        // If there are more pages and we're doing a specific search, fetch all pages
+        // We only do this for specific searches to avoid overloading the API with requests
+        if (totalPages > 1 && searchTerm) {
+          console.log(`Found ${totalPages} pages of campaigns, fetching all pages for complete search...`);
+          
+          // Fetch the remaining pages
+          while (currentPage < totalPages && currentPage < 10) { // Limit to 10 pages max as safety
+            currentPage++;
+            const nextPagePayload = { ...payload, page: currentPage };
+            const nextPageUrlParams = new URLSearchParams();
+            
+            Object.entries(nextPagePayload).forEach(([key, value]) => {
+              if (value !== undefined) {
+                nextPageUrlParams.append(key, value.toString());
+              }
             });
             
-            if (publishersResponse.ok) {
-              const publishersData = await publishersResponse.json();
-              campaign.Campaign.PublishersCount = publishersData.count || 0;
-              console.log(`Campaign ${campaignId} has ${campaign.Campaign.PublishersCount} publishers`);
+            const nextPageUrl = `${url}?${nextPageUrlParams.toString()}`;
+            console.log(`Fetching campaigns page ${currentPage}/${totalPages} from ${nextPageUrl}`);
+            
+            try {
+              const nextPageResponse = await fetch(nextPageUrl, {
+                method: 'GET',
+                headers: headers
+              });
+              
+              if (nextPageResponse.ok) {
+                const nextPageData = await nextPageResponse.json();
+                if (nextPageData.CampaignCollection && nextPageData.CampaignCollection.length > 0) {
+                  console.log(`Found ${nextPageData.CampaignCollection.length} campaigns on page ${currentPage}`);
+                  allCampaigns = [...allCampaigns, ...nextPageData.CampaignCollection];
+                }
+              } else {
+                console.error(`Error fetching page ${currentPage}: ${nextPageResponse.status}`);
+              }
+            } catch (pageError) {
+              console.error(`Error fetching page ${currentPage}:`, pageError);
             }
-          } catch (error) {
-            console.error("Error getting publisher count:", error);
+          }
+          
+          console.log(`Fetched a total of ${allCampaigns.length} campaigns across ${currentPage} pages`);
+        }
+        
+        // Now perform the search on the complete dataset
+        // Improved case-insensitive search with more flexible matching
+        const filteredCampaigns = allCampaigns.filter((campaign) => {
+          if (campaign.Campaign && campaign.Campaign.CampaignName) {
+            const campaignName = campaign.Campaign.CampaignName.toLowerCase();
+            
+            // Direct match
+            if (campaignName.includes(searchTerm)) {
+              return true;
+            }
+            
+            // Special handling for "Ready Rocker Ambassador Program"
+            if (searchTerm.includes("ready") && searchTerm.includes("rocker")) {
+              return (
+                (campaignName.includes("ready") && campaignName.includes("rocker")) ||
+                (campaignName.includes("ambassador") && 
+                 (campaignName.includes("ready") || campaignName.includes("rocker") || campaignName.includes("program")))
+              );
+            }
+            
+            // Handle possible variations with fuzzy matching
+            if (searchTerm.includes("ambassador") && campaignName.includes("ambassador")) {
+              return true;
+            }
+            
+            // Match by separate words in the search term
+            const searchWords = searchTerm.split(/\s+/);
+            if (searchWords.length > 1) {
+              // If multiple search words, consider it a match if most words are found
+              let matchCount = 0;
+              for (const word of searchWords) {
+                if (word.length > 2 && campaignName.includes(word)) { // Only count words longer than 2 chars
+                  matchCount++;
+                }
+              }
+              // Match if at least 60% of the search words are found
+              return matchCount >= Math.ceil(searchWords.length * 0.6);
+            }
+          }
+          return false;
+        });
+        
+        console.log(`Found ${filteredCampaigns.length} campaigns matching "${searchTerm}" across all pages`);
+        
+        // Save the total campaign count for reference
+        const totalCampaigns = allCampaigns.length;
+        
+        // For each campaign, get publisher counts
+        for (const campaign of filteredCampaigns) {
+          if (campaign.Campaign && campaign.Campaign.CampaignId) {
+            try {
+              const campaignId = campaign.Campaign.CampaignId;
+              const publishersUrl = `${baseUrl}/campaigns/${campaignId}/publishers`;
+              const publishersResponse = await fetch(publishersUrl, {
+                method: 'GET',
+                headers: headers
+              });
+              
+              if (publishersResponse.ok) {
+                const publishersData = await publishersResponse.json();
+                campaign.Campaign.PublishersCount = publishersData.count || 0;
+                console.log(`Campaign ${campaignId} has ${campaign.Campaign.PublishersCount} publishers`);
+              }
+            } catch (error) {
+              console.error("Error getting publisher count:", error);
+            }
+          }
+        }
+        
+        // Update the response with filtered results
+        data.CampaignCollection = filteredCampaigns;
+        data.filtered_by = searchTerm;
+        data.count = filteredCampaigns.length;
+        data.total = totalCampaigns;
+        data.searched_all_pages = true;
+        data.pages_searched = currentPage;
+        data.total_pages_available = totalPages;
+        
+        return {
+          endpoint: endpoint.route,
+          name: endpoint.name,
+          data: data
+        };
+      }
+      
+      // For non-search requests, just add publisher counts
+      if (data.CampaignCollection) {
+        // Add pagination metadata for campaigns even when not searching
+        data.total = data.CampaignCollection.length || 0;
+        data.page = payload.page || 1;
+        data.total_pages = Math.ceil(data.total / (payload.limit || 50)) || 1;
+        
+        // Get campaign details including publisher counts for the results on this page
+        for (const campaign of data.CampaignCollection) {
+          if (campaign.Campaign && campaign.Campaign.CampaignId) {
+            try {
+              const campaignId = campaign.Campaign.CampaignId;
+              const publishersUrl = `${baseUrl}/campaigns/${campaignId}/publishers`;
+              const publishersResponse = await fetch(publishersUrl, {
+                method: 'GET',
+                headers: headers
+              });
+              
+              if (publishersResponse.ok) {
+                const publishersData = await publishersResponse.json();
+                campaign.Campaign.PublishersCount = publishersData.count || 0;
+                console.log(`Campaign ${campaignId} has ${campaign.Campaign.PublishersCount} publishers`);
+              }
+            } catch (error) {
+              console.error(`Error getting publishers for campaign ${campaign.Campaign.CampaignId}:`, error);
+            }
           }
         }
       }
-    } else if (endpoint.route === "/campaigns" && data.CampaignCollection) {
-      // Add pagination metadata for campaigns even when not searching
-      data.total = data.CampaignCollection.length || 0;
-      data.page = payload.page || 1;
-      data.total_pages = Math.ceil(data.total / (payload.limit || 50)) || 1;
     }
     
     return {
@@ -175,7 +291,7 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
       name: "List Content",
       keywords: ["content", "posts", "influencer content", "campaign content", "creator posts"]
     },
-    // New List endpoints with keywords
+    // Lists endpoints with keywords
     lists: {
       route: "/lists",
       method: "GET",
@@ -196,6 +312,20 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
     }
   };
   
+  // Check if query is about showing ALL campaigns
+  const showAllCampaigns = lowerQuery.match(/show\s+all(?:\s+\d+)?\s+campaigns/) || 
+                          lowerQuery.match(/all\s+\d+\s+campaigns/) ||
+                          lowerQuery.match(/display\s+all\s+campaigns/);
+  
+  if (showAllCampaigns) {
+    console.log("Query is about showing ALL campaigns");
+    endpoints.push({
+      ...availableEndpoints.campaigns,
+      getAllPages: true
+    });
+    return endpoints;
+  }
+  
   // Check if query is asking for a specific list by name
   const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
@@ -204,6 +334,25 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
   if (listNameMatch && listNameMatch[1]) {
     listName = listNameMatch[1].trim();
     console.log(`Detected possible list name: "${listName}"`);
+  }
+  
+  // Check for campaign name in the query with improved detection
+  const campaignNameMatch = lowerQuery.match(/campaign(?:\s+called|\s+named|\s+titled)?\s+["']([^"']+)["']/i) || 
+                           lowerQuery.match(/["']([^"']+)["'](?:\s+campaign)/i) ||
+                           lowerQuery.match(/find\s+(?:a\s+)?campaign\s+(?:with|named|called|titled|containing)\s+([a-z0-9\s]+)/i);
+  
+  // Special handling for Ready Rocker campaign search
+  const readyRockerSearch = lowerQuery.includes("ready rocker") || 
+                          (lowerQuery.includes("ready") && lowerQuery.includes("rocker")) ||
+                          (lowerQuery.includes("ambassador") && lowerQuery.includes("program"));
+  
+  if (readyRockerSearch || (campaignNameMatch && campaignNameMatch[1])) {
+    console.log("Query is specifically about finding a campaign by name");
+    endpoints.push({
+      ...availableEndpoints.campaigns,
+      fullSearch: true
+    });
+    return endpoints;
   }
   
   // Check which endpoints match the query
@@ -222,7 +371,10 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
     console.log("Adding campaigns endpoint for Ready Rocker search");
     const campaignsEndpoint = availableEndpoints.campaigns;
     if (!endpoints.some(e => e.route === campaignsEndpoint.route)) {
-      endpoints.push(campaignsEndpoint);
+      endpoints.push({
+        ...campaignsEndpoint,
+        fullSearch: true
+      });
       matchedEndpoints = true;
     }
   }
@@ -273,6 +425,16 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     limit: 50 // Increase default limit to get more results
   };
   
+  // Check if query is about showing ALL campaigns
+  const showAllCampaigns = lowerQuery.match(/show\s+all(?:\s+\d+)?\s+campaigns/) || 
+                          lowerQuery.match(/all\s+\d+\s+campaigns/) ||
+                          lowerQuery.match(/display\s+all\s+campaigns/);
+  
+  if (showAllCampaigns && endpoint.route === "/campaigns") {
+    console.log("Setting up payload for fetching all campaigns");
+    payload.limit = 100; // Try to get more per page when explicitly requested
+  }
+  
   // Apply any params passed explicitly from the frontend
   if (creator_iq_params) {
     // If we have a specific campaign ID, use it for relevant endpoints
@@ -316,9 +478,10 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     payload.search = listName;
   }
   
-  // Check for campaign name in the query
+  // Check for campaign name in the query with improved detection
   const campaignNameMatch = lowerQuery.match(/campaign(?:\s+called|\s+named|\s+titled)?\s+["']([^"']+)["']/i) || 
-                           lowerQuery.match(/["']([^"']+)["'](?:\s+campaign)/i);
+                           lowerQuery.match(/["']([^"']+)["'](?:\s+campaign)/i) ||
+                           lowerQuery.match(/find\s+(?:a\s+)?campaign\s+(?:with|named|called|titled|containing)\s+([a-z0-9\s]+)/i);
   
   if (campaignNameMatch && campaignNameMatch[1] && !payload.search) {
     const campaignName = campaignNameMatch[1].trim();
@@ -347,5 +510,19 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     }
   }
   
+  // Special handling for full search across all pages
+  if (endpoint.fullSearch && endpoint.route === "/campaigns") {
+    console.log("Enabling full search across all pages");
+    // Set flag for the caller to know this needs special handling
+    payload._fullSearch = true;
+  }
+  
+  // Handle context for showing all campaigns
+  if (endpoint.getAllPages && endpoint.route === "/campaigns") {
+    console.log("Setting up for retrieving all campaigns");
+    payload._getAllPages = true;
+  }
+  
   return payload;
 }
+

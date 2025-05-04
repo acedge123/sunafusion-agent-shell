@@ -1,4 +1,6 @@
 
+import { ReactMarkdown } from "react-markdown/lib/react-markdown";
+
 interface TaskResultAnswerProps {
   answer: string;
 }
@@ -6,9 +8,9 @@ interface TaskResultAnswerProps {
 export const TaskResultAnswer = ({ answer }: TaskResultAnswerProps) => {
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none">
-      {answer.split('\n').map((line, i) => (
-        <p key={i}>{line}</p>
-      ))}
+      <ReactMarkdown>
+        {answer}
+      </ReactMarkdown>
     </div>
   );
 };

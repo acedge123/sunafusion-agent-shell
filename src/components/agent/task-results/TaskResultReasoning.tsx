@@ -1,4 +1,6 @@
 
+import { ReactMarkdown } from "react-markdown/lib/react-markdown";
+
 interface TaskResultReasoningProps {
   reasoning: string;
 }
@@ -6,9 +8,9 @@ interface TaskResultReasoningProps {
 export const TaskResultReasoning = ({ reasoning }: TaskResultReasoningProps) => {
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none">
-      {reasoning.split('\n').map((line, i) => (
-        <p key={i}>{line}</p>
-      ))}
+      <ReactMarkdown>
+        {reasoning}
+      </ReactMarkdown>
     </div>
   );
 };
