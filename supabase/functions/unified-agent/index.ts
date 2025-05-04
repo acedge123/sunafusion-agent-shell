@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
@@ -40,6 +39,8 @@ serve(async (req) => {
       provider_token = null,
       debug_token_info = {},
       creator_iq_params = {},
+      state_key = null,
+      previous_state = null,
       task_mode = false, 
       tools = ["web_search", "file_search", "file_analysis", "slack_search", "creator_iq"],
       allow_iterations = true,
@@ -76,6 +77,19 @@ serve(async (req) => {
 
     // Initialize results array to store information from different sources
     const results = []
+    
+    // Initialize state data to be saved later
+    const stateData = {
+      userId,
+      stateKey: state_key,
+      previousState: previous_state,
+      newData: {
+        campaigns: [],
+        publishers: [],
+        lists: []
+      },
+      queryContext: query
+    }
     
     // 1. Search Google Drive if requested and tool is enabled
     if (include_drive && tools.includes("file_search")) {
@@ -216,12 +230,24 @@ serve(async (req) => {
         
         // Log the Creator IQ params received from the client
         console.log("Creator IQ params:", creator_iq_params);
+        console.log("Previous state:", previous_state ? "Available" : "Not available");
         
         // Determine endpoints to query based on the query and creator_iq_params
         let endpoints = [];
         
+        // Check if we have a specific campaign ID from previous state
+        if (creator_iq_params.campaign_id) {
+          console.log(`Using campaign ID from previous state: ${creator_iq_params.campaign_id}`);
+          
+          // Add endpoint to get publisher count for specific campaign
+          endpoints.push({
+            route: `/campaigns/${creator_iq_params.campaign_id}/publishers`,
+            method: "GET",
+            name: "Get Campaign Publishers"
+          });
+        } 
         // If specific parameters indicate campaign search
-        if (creator_iq_params.search_campaigns) {
+        else if (creator_iq_params.search_campaigns) {
           console.log("Adding campaigns endpoint based on creator_iq_params");
           endpoints.push({
             route: "/campaigns",
@@ -235,14 +261,64 @@ serve(async (req) => {
           }
         } else {
           // Default behavior - determine endpoints based on query text
-          endpoints = determineCreatorIQEndpoints(query);
+          endpoints = determineCreatorIQEndpoints(query, previous_state);
         }
         
         const creatorIQResults = await Promise.all(
           endpoints.map(async (endpoint) => {
             try {
-              const payload = buildCreatorIQPayload(endpoint, query, creator_iq_params);
-              return await queryCreatorIQEndpoint(endpoint, payload);
+              const payload = buildCreatorIQPayload(endpoint, query, creator_iq_params, previous_state);
+              
+              // Log the endpoint and payload for debugging
+              console.log(`Querying endpoint ${endpoint.route} with payload:`, payload);
+              
+              const result = await queryCreatorIQEndpoint(endpoint, payload);
+              
+              // Process results for state storage
+              if (endpoint.route === "/campaigns" && result.data && result.data.CampaignCollection) {
+                const campaigns = result.data.CampaignCollection
+                  .filter(c => c.Campaign && c.Campaign.CampaignId && c.Campaign.CampaignName)
+                  .map(c => ({
+                    id: c.Campaign.CampaignId,
+                    name: c.Campaign.CampaignName,
+                    status: c.Campaign.CampaignStatus,
+                    publishersCount: c.Campaign.PublishersCount
+                  }));
+                  
+                stateData.newData.campaigns = campaigns;
+                console.log(`Processed ${campaigns.length} campaigns for state storage`);
+              }
+              
+              // Process publisher results
+              if (endpoint.route.includes('/publishers') && result.data && result.data.PublisherCollection) {
+                const publishers = result.data.PublisherCollection
+                  .filter(p => p.Publisher && p.Publisher.Id)
+                  .map(p => ({
+                    id: p.Publisher.Id,
+                    name: p.Publisher.PublisherName || 'Unnamed',
+                    status: p.Publisher.Status
+                  }));
+                  
+                stateData.newData.publishers = publishers;
+                console.log(`Processed ${publishers.length} publishers for state storage`);
+                
+                // Add publisher count to the result so it's easily accessible
+                result.data.publishersCount = publishers.length;
+                
+                // If this is for a specific campaign, add that information
+                if (endpoint.route.includes('/campaigns/') && creator_iq_params.campaign_name) {
+                  result.data.campaignName = creator_iq_params.campaign_name;
+                  result.data.campaignId = creator_iq_params.campaign_id;
+                  
+                  // Add this info to the campaign in state if it exists
+                  const campaign = stateData.newData.campaigns.find(c => c.id === creator_iq_params.campaign_id);
+                  if (campaign) {
+                    campaign.publishersCount = publishers.length;
+                  }
+                }
+              }
+              
+              return result;
             } catch (endpointError) {
               console.error(`Error querying endpoint ${endpoint.route}:`, endpointError);
               return {
@@ -260,7 +336,11 @@ serve(async (req) => {
         
         results.push({
           source: "creator_iq",
-          results: creatorIQResults
+          results: creatorIQResults,
+          state: {
+            key: state_key,
+            data: stateData.newData
+          }
         });
       } catch (error) {
         console.error("Creator IQ search error:", error);
@@ -310,8 +390,38 @@ serve(async (req) => {
     
     // For non-task mode, just synthesize with AI as before
     console.log("Synthesizing results with OpenAI")
-    const answer = await synthesizeWithAI(query, results, conversation_history)
+    const answer = await synthesizeWithAI(query, results, conversation_history, previous_state)
 
+    // If state key and user ID are provided, save state data to the database
+    if (state_key && userId && (stateData.newData.campaigns.length > 0 || 
+                               stateData.newData.publishers.length > 0 || 
+                               stateData.newData.lists.length > 0)) {
+      try {
+        console.log("Saving Creator IQ state to database");
+        
+        const { error } = await supabase
+          .from('creator_iq_state')
+          .upsert({
+            key: state_key,
+            user_id: userId,
+            data: stateData.newData,
+            query_context: query,
+            expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour expiry
+            created_at: new Date().toISOString()
+          }, {
+            onConflict: 'key'
+          });
+          
+        if (error) {
+          console.error("Error saving state to database:", error);
+        } else {
+          console.log("Successfully saved state to database");
+        }
+      } catch (stateError) {
+        console.error("Error in state storage:", stateError);
+      }
+    }
+    
     // Return the combined results
     return new Response(
       JSON.stringify({
@@ -684,7 +794,7 @@ async function queryCreatorIQEndpoint(endpoint, payload) {
 }
 
 // Helper function to determine which Creator IQ endpoint(s) to query based on the query
-function determineCreatorIQEndpoints(query) {
+function determineCreatorIQEndpoints(query, previousState = null) {
   const lowerQuery = query.toLowerCase();
   const endpoints = [];
   
@@ -816,7 +926,7 @@ function determineCreatorIQEndpoints(query) {
 }
 
 // Helper function to build the payload for Creator IQ API calls
-function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}) {
+function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, previousState = null) {
   const lowerQuery = query.toLowerCase();
   
   // Start with basic parameters
@@ -826,6 +936,12 @@ function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}) {
   
   // Apply any params passed explicitly from the frontend
   if (creator_iq_params) {
+    // If we have a specific campaign ID, use it for relevant endpoints
+    if (creator_iq_params.campaign_id && endpoint.route.includes('/campaigns/')) {
+      // The campaign ID is already in the route, nothing to add to payload
+      console.log(`Using campaign ID from params: ${creator_iq_params.campaign_id}`);
+    }
+    
     // If we have a campaign search term from frontend
     if (creator_iq_params.campaign_search_term) {
       payload.search = creator_iq_params.campaign_search_term;
@@ -836,6 +952,18 @@ function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}) {
     if (creator_iq_params.limit) payload.limit = creator_iq_params.limit;
     if (creator_iq_params.offset) payload.offset = creator_iq_params.offset;
     if (creator_iq_params.status) payload.status = creator_iq_params.status;
+  }
+  
+  // Use previous state if available and relevant
+  if (previousState) {
+    // If query is about publishers in a campaign and we have campaign data
+    if (endpoint.route.includes('/publishers') && 
+        endpoint.campaignContext && 
+        endpoint.campaignContext.id) {
+      
+      console.log(`Using campaign context: ${endpoint.campaignContext.name} (${endpoint.campaignContext.id})`);
+      // The campaign ID is already in the route
+    }
   }
   
   // Check for list name in the query
@@ -880,7 +1008,7 @@ function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}) {
 }
 
 // Function to synthesize results with OpenAI
-async function synthesizeWithAI(query, results, conversation_history) {
+async function synthesizeWithAI(query, results, conversation_history, previous_state = null) {
   try {
     if (!OPENAI_API_KEY) {
       throw new Error('OpenAI API key is not configured');
@@ -889,7 +1017,7 @@ async function synthesizeWithAI(query, results, conversation_history) {
     console.log("Preparing context for AI synthesis");
     
     // Prepare context from results
-    const context = buildContextFromResults(results);
+    const context = buildContextFromResults(results, previous_state);
     
     // Prepare messages for OpenAI API
     const messages = [
@@ -1125,9 +1253,39 @@ function parseStructuredResponse(responseText) {
 }
 
 // Helper function to build context from results
-function buildContextFromResults(results) {
+function buildContextFromResults(results, previousState = null) {
   try {
     let context = "--- CONTEXT START ---\n\n";
+    
+    // Add previous state context if available
+    if (previousState) {
+      context += "PREVIOUS CONTEXT:\n";
+      
+      // Add campaign information
+      if (previousState.campaigns && previousState.campaigns.length > 0) {
+        context += "Previously identified campaigns:\n";
+        previousState.campaigns.forEach((campaign, idx) => {
+          context += `[${idx + 1}] ${campaign.name} (ID: ${campaign.id})`;
+          if (campaign.publishersCount !== undefined) {
+            context += ` with ${campaign.publishersCount} publishers`;
+          }
+          context += "\n";
+        });
+        context += "\n";
+      }
+      
+      // Add publisher information if available
+      if (previousState.publishers && previousState.publishers.length > 0) {
+        context += "Previously identified publishers:\n";
+        context += `Total: ${previousState.publishers.length} publishers\n\n`;
+      }
+      
+      // Add list information if available
+      if (previousState.lists && previousState.lists.length > 0) {
+        context += "Previously identified lists:\n";
+        context += `Total: ${previousState.lists.length} lists\n\n`;
+      }
+    }
     
     // Process web search results
     const webResults = results.find(r => r.source === "web_search");
@@ -1206,9 +1364,15 @@ function buildContextFromResults(results) {
           context += "\n";
         }
         
-        // Handle publisher data
+        // Handle publisher data - enhanced for campaign context
         if (result.data && result.data.PublisherCollection) {
-          context += `Found ${result.data.PublisherCollection.length} publishers\n`;
+          // If we have campaign context for these publishers, include it
+          if (result.data.campaignName) {
+            context += `Found ${result.data.PublisherCollection.length} publishers for campaign "${result.data.campaignName}"\n`;
+            context += `Total publishers in campaign: ${result.data.publishersCount || result.data.PublisherCollection.length}\n`;
+          } else {
+            context += `Found ${result.data.PublisherCollection.length} publishers\n`;
+          }
           
           // Add publisher details
           result.data.PublisherCollection.slice(0, 5).forEach((publisher, pIdx) => {

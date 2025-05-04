@@ -2,6 +2,7 @@
 import { Message } from "@/components/chat/ChatContainer";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
+import { generateStateKey, extractCampaignData, saveStateToDatabase, findStateByQuery } from "@/utils/creatorIQStateManager";
 
 export async function sendMessage(content: string): Promise<Message> {
   try {
@@ -15,6 +16,7 @@ export async function sendMessage(content: string): Promise<Message> {
     
     const authToken = sessionData?.session?.access_token
     const providerToken = sessionData?.session?.provider_token
+    const userId = sessionData?.session?.user?.id
     
     console.log("Provider token available from session:", !!providerToken);
     
@@ -63,11 +65,38 @@ export async function sendMessage(content: string): Promise<Message> {
       }
     }
 
+    // Check if this is a follow-up question related to Creator IQ
+    let previousState = null;
+    let stateKey = null;
+    
+    if (userId && content.toLowerCase().includes('creator') || 
+        content.toLowerCase().includes('campaign') || 
+        content.toLowerCase().includes('publisher') || 
+        content.toLowerCase().includes('ready rocker')) {
+      
+      // Try to find relevant previous state based on query content
+      const queryTerms = [
+        'campaign', 'publisher', 'influencer', 'creator iq', 'ready rocker'
+      ].filter(term => content.toLowerCase().includes(term));
+      
+      if (queryTerms.length > 0) {
+        console.log("Looking for previous state with terms:", queryTerms);
+        previousState = await findStateByQuery(userId, queryTerms);
+        
+        if (previousState) {
+          console.log("Found previous Creator IQ state:", previousState);
+        }
+      }
+      
+      // Generate a new state key for this query
+      stateKey = generateStateKey(userId, content);
+    }
+
     // Add specific Creator IQ parameters if the query relates to campaigns
-    const creatorIQParams = buildCreatorIQParams(content);
+    const creatorIQParams = buildCreatorIQParams(content, previousState);
     console.log("Using Creator IQ params:", creatorIQParams);
 
-    // Use the unified-agent edge function to process the message
+    // Pass the state key and previous state to the edge function
     const response = await supabase.functions.invoke('unified-agent', {
       body: {
         query: content,
@@ -82,7 +111,10 @@ export async function sendMessage(content: string): Promise<Message> {
           tokenSource: providerToken ? 'provider_token' : (storedToken ? 'database' : 'none')
         },
         // Add specific parameters for Creator IQ searches
-        creator_iq_params: creatorIQParams
+        creator_iq_params: creatorIQParams,
+        // Add state information
+        state_key: stateKey,
+        previous_state: previousState
       },
       headers: authToken ? {
         Authorization: `Bearer ${authToken}`
@@ -96,35 +128,36 @@ export async function sendMessage(content: string): Promise<Message> {
     
     // Log the response structure to help with debugging
     console.log("AI response structure:", Object.keys(response.data));
-    if (response.data.sources) {
-      console.log("Sources:", response.data.sources.map(s => s.source));
-      
-      // Log Creator IQ data structure if present
+    
+    // Store any Creator IQ data for future reference
+    if (stateKey && userId && response.data.sources) {
       const creatorIQSource = response.data.sources.find(s => s.source === "creator_iq");
-      if (creatorIQSource) {
-        console.log("Creator IQ data structure:", 
-          creatorIQSource.results?.map(r => ({
-            endpoint: r.endpoint,
-            dataKeys: r.data ? Object.keys(r.data) : "No data"
-          }))
-        );
+      if (creatorIQSource?.results) {
+        console.log("Storing Creator IQ results for future reference");
         
-        // Log specific campaign information if available
-        const campaignData = creatorIQSource.results?.find(r => r.endpoint === "/campaigns");
-        if (campaignData && campaignData.data) {
-          console.log("Campaign data total:", campaignData.data.total);
-          if (campaignData.data.filtered_by) {
-            console.log(`Filtered by: ${campaignData.data.filtered_by}`);
+        // Process and extract structured data from the response
+        const processedData = {
+          campaigns: [],
+          publishers: [],
+          lists: []
+        };
+        
+        // Process each endpoint result
+        for (const result of creatorIQSource.results) {
+          if (result.endpoint === "/campaigns" && result.data) {
+            processedData.campaigns = extractCampaignData(result.data);
+            console.log(`Extracted ${processedData.campaigns.length} campaigns`);
           }
-          if (campaignData.data.CampaignCollection?.length > 0) {
-            campaignData.data.CampaignCollection.forEach((campaign, idx) => {
-              console.log(`Campaign ${idx + 1}:`, 
-                campaign.Campaign?.CampaignName || "Unnamed", 
-                `(ID: ${campaign.Campaign?.CampaignId})`,
-                `Publishers: ${campaign.Campaign?.PublishersCount || "unknown"}`
-              );
-            });
-          }
+          
+          // Add processing for other endpoints as needed
+          // ...
+        }
+        
+        // Store the extracted data if we have any
+        if (processedData.campaigns.length > 0 || 
+            processedData.publishers.length > 0 || 
+            processedData.lists.length > 0) {
+          await saveStateToDatabase(userId, stateKey, processedData);
         }
       }
     }
@@ -142,7 +175,7 @@ export async function sendMessage(content: string): Promise<Message> {
 }
 
 // Helper function to build Creator IQ parameters based on content
-function buildCreatorIQParams(content: string) {
+function buildCreatorIQParams(content: string, previousState: any = null) {
   const lowerContent = content.toLowerCase();
   
   // Basic parameters for all Creator IQ requests
@@ -166,15 +199,47 @@ function buildCreatorIQParams(content: string) {
     if (campaignNameMatch && campaignNameMatch[1]) {
       params.campaign_search_term = campaignNameMatch[1];
     }
+    
+    // Add previous state campaign data if available
+    if (previousState && previousState.campaigns && previousState.campaigns.length > 0) {
+      params.previous_campaigns = previousState.campaigns;
+      
+      // If query asks about publishers and we have campaign data, include campaign IDs
+      if (lowerContent.includes('publisher') || 
+          lowerContent.includes('influencer') || 
+          lowerContent.includes('how many')) {
+        
+        // Find the most likely campaign based on query
+        const relevantCampaign = previousState.campaigns.find((c: any) => 
+          lowerContent.includes(c.name.toLowerCase())
+        );
+        
+        if (relevantCampaign) {
+          params.campaign_id = relevantCampaign.id;
+          params.campaign_name = relevantCampaign.name;
+          console.log(`Using previously identified campaign: ${relevantCampaign.name} (${relevantCampaign.id})`);
+        }
+      }
+    }
   }
   
   // Add publisher/list specific parameters if needed
   if (lowerContent.includes('publisher') || lowerContent.includes('influencer')) {
     params.include_publishers = true;
+    
+    // Add previous publishers data if available
+    if (previousState && previousState.publishers && previousState.publishers.length > 0) {
+      params.previous_publishers = previousState.publishers;
+    }
   }
   
   if (lowerContent.includes('list')) {
     params.include_lists = true;
+    
+    // Add previous lists data if available
+    if (previousState && previousState.lists && previousState.lists.length > 0) {
+      params.previous_lists = previousState.lists;
+    }
   }
   
   return params;
