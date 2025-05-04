@@ -1,211 +1,223 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { CreatorIQStateRow, CreatorIQState } from "./types";
-import { CreatorIQErrorType, displayCreatorIQError, withCreatorIQRetry, creatorIQCache } from "./errorHandling";
+import { CreatorIQState } from "./types";
 
-// Save state data to Supabase database for persistence
-export const saveStateToDatabase = async (
-  userId: string, 
+/**
+ * Saves Creator IQ state to the database
+ * @param userId The user ID
+ * @param stateKey The unique state key
+ * @param data The state data to save
+ * @param context Optional context about what this state contains
+ * @returns Success status
+ */
+export async function saveStateToDatabase(
+  userId: string,
   stateKey: string, 
-  data: any,
-  queryContext: string = ''
-): Promise<boolean> => {
+  data: CreatorIQState,
+  context?: string
+): Promise<boolean> {
   try {
-    // First try to save to cache as a fallback mechanism
-    creatorIQCache.set(`state_${stateKey}`, data);
-    
-    const { error } = await withCreatorIQRetry(
-      async () => await supabase
-        .from('creator_iq_state')
-        .upsert({
-          key: stateKey,
-          user_id: userId,
-          data,
-          query_context: queryContext,
-          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour expiry
-        }, {
-          onConflict: 'key'
-        }),
-      3,
-      1000,
-      { operation: 'saveStateToDatabase', stateKey, userId }
-    );
-    
-    if (error) {
-      console.error("Error saving state to database:", error);
-      throw error;
+    if (!userId || !stateKey) {
+      console.error("Cannot save state: missing userId or stateKey");
+      return false;
     }
     
-    console.log(`State saved to database with key: ${stateKey}`);
+    console.log(`Saving state ${stateKey} to database for user ${userId}`);
+
+    const { data: insertData, error } = await supabase
+      .from('creator_iq_state')
+      .upsert({
+        key: stateKey,
+        user_id: userId,
+        data,
+        query_context: context || null,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24h expiry
+      }, {
+        onConflict: 'key'
+      });
+
+    if (error) {
+      console.error("Error saving state to database:", error);
+      return false;
+    }
+    
+    console.log(`Successfully saved state ${stateKey} to database`);
     return true;
   } catch (error) {
-    displayCreatorIQError({
-      type: CreatorIQErrorType.STATE_ERROR,
-      message: "Unable to save your Creator IQ data. Some information may be lost when you refresh.",
-      originalError: error,
-      isRetryable: false,
-      context: { operation: 'saveStateToDatabase', stateKey }
-    });
+    console.error("Error in saveStateToDatabase:", error);
     return false;
   }
-};
+}
 
-// Get state data from Supabase database with robust error handling
-export const getStateFromDatabase = async (stateKey: string): Promise<CreatorIQState | null> => {
+/**
+ * Retrieves Creator IQ state from the database
+ * @param userId The user ID
+ * @param stateKey The unique state key
+ * @returns The state data or null if not found
+ */
+export async function getStateFromDatabase(
+  userId: string,
+  stateKey: string
+): Promise<CreatorIQState | null> {
   try {
-    // Try to retrieve from database
-    const { data, error } = await withCreatorIQRetry(
-      async () => await supabase
-        .from('creator_iq_state')
-        .select('*')
-        .eq('key', stateKey)
-        .single(),
-      3,
-      1000,
-      { operation: 'getStateFromDatabase', stateKey }
-    );
+    if (!userId || !stateKey) {
+      console.error("Cannot retrieve state: missing userId or stateKey");
+      return null;
+    }
     
+    console.log(`Retrieving state ${stateKey} from database for user ${userId}`);
+
+    const { data, error } = await supabase
+      .from('creator_iq_state')
+      .select('data, expires_at, updated_at')
+      .eq('key', stateKey)
+      .eq('user_id', userId)
+      .maybeSingle();
+
     if (error) {
-      // Check if we have a cached copy
-      const cached = creatorIQCache.get<any>(`state_${stateKey}`);
-      if (cached.data) {
-        console.log(`Retrieved state from cache for key: ${stateKey} (${cached.isFresh ? 'fresh' : 'stale'})`);
-        
-        // If not fresh, display a warning
-        if (!cached.isFresh) {
-          displayCreatorIQError({
-            type: CreatorIQErrorType.INCOMPLETE_DATA,
-            message: "Using cached Creator IQ data that may be outdated. Some information might not be current.",
-            isRetryable: false,
-            context: { operation: 'getStateFromDatabase', stateKey, source: 'cache' }
-          });
-        }
-        
-        // Return cached data with a synthesized state structure
-        return {
-          key: stateKey,
-          userId: 'unknown', // We don't have user ID in cache
-          data: cached.data,
-          expiresAt: new Date(Date.now() + 30 * 60 * 1000), // Give it 30 more minutes
-          createdAt: new Date()
-        };
-      }
-      
-      console.error("Error getting state from database:", error);
-      throw error;
+      console.error("Error retrieving state from database:", error);
+      return null;
+    }
+    
+    if (!data) {
+      console.log(`No state found for key ${stateKey}`);
+      return null;
+    }
+    
+    // Check if expired
+    if (data.expires_at && new Date(data.expires_at) < new Date()) {
+      console.log(`State ${stateKey} has expired`);
+      return null;
+    }
+    
+    console.log(`Successfully retrieved state ${stateKey} from database, last updated at ${data.updated_at}`);
+    return data.data as CreatorIQState;
+  } catch (error) {
+    console.error("Error in getStateFromDatabase:", error);
+    return null;
+  }
+}
+
+/**
+ * Get a specific state from history by its key
+ * @param userId The user ID
+ * @param stateKey The unique state key
+ * @returns The state data with metadata
+ */
+export async function getStateByKey(
+  userId: string,
+  stateKey: string
+): Promise<{ data: CreatorIQState, metadata: any } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('creator_iq_state')
+      .select('data, created_at, updated_at, query_context')
+      .eq('key', stateKey)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error retrieving state by key:", error);
+      return null;
     }
     
     if (!data) {
       return null;
     }
     
-    const stateRow = data as CreatorIQStateRow;
-    
-    // Convert the database row to our internal state format
-    const state: CreatorIQState = {
-      key: stateRow.key,
-      userId: stateRow.user_id,
-      data: stateRow.data,
-      expiresAt: new Date(stateRow.expires_at),
-      createdAt: new Date(stateRow.created_at)
+    return {
+      data: data.data as CreatorIQState,
+      metadata: {
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        query_context: data.query_context
+      }
     };
-    
-    // Save to cache for future fallback
-    creatorIQCache.set(`state_${stateKey}`, state.data, 'api');
-    
-    console.log(`Retrieved state from database for key: ${stateKey}`);
-    return state;
   } catch (error) {
-    displayCreatorIQError({
-      type: CreatorIQErrorType.STATE_ERROR,
-      message: "Unable to retrieve your previous Creator IQ data. Some context from your previous requests may be lost.",
-      originalError: error,
-      isRetryable: true,
-      context: { operation: 'getStateFromDatabase', stateKey }
-    });
+    console.error("Error in getStateByKey:", error);
     return null;
   }
-};
+}
 
-// Find state by query keywords with improved error handling
-export const findStateByQuery = async (userId: string, queryTerms: string[]): Promise<any | null> => {
+/**
+ * Find recent state by query terms
+ * @param userId The user ID
+ * @param queryTerms Array of query terms to match
+ * @param maxAge Maximum age in milliseconds (default 1 hour)
+ * @returns The state data if found
+ */
+export async function findStateByQuery(
+  userId: string,
+  queryTerms: string[],
+  maxAge: number = 60 * 60 * 1000 // 1 hour default
+): Promise<CreatorIQState | null> {
   try {
-    // Check the cache first for quick access
-    for (const term of queryTerms) {
-      const cached = creatorIQCache.get<any>(`query_${userId}_${term.toLowerCase()}`);
-      if (cached.data) {
-        console.log(`Found cached state for query term: ${term}`);
-        return cached.data;
-      }
+    if (!userId || !queryTerms.length) {
+      return null;
     }
     
-    // If not found in cache, search the database
-    const { data, error } = await withCreatorIQRetry(
-      async () => await supabase
-        .from('creator_iq_state')
-        .select('*')
-        .eq('user_id', userId)
-        .is('query_context', 'not.null')
-        .order('created_at', { ascending: false })
-        .limit(10),
-      2,
-      1000,
-      { operation: 'findStateByQuery', userId, queryTerms }
-    );
+    console.log(`Finding state for user ${userId} with query terms:`, queryTerms);
+    
+    // Get recent states for the user
+    const { data: states, error } = await supabase
+      .from('creator_iq_state')
+      .select('key, data, query_context, updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(10);
     
     if (error) {
-      console.error("Error finding state by query:", error);
-      throw error;
-    }
-    
-    if (!data || data.length === 0) {
+      console.error("Error finding states by query:", error);
       return null;
     }
     
-    // Find the most relevant state based on query terms
-    let bestMatch: CreatorIQStateRow | null = null;
-    let bestScore = 0;
+    if (!states || states.length === 0) {
+      console.log("No recent states found for user");
+      return null;
+    }
     
-    for (const stateRow of data) {
-      if (!stateRow.query_context) continue;
+    // First try an exact match with query_context
+    for (const state of states) {
+      if (!state.query_context) continue;
       
-      // Calculate relevance score
-      const queryContext = stateRow.query_context.toLowerCase();
-      let score = 0;
-      
+      const context = state.query_context.toLowerCase();
       for (const term of queryTerms) {
-        if (queryContext.includes(term.toLowerCase())) {
-          // More specific terms get higher scores
-          score += 1 + (term.length / 10); 
+        if (context.includes(term.toLowerCase())) {
+          console.log(`Found state with matching context for term "${term}"`);
+          
+          // Check if state is fresh enough
+          const stateTime = new Date(state.updated_at).getTime();
+          const currentTime = Date.now();
+          if (currentTime - stateTime <= maxAge) {
+            return state.data as CreatorIQState;
+          } else {
+            console.log(`State found but too old (${Math.round((currentTime - stateTime) / 60000)} minutes old)`);
+          }
         }
       }
-      
-      // Prefer more recent states
-      const recencyBoost = (Date.now() - new Date(stateRow.created_at).getTime()) < 24 * 60 * 60 * 1000 ? 0.5 : 0;
-      score += recencyBoost;
-      
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = stateRow;
+    }
+    
+    // If no direct match in context, look at keys instead
+    for (const state of states) {
+      for (const term of queryTerms) {
+        if (state.key.toLowerCase().includes(term.toLowerCase())) {
+          console.log(`Found state with matching key for term "${term}"`);
+          
+          // Check if state is fresh enough
+          const stateTime = new Date(state.updated_at).getTime();
+          const currentTime = Date.now();
+          if (currentTime - stateTime <= maxAge) {
+            return state.data as CreatorIQState;
+          }
+        }
       }
     }
     
-    if (!bestMatch || bestScore < 0.5) {
-      console.log("No relevant state found for query terms:", queryTerms);
-      return null;
-    }
+    console.log("No matching state found for query terms");
+    return null;
     
-    console.log(`Found relevant state with score ${bestScore} for query terms:`, queryTerms);
-    
-    // Save to cache for future queries
-    for (const term of queryTerms) {
-      creatorIQCache.set(`query_${userId}_${term.toLowerCase()}`, bestMatch.data, 'api');
-    }
-    
-    return bestMatch.data;
   } catch (error) {
-    // Log but don't display to user as this is a background operation
-    console.error("Error finding state by query:", error);
+    console.error("Error in findStateByQuery:", error);
     return null;
   }
-};
+}

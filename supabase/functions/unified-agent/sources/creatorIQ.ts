@@ -61,26 +61,32 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
     const data = await response.json();
     console.log(`Creator IQ response from ${endpoint.route}:`, data);
     
-    // Special handling for campaign searches
+    // Enhanced search handling for campaigns
     if (endpoint.route === "/campaigns" && payload.search && data.CampaignCollection) {
       const searchTerm = payload.search.toLowerCase();
       console.log(`Filtering campaigns by search term: ${searchTerm}`);
       
-      // Filter campaigns by name
+      // Improved case-insensitive search with more flexible matching
       const filteredCampaigns = data.CampaignCollection.filter((campaign) => {
         if (campaign.Campaign && campaign.Campaign.CampaignName) {
           const campaignName = campaign.Campaign.CampaignName.toLowerCase();
-          return campaignName.includes(searchTerm);
+          // Match partial words and handle possible variations
+          return campaignName.includes(searchTerm) || 
+                 campaignName.includes("ready") && campaignName.includes("rocker") ||
+                 campaignName.includes("ambassador") && (campaignName.includes("ready") || campaignName.includes("rocker"));
         }
         return false;
       });
       
-      console.log(`Found ${filteredCampaigns.length} campaigns matching "${searchTerm}"`);
+      console.log(`Found ${filteredCampaigns.length} campaigns matching "${searchTerm}" using enhanced search`);
       
-      // Update the response with filtered results
+      // Add pagination metadata for campaigns
       data.CampaignCollection = filteredCampaigns;
       data.filtered_by = payload.search;
       data.count = filteredCampaigns.length;
+      data.total = data.CampaignCollection.length || 0;
+      data.page = payload.page || 1;
+      data.total_pages = Math.ceil(data.total / (payload.limit || 50)) || 1;
       
       // For each campaign, get publisher counts
       for (const campaign of filteredCampaigns) {
@@ -103,6 +109,11 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
           }
         }
       }
+    } else if (endpoint.route === "/campaigns" && data.CampaignCollection) {
+      // Add pagination metadata for campaigns even when not searching
+      data.total = data.CampaignCollection.length || 0;
+      data.page = payload.page || 1;
+      data.total_pages = Math.ceil(data.total / (payload.limit || 50)) || 1;
     }
     
     return {
@@ -279,6 +290,7 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     // Copy other relevant params
     if (creator_iq_params.limit) payload.limit = creator_iq_params.limit;
     if (creator_iq_params.offset) payload.offset = creator_iq_params.offset;
+    if (creator_iq_params.page) payload.page = creator_iq_params.page;
     if (creator_iq_params.status) payload.status = creator_iq_params.status;
   }
   
@@ -314,9 +326,12 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     payload.search = campaignName;
   }
   
-  // Check specifically for Ready Rocker Ambassador Program
-  if (lowerQuery.includes("ready rocker") && !payload.search) {
-    console.log("Adding search parameter for Ready Rocker");
+  // Check specifically for Ready Rocker Ambassador Program with improved detection
+  if ((lowerQuery.includes("ready rocker") || 
+      (lowerQuery.includes("ready") && lowerQuery.includes("rocker")) || 
+      (lowerQuery.includes("ambassador") && lowerQuery.includes("program"))) && 
+      !payload.search) {
+    console.log("Adding search parameter for Ready Rocker Ambassador Program");
     payload.search = "Ready Rocker";
   }
   

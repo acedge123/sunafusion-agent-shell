@@ -1,8 +1,10 @@
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Wrench, Database, Search, FileText, AlertTriangle } from "lucide-react";
 import { Fragment } from "react";
 import { DataStatus, getDataStatus } from "@/components/ui/data-status";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 interface TaskResult {
   answer: string;
@@ -31,6 +33,66 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
   // Determine if there are any errors in Creator IQ data
   const hasCreatorIQErrors = creatorIQData?.error || 
     creatorIQData?.results?.some(result => result.error);
+  
+  // Function to render pagination for any data collection
+  const renderPagination = (data: any) => {
+    if (!data || !data.page || !data.total_pages) return null;
+    
+    const currentPage = parseInt(data.page);
+    const totalPages = parseInt(data.total_pages);
+    
+    if (totalPages <= 1) return null;
+    
+    // Create an array of pages to display
+    let pages = [];
+    if (totalPages <= 5) {
+      // Show all pages if 5 or fewer
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      // Show first, last, current and adjacent pages
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+        pages.push(i);
+      }
+      
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    
+    return (
+      <Pagination className="mt-2">
+        <PaginationContent>
+          {currentPage > 1 && (
+            <PaginationItem>
+              <PaginationPrevious href="#" />
+            </PaginationItem>
+          )}
+          
+          {pages.map((page, index) => (
+            <PaginationItem key={index}>
+              {page === '...' ? (
+                <span className="px-2">...</span>
+              ) : (
+                <PaginationLink href="#" isActive={page === currentPage}>
+                  {page}
+                </PaginationLink>
+              )}
+            </PaginationItem>
+          ))}
+          
+          {currentPage < totalPages && (
+            <PaginationItem>
+              <PaginationNext href="#" />
+            </PaginationItem>
+          )}
+        </PaginationContent>
+      </Pagination>
+    );
+  };
   
   // Function to render campaign data with fallback handling
   const renderCampaignItem = (campaignItem: any, cIdx: number) => {
@@ -223,6 +285,10 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                             (page {endpoint.data.page || 1} of {endpoint.data.total_pages || 1})</span>
                         )}
                       </div>
+                      
+                      {/* Add pagination for campaigns */}
+                      {renderPagination(endpoint.data)}
+                      
                       <div className="space-y-2 mt-3">
                         {endpoint.data.CampaignCollection.length > 0 ? (
                           endpoint.data.CampaignCollection.map((campaignItem: any, cIdx: number) => 
@@ -230,7 +296,7 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                           )
                         ) : (
                           <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded border">
-                            No campaigns found
+                            No campaigns found. Try adjusting your search terms or checking campaign naming conventions.
                           </div>
                         )}
                       </div>
@@ -243,6 +309,10 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                         {endpoint.data.total || endpoint.data.ListsCollection.length} lists found 
                         (page {endpoint.data.page || 1} of {endpoint.data.total_pages || 1})
                       </div>
+                      
+                      {/* Add pagination for lists */}
+                      {renderPagination(endpoint.data)}
+                      
                       <div className="space-y-2 mt-3">
                         {endpoint.data.ListsCollection.length > 0 ? (
                           endpoint.data.ListsCollection.map((listItem: any, lIdx: number) => {
@@ -286,6 +356,10 @@ export const TaskResults = ({ result }: TaskResultsProps) => {
                         {endpoint.data.total || endpoint.data.PublisherCollection.length} publishers found
                         (page {endpoint.data.page || 1} of {endpoint.data.total_pages || 1})
                       </div>
+                      
+                      {/* Add pagination for publishers */}
+                      {renderPagination(endpoint.data)}
+                      
                       <div className="space-y-2 mt-3">
                         {endpoint.data.PublisherCollection.length > 0 ? (
                           endpoint.data.PublisherCollection.map((publisherItem: any, pIdx: number) => 

@@ -10,11 +10,16 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
   };
   
   // Add campaign-specific parameters
-  if (lowerContent.includes('campaign') || lowerContent.includes('ready rocker')) {
+  if (lowerContent.includes('campaign') || 
+     lowerContent.includes('ready rocker') || 
+     lowerContent.includes('ambassador') ||
+     lowerContent.includes('program')) {
     params.search_campaigns = true;
     
-    // Extract search terms for campaigns
-    if (lowerContent.includes('ready rocker')) {
+    // Extract search terms for campaigns with improved matching
+    if (lowerContent.includes('ready rocker') || 
+        (lowerContent.includes('ready') && lowerContent.includes('rocker')) || 
+        (lowerContent.includes('ambassador') && lowerContent.includes('program'))) {
       params.campaign_search_term = 'Ready Rocker';
     }
     
