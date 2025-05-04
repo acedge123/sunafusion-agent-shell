@@ -1,4 +1,3 @@
-
 import os
 import requests
 from typing import Dict, Any, Optional, List
@@ -10,8 +9,9 @@ class CreatorIQProvider(RapidDataProviderBase):
     """
     
     def __init__(self):
-        # Define available endpoints
+        # Define available endpoints with both read and write operations
         endpoints = {
+            # Read operations (GET)
             "publishers": {
                 "route": "/publishers",
                 "method": "GET",
@@ -91,7 +91,6 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "content_type": "Filter by content type (e.g., post, video, story)"
                 }
             },
-            # Lists endpoints
             "lists": {
                 "route": "/lists",
                 "method": "GET",
@@ -122,6 +121,82 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "list_id": "ID of the list",
                     "limit": "Number of results to return (default: 10)",
                     "offset": "Starting position for pagination"
+                }
+            },
+            
+            # Write operations
+            "create_list": {
+                "route": "/lists",
+                "method": "POST",
+                "name": "Create List",
+                "description": "Create a new publisher list",
+                "payload": {
+                    "Name": "Name of the list (required)",
+                    "Description": "Description of the list (optional)"
+                }
+            },
+            "update_list": {
+                "route": "/lists/{list_id}",
+                "method": "PUT",
+                "name": "Update List", 
+                "description": "Update an existing list",
+                "payload": {
+                    "list_id": "ID of the list to update",
+                    "Name": "Updated name of the list (optional)",
+                    "Description": "Updated description of the list (optional)"
+                }
+            },
+            "add_publisher_to_list": {
+                "route": "/lists/{list_id}/publishers",
+                "method": "POST",
+                "name": "Add Publisher to List",
+                "description": "Add one or more publishers to a list",
+                "payload": {
+                    "list_id": "ID of the list",
+                    "PublisherIds": "Array of publisher IDs to add to the list"
+                }
+            },
+            "update_publisher": {
+                "route": "/publishers/{publisher_id}",
+                "method": "PUT",
+                "name": "Update Publisher",
+                "description": "Update publisher information",
+                "payload": {
+                    "publisher_id": "ID of the publisher to update",
+                    "Status": "Publisher status (active, inactive, pending, invited)"
+                }
+            },
+            "create_campaign": {
+                "route": "/campaigns", 
+                "method": "POST",
+                "name": "Create Campaign",
+                "description": "Create a new campaign",
+                "payload": {
+                    "CampaignName": "Name of the campaign (required)",
+                    "Description": "Description of the campaign (optional)",
+                    "StartDate": "Campaign start date (YYYY-MM-DD)",
+                    "EndDate": "Campaign end date (YYYY-MM-DD)"
+                }
+            },
+            "add_publisher_to_campaign": {
+                "route": "/campaigns/{campaign_id}/publishers",
+                "method": "POST",
+                "name": "Add Publisher to Campaign",
+                "description": "Add one or more publishers to a campaign",
+                "payload": {
+                    "campaign_id": "ID of the campaign",
+                    "PublisherIds": "Array of publisher IDs to add to the campaign"
+                }
+            },
+            "send_message": {
+                "route": "/publishers/{publisher_id}/messages",
+                "method": "POST",
+                "name": "Send Message to Publisher",
+                "description": "Send a message to a specific publisher",
+                "payload": {
+                    "publisher_id": "ID of the publisher to message",
+                    "Content": "Message content (required)",
+                    "Subject": "Message subject line (optional)"
                 }
             }
         }
@@ -175,58 +250,62 @@ class CreatorIQProvider(RapidDataProviderBase):
                 "Content-Type": "application/json"
             }
             
-            # Log the request for debugging
+            # Log the request details
             print(f"Making Creator IQ API request to: {url}")
+            print(f"Method: {method}")
+            print(f"Headers: {headers}")
+            print(f"Payload: {payload}")
 
-            # Special handling for lists search - similar to what we do for campaigns
-            if route == "lists" and payload and "search" in payload:
-                search_term = payload["search"]
-                print(f"Searching for lists with term: {search_term}")
-                
-                # First make the request without the search parameter to get all lists
-                search_payload = {k: v for k, v in payload.items() if k != "search"}
-                
-                # Increase the limit to get more potential matches
-                if "limit" not in search_payload:
-                    search_payload["limit"] = 50
-                
-                if method == "GET":
-                    response = requests.get(url, params=search_payload, headers=headers)
-                else:
-                    response = requests.post(url, json=search_payload, headers=headers)
-                
-                # Check for errors
-                response.raise_for_status()
-                
-                # Get the response data
-                full_response = response.json()
-                
-                # Log the raw response for debugging
-                print(f"Raw API response structure: {str(full_response.keys())}")
-                
-                # Process the response to filter by list name
-                if "ListsCollection" in full_response:
-                    # Filter lists by name containing the search term (case-insensitive)
-                    original_lists = full_response["ListsCollection"]
-                    print(f"Found {len(original_lists)} lists before filtering")
+            # Special handling for search operations
+            if method == "GET":
+                if route == "lists" and payload and "search" in payload:
+                    search_term = payload["search"]
+                    print(f"Searching for lists with term: {search_term}")
                     
-                    # Enhanced debugging for list structure
-                    if len(original_lists) > 0:
-                        sample_list = original_lists[0]
-                        print(f"Sample list structure: {str(sample_list.keys())}")
-                        if "List" in sample_list:
-                            list_keys = sample_list["List"].keys()
-                            print(f"List details keys: {str(list_keys)}")
-                            if "Name" in sample_list["List"]:
-                                print(f"List name example: {sample_list['List']['Name']}")
+                    # First make the request without the search parameter to get all lists
+                    search_payload = {k: v for k, v in payload.items() if k != "search"}
                     
-                    filtered_lists = []
-                    for list_item in original_lists:
-                        if "List" in list_item and "Name" in list_item["List"]:
-                            list_name = list_item["List"]["Name"].lower()
-                            if search_term.lower() in list_name:
-                                print(f"Match found: '{list_name}' matches '{search_term}'")
-                                filtered_lists.append(list_item)
+                    # Increase the limit to get more potential matches
+                    if "limit" not in search_payload:
+                        search_payload["limit"] = 50
+                    
+                    if method == "GET":
+                        response = requests.get(url, params=search_payload, headers=headers)
+                    else:
+                        response = requests.post(url, json=search_payload, headers=headers)
+                    
+                    # Check for errors
+                    response.raise_for_status()
+                    
+                    # Get the response data
+                    full_response = response.json()
+                    
+                    # Log the raw response for debugging
+                    print(f"Raw API response structure: {str(full_response.keys())}")
+                    
+                    # Process the response to filter by list name
+                    if "ListsCollection" in full_response:
+                        # Filter lists by name containing the search term (case-insensitive)
+                        original_lists = full_response["ListsCollection"]
+                        print(f"Found {len(original_lists)} lists before filtering")
+                        
+                        # Enhanced debugging for list structure
+                        if len(original_lists) > 0:
+                            sample_list = original_lists[0]
+                            print(f"Sample list structure: {str(sample_list.keys())}")
+                            if "List" in sample_list:
+                                list_keys = sample_list["List"].keys()
+                                print(f"List details keys: {str(list_keys)}")
+                                if "Name" in sample_list["List"]:
+                                    print(f"List name example: {sample_list['List']['Name']}")
+                        
+                        filtered_lists = []
+                        for list_item in original_lists:
+                            if "List" in list_item and "Name" in list_item["List"]:
+                                list_name = list_item["List"]["Name"].lower()
+                                if search_term.lower() in list_name:
+                                    print(f"Match found: '{list_name}' matches '{search_term}'")
+                                    filtered_lists.append(list_item)
                     
                     # Update the response with filtered results
                     full_response["ListsCollection"] = filtered_lists
@@ -237,56 +316,55 @@ class CreatorIQProvider(RapidDataProviderBase):
                     print(f"Found {len(filtered_lists)} lists matching '{search_term}'")
                     
                     return full_response
-            
-            # Handle search parameter for campaigns specially
-            if route == "campaigns" and payload and "search" in payload:
-                search_term = payload["search"]
-                print(f"Searching for campaigns with term: {search_term}")
                 
-                # First make the request without the search parameter to get all campaigns
-                search_payload = {k: v for k, v in payload.items() if k != "search"}
-                
-                # Increase the limit to get more potential matches
-                if "limit" not in search_payload:
-                    search_payload["limit"] = 50
-                
-                if method == "GET":
-                    response = requests.get(url, params=search_payload, headers=headers)
-                else:
-                    response = requests.post(url, json=search_payload, headers=headers)
-                
-                # Check for errors
-                response.raise_for_status()
-                
-                # Get the response data
-                full_response = response.json()
-                
-                # Log the raw response for debugging
-                print(f"Raw API response structure: {str(full_response.keys())}")
-                
-                # Process the response to filter by campaign name
-                if "CampaignCollection" in full_response:
-                    # Filter campaigns by name containing the search term (case-insensitive)
-                    original_campaigns = full_response["CampaignCollection"]
-                    print(f"Found {len(original_campaigns)} campaigns before filtering")
+                elif route == "campaigns" and payload and "search" in payload:
+                    search_term = payload["search"]
+                    print(f"Searching for campaigns with term: {search_term}")
                     
-                    # Enhanced debugging for campaign structure
-                    if len(original_campaigns) > 0:
-                        sample_campaign = original_campaigns[0]
-                        print(f"Sample campaign structure: {str(sample_campaign.keys())}")
-                        if "Campaign" in sample_campaign:
-                            campaign_keys = sample_campaign["Campaign"].keys()
-                            print(f"Campaign details keys: {str(campaign_keys)}")
-                            if "CampaignName" in sample_campaign["Campaign"]:
-                                print(f"Campaign name example: {sample_campaign['Campaign']['CampaignName']}")
+                    # First make the request without the search parameter to get all campaigns
+                    search_payload = {k: v for k, v in payload.items() if k != "search"}
                     
-                    filtered_campaigns = []
-                    for campaign in original_campaigns:
-                        if "Campaign" in campaign and "CampaignName" in campaign["Campaign"]:
-                            campaign_name = campaign["Campaign"]["CampaignName"].lower()
-                            if search_term.lower() in campaign_name:
-                                print(f"Match found: '{campaign_name}' matches '{search_term}'")
-                                filtered_campaigns.append(campaign)
+                    # Increase the limit to get more potential matches
+                    if "limit" not in search_payload:
+                        search_payload["limit"] = 50
+                    
+                    if method == "GET":
+                        response = requests.get(url, params=search_payload, headers=headers)
+                    else:
+                        response = requests.post(url, json=search_payload, headers=headers)
+                    
+                    # Check for errors
+                    response.raise_for_status()
+                    
+                    # Get the response data
+                    full_response = response.json()
+                    
+                    # Log the raw response for debugging
+                    print(f"Raw API response structure: {str(full_response.keys())}")
+                    
+                    # Process the response to filter by campaign name
+                    if "CampaignCollection" in full_response:
+                        # Filter campaigns by name containing the search term (case-insensitive)
+                        original_campaigns = full_response["CampaignCollection"]
+                        print(f"Found {len(original_campaigns)} campaigns before filtering")
+                        
+                        # Enhanced debugging for campaign structure
+                        if len(original_campaigns) > 0:
+                            sample_campaign = original_campaigns[0]
+                            print(f"Sample campaign structure: {str(sample_campaign.keys())}")
+                            if "Campaign" in sample_campaign:
+                                campaign_keys = sample_campaign["Campaign"].keys()
+                                print(f"Campaign details keys: {str(campaign_keys)}")
+                                if "CampaignName" in sample_campaign["Campaign"]:
+                                    print(f"Campaign name example: {sample_campaign['Campaign']['CampaignName']}")
+                        
+                        filtered_campaigns = []
+                        for campaign in original_campaigns:
+                            if "Campaign" in campaign and "CampaignName" in campaign["Campaign"]:
+                                campaign_name = campaign["Campaign"]["CampaignName"].lower()
+                                if search_term.lower() in campaign_name:
+                                    print(f"Match found: '{campaign_name}' matches '{search_term}'")
+                                    filtered_campaigns.append(campaign)
                     
                     # Update the response with filtered results
                     full_response["CampaignCollection"] = filtered_campaigns
@@ -319,24 +397,51 @@ class CreatorIQProvider(RapidDataProviderBase):
                     
                     return full_response
             
-            # Make the regular request if not a special case
-            print(f"Method: {method}, Headers: {headers}, Payload: {payload}")
-            
+            # Make the request based on the HTTP method
             if method == "GET":
                 response = requests.get(url, params=payload, headers=headers)
             elif method == "POST":
+                # For POST requests, send the payload in the request body
                 response = requests.post(url, json=payload, headers=headers)
+            elif method == "PUT":
+                # For PUT requests, send the payload in the request body
+                response = requests.put(url, json=payload, headers=headers)
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
             
             # Check for errors
             response.raise_for_status()
             
-            # Log response status and preview
+            # Log response status
             print(f"Creator IQ API response status: {response.status_code}")
+            
+            # Parse and return the response data
             response_data = response.json()
             
-            # If we have campaign data, let's log a bit more detail for debugging
+            # Additional handling for specific response types
+            if method in ["POST", "PUT"]:
+                # For write operations, add metadata about what was done
+                operation_type = endpoint["name"]
+                print(f"Successfully executed {operation_type}")
+                
+                response_data["operation"] = {
+                    "type": operation_type,
+                    "method": method,
+                    "successful": True,
+                    "timestamp": import_time_module_and_get_iso_time()
+                }
+                
+                # Add specific details based on operation type
+                if "Create List" in operation_type and payload and "Name" in payload:
+                    response_data["operation"]["details"] = f"Created list: {payload['Name']}"
+                elif "Update List" in operation_type:
+                    response_data["operation"]["details"] = f"Updated list: {formatted_route.split('/')[-1]}"
+                elif "Add Publisher" in operation_type:
+                    response_data["operation"]["details"] = f"Added publishers to {route.split('_')[0]}"
+                elif "Send Message" in operation_type:
+                    response_data["operation"]["details"] = "Message sent successfully"
+            
+            # Additional logging and processing for GET operations
             if route == "campaigns" and "CampaignCollection" in response_data:
                 campaigns = response_data["CampaignCollection"]
                 campaign_names = []
@@ -435,6 +540,7 @@ class CreatorIQProvider(RapidDataProviderBase):
             print(f"Creator IQ API error: {error_message}")
             raise ValueError(f"Creator IQ API error: {error_message}")
 
+    # Helper functions for specific operations
     def search_campaigns_by_name(self, search_term: str) -> List[Dict[str, Any]]:
         """
         Helper method to specifically search for campaigns by name
@@ -480,3 +586,90 @@ class CreatorIQProvider(RapidDataProviderBase):
         except Exception as e:
             print(f"Error in search_lists_by_name: {e}")
             return []
+
+    def create_list(self, name: str, description: str = None) -> Dict[str, Any]:
+        """
+        Helper method to create a new publisher list
+        
+        Args:
+            name: Name of the list to create
+            description: Optional description of the list
+            
+        Returns:
+            Response data from the API including the new list ID
+        """
+        payload = {
+            "Name": name
+        }
+        
+        if description:
+            payload["Description"] = description
+            
+        print(f"Creating new list: {name}")
+        return self.call_endpoint("create_list", payload)
+    
+    def add_publishers_to_list(self, list_id: str, publisher_ids: List[str]) -> Dict[str, Any]:
+        """
+        Helper method to add publishers to a list
+        
+        Args:
+            list_id: ID of the list to add publishers to
+            publisher_ids: List of publisher IDs to add
+            
+        Returns:
+            Response data from the API
+        """
+        payload = {
+            "list_id": list_id,
+            "PublisherIds": publisher_ids
+        }
+        
+        print(f"Adding {len(publisher_ids)} publishers to list {list_id}")
+        return self.call_endpoint("add_publisher_to_list", payload)
+    
+    def update_publisher_status(self, publisher_id: str, status: str) -> Dict[str, Any]:
+        """
+        Helper method to update a publisher's status
+        
+        Args:
+            publisher_id: ID of the publisher to update
+            status: New status (active, inactive, pending, invited)
+            
+        Returns:
+            Response data from the API
+        """
+        payload = {
+            "publisher_id": publisher_id,
+            "Status": status
+        }
+        
+        print(f"Updating publisher {publisher_id} status to {status}")
+        return self.call_endpoint("update_publisher", payload)
+    
+    def send_message_to_publisher(self, publisher_id: str, content: str, subject: str = None) -> Dict[str, Any]:
+        """
+        Helper method to send a message to a publisher
+        
+        Args:
+            publisher_id: ID of the publisher to message
+            content: Message content
+            subject: Optional message subject
+            
+        Returns:
+            Response data from the API
+        """
+        payload = {
+            "publisher_id": publisher_id,
+            "Content": content
+        }
+        
+        if subject:
+            payload["Subject"] = subject
+            
+        print(f"Sending message to publisher {publisher_id}")
+        return self.call_endpoint("send_message", payload)
+
+# Helper to get ISO formatted time without importing time module at the top level
+def import_time_module_and_get_iso_time():
+    from datetime import datetime
+    return datetime.now().isoformat()

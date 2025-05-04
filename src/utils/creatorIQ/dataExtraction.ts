@@ -90,3 +90,73 @@ export function extractListData(data: any): any[] {
     return [];
   }
 }
+
+/**
+ * Extract operation result data from write operations
+ */
+export function extractOperationResult(data: any): any {
+  try {
+    if (!data) return null;
+    
+    // If this is a write operation response with operation metadata
+    if (data.operation) {
+      return {
+        successful: data.operation.successful === true,
+        type: data.operation.type || 'Unknown operation',
+        details: data.operation.details || '',
+        timestamp: data.operation.timestamp || new Date().toISOString()
+      };
+    }
+    
+    // For list creation responses
+    if (data.List && data.List.Id) {
+      return {
+        successful: true,
+        type: 'Create List',
+        details: `Created list: ${data.List.Name || 'New List'} (ID: ${data.List.Id})`,
+        id: data.List.Id,
+        name: data.List.Name,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // For publisher status update responses
+    if (data.Publisher && data.Publisher.Id && data.Publisher.Status) {
+      return {
+        successful: true,
+        type: 'Update Publisher',
+        details: `Updated publisher ${data.Publisher.PublisherName || data.Publisher.Id} status to ${data.Publisher.Status}`,
+        id: data.Publisher.Id,
+        status: data.Publisher.Status,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // For message sending responses
+    if (data.success === true && data.messageId) {
+      return {
+        successful: true,
+        type: 'Send Message',
+        details: `Message sent successfully (ID: ${data.messageId})`,
+        messageId: data.messageId,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Generic success response
+    if (data.success === true) {
+      return {
+        successful: true,
+        type: 'Operation',
+        details: data.message || 'Operation completed successfully',
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Unable to determine result format
+    return null;
+  } catch (error) {
+    console.error("Error extracting operation result:", error);
+    return null;
+  }
+}

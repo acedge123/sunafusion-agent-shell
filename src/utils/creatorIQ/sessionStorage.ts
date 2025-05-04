@@ -1,5 +1,5 @@
 
-import { CreatorIQState } from "./types";
+import { CreatorIQState, CreatorIQOperationResult } from "./types";
 
 // Key for session storage
 const CREATOR_IQ_CACHE_KEY = "creator_iq_cache";
@@ -131,6 +131,96 @@ export const creatorIQCache = {
       return null;
     } catch (error) {
       console.error("Error retrieving all lists:", error);
+      return null;
+    }
+  },
+
+  // Store operation results from write operations
+  storeOperationResult: (operationResult: CreatorIQOperationResult): void => {
+    try {
+      // Get existing operation results
+      const cached = creatorIQCache.get<CreatorIQOperationResult[]>('operation_results');
+      const results = cached.data || [];
+      
+      // Add new result to the beginning of the array
+      const updatedResults = [operationResult, ...results].slice(0, 20); // Keep only the 20 most recent operations
+      
+      creatorIQCache.set('operation_results', updatedResults, 24 * 60 * 60 * 1000); // Store for 24 hours
+      console.log(`Stored operation result: ${operationResult.type}`);
+    } catch (error) {
+      console.error("Error storing operation result:", error);
+    }
+  },
+  
+  // Get recent operation results
+  getOperationResults: (): CreatorIQOperationResult[] => {
+    try {
+      const result = creatorIQCache.get<CreatorIQOperationResult[]>('operation_results');
+      return result.data || [];
+    } catch (error) {
+      console.error("Error retrieving operation results:", error);
+      return [];
+    }
+  },
+  
+  // Find cached list by ID
+  findListById: (listId: string): any => {
+    try {
+      const allLists = creatorIQCache.getAllLists();
+      if (!allLists || !allLists.lists) {
+        return null;
+      }
+      
+      for (const list of allLists.lists) {
+        if (list.List && list.List.Id === listId) {
+          return list;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error finding list by ID:", error);
+      return null;
+    }
+  },
+  
+  // Find cached publisher by ID
+  findPublisherById: (publisherId: string): any => {
+    try {
+      // Check in the publisher cache
+      const cached = creatorIQCache.get<any[]>('all_publishers');
+      if (cached.data) {
+        const match = cached.data.find(p => p.id === publisherId);
+        if (match) return match;
+      }
+      
+      // If not found, check through campaign publishers
+      const campaigns = creatorIQCache.getAllCampaigns();
+      if (campaigns && campaigns.campaigns) {
+        for (const campaign of campaigns.campaigns) {
+          const publishers = creatorIQCache.get<any[]>(`campaign_publishers_${campaign.Campaign.CampaignId}`);
+          if (publishers.data) {
+            const match = publishers.data.find(p => p.id === publisherId);
+            if (match) return match;
+          }
+        }
+      }
+      
+      // If not found, check through list publishers
+      const lists = creatorIQCache.getAllLists();
+      if (lists && lists.lists) {
+        for (const list of lists.lists) {
+          const publishers = creatorIQCache.get<any[]>(`list_publishers_${list.List.Id}`);
+          if (publishers.data) {
+            const match = publishers.data.find(p => p.id === publisherId);
+            if (match) return match;
+          }
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error finding publisher by ID:", error);
       return null;
     }
   },

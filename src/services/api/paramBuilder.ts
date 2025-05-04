@@ -1,4 +1,3 @@
-
 // Helper function to build Creator IQ parameters based on content
 export function buildCreatorIQParams(content: string, previousState: any = null) {
   const lowerContent = content.toLowerCase();
@@ -9,11 +8,116 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
     return_raw_response: true
   };
   
-  // Add campaign-specific parameters
-  if (lowerContent.includes('campaign') || 
+  // Detect operation type (read vs write)
+  const isWriteOperation = 
+    lowerContent.includes('create') || 
+    lowerContent.includes('add') || 
+    lowerContent.includes('update') || 
+    lowerContent.includes('change') ||
+    lowerContent.includes('send message') ||
+    lowerContent.includes('invite');
+  
+  if (isWriteOperation) {
+    params.operation_type = 'write';
+    
+    // Check for list creation operations
+    if ((lowerContent.includes('create') || lowerContent.includes('make')) && 
+        lowerContent.includes('list')) {
+      
+      params.create_list = true;
+      
+      // Extract list name
+      const listNameMatch = content.match(/list\s+(?:called|named|titled)?\s+["']([^"']+)["']/i) ||
+                            content.match(/["']([^"']+)["'](?:\s+list)/i);
+      
+      if (listNameMatch && listNameMatch[1]) {
+        params.list_name = listNameMatch[1].trim();
+        console.log(`Extracted list name for creation: "${params.list_name}"`);
+      }
+      
+      // Extract description if available
+      const descriptionMatch = content.match(/description\s+(?:is\s+|as\s+)?["']([^"']+)["']/i) ||
+                               content.match(/with\s+description\s+["']([^"']+)["']/i);
+      
+      if (descriptionMatch && descriptionMatch[1]) {
+        params.list_description = descriptionMatch[1].trim();
+        console.log(`Extracted list description: "${params.list_description}"`);
+      }
+    }
+    
+    // Check for publisher status update operations
+    else if (lowerContent.includes('status') && 
+             (lowerContent.includes('publisher') || lowerContent.includes('influencer'))) {
+      
+      params.update_publisher_status = true;
+      
+      // Extract status
+      const statusMatch = lowerContent.match(/status\s+(?:to\s+)?["']?([a-zA-Z]+)["']?/i);
+      if (statusMatch && statusMatch[1]) {
+        params.status_value = statusMatch[1].trim().toLowerCase();
+        console.log(`Extracted status value: "${params.status_value}"`);
+      }
+      
+      // Check if we have publisher data from previous state
+      if (previousState && previousState.publishers && previousState.publishers.length > 0) {
+        // If query contains specific publisher criteria, we'll use that
+        if (lowerContent.includes('with status')) {
+          const currentStatusMatch = lowerContent.match(/with\s+status\s+["']?([a-zA-Z]+)["']?/i);
+          if (currentStatusMatch && currentStatusMatch[1]) {
+            const currentStatus = currentStatusMatch[1].trim().toLowerCase();
+            // Filter publishers by their current status
+            const matchingPublishers = previousState.publishers.filter((p: any) => 
+              p.status && p.status.toLowerCase() === currentStatus
+            );
+            
+            if (matchingPublishers.length > 0) {
+              params.publisher_ids = matchingPublishers.map((p: any) => p.id);
+              console.log(`Found ${matchingPublishers.length} publishers with status "${currentStatus}"`);
+            }
+          }
+        }
+      }
+    }
+    
+    // Check for send message operations
+    else if (lowerContent.includes('send message') || lowerContent.includes('message publisher')) {
+      params.send_message = true;
+      
+      // Extract message content
+      const messageMatch = content.match(/message\s+(?:saying\s+|content\s+)?["']([^"']+)["']/i);
+      if (messageMatch && messageMatch[1]) {
+        params.message_content = messageMatch[1].trim();
+        console.log(`Extracted message content: "${params.message_content}"`);
+      } else {
+        // Try to extract message another way
+        const lines = content.split('\n');
+        for (const line of lines) {
+          if (line.toLowerCase().includes('message:')) {
+            const messageContent = line.substring(line.indexOf(':') + 1).trim();
+            if (messageContent) {
+              params.message_content = messageContent;
+              console.log(`Extracted message content from line: "${params.message_content}"`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Extract subject if available
+      const subjectMatch = content.match(/subject\s+(?:is\s+|as\s+)?["']([^"']+)["']/i);
+      if (subjectMatch && subjectMatch[1]) {
+        params.message_subject = subjectMatch[1].trim();
+        console.log(`Extracted message subject: "${params.message_subject}"`);
+      }
+    }
+  }
+  
+  // For read operations, add campaign-specific parameters (keeping existing logic)
+  if (!isWriteOperation && (
+     lowerContent.includes('campaign') || 
      lowerContent.includes('ready rocker') || 
      lowerContent.includes('ambassador') ||
-     lowerContent.includes('program')) {
+     lowerContent.includes('program'))) {
     params.search_campaigns = true;
     
     // Extract search terms for campaigns with improved matching
@@ -53,8 +157,8 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
     }
   }
   
-  // Add list-specific parameters
-  if (lowerContent.includes('list')) {
+  // Add list-specific parameters for read operations
+  if (!isWriteOperation && lowerContent.includes('list')) {
     params.search_lists = true;
     
     // Extract search terms for lists

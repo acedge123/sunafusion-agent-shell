@@ -1,241 +1,100 @@
 
-import { toast } from "@/hooks/use-toast";
+// Error handling utilities for Creator IQ integration
+import { CreatorIQError, CreatorIQErrorType } from "./types";
+import { toast } from "@/components/ui/use-toast";
 
-// Error types for Creator IQ operations
-export enum CreatorIQErrorType {
-  AUTH_ERROR = "auth_error",
-  PERMISSION_ERROR = "permission_error",
-  CONNECTION_ERROR = "connection_error",
-  DATA_FORMAT_ERROR = "data_format_error",
-  STATE_ERROR = "state_error",
-  INCOMPLETE_DATA = "incomplete_data",
-  UNKNOWN_ERROR = "unknown_error",
+export function displayCreatorIQError(error: CreatorIQError): void {
+  // Log the error for developers
+  console.error(`Creator IQ Error (${error.type}):`, error.message, error.originalError);
+  
+  // Show a toast message to the user based on the error type
+  let title = "Error accessing Creator IQ data";
+  let message = error.message;
+  
+  switch (error.type) {
+    case CreatorIQErrorType.API_ERROR:
+      title = "Creator IQ API Error";
+      break;
+    case CreatorIQErrorType.AUTHENTICATION_ERROR:
+      title = "Creator IQ Authentication Error";
+      message = "Unable to authenticate with Creator IQ. Please check your credentials.";
+      break;
+    case CreatorIQErrorType.RATE_LIMIT_ERROR:
+      title = "Rate Limit Exceeded";
+      message = "Too many requests to Creator IQ. Please try again later.";
+      break;
+    case CreatorIQErrorType.NETWORK_ERROR:
+      title = "Network Error";
+      message = "Unable to connect to Creator IQ. Please check your internet connection.";
+      break;
+    case CreatorIQErrorType.INCOMPLETE_DATA:
+      title = "Incomplete Data";
+      break;
+    case CreatorIQErrorType.DATA_FORMAT_ERROR:
+      title = "Data Format Error";
+      break;
+  }
+  
+  // Show toast message
+  toast({
+    title,
+    description: message,
+    variant: "destructive",
+  });
 }
 
-export interface CreatorIQError {
-  type: CreatorIQErrorType;
-  message: string;
-  originalError?: any;
-  isRetryable: boolean;
-  context?: any; // Additional context for debugging
-}
-
-// Parse errors from various sources into a standardized format
-export const parseCreatorIQError = (error: any, context?: any): CreatorIQError => {
-  // Try to parse API response errors
-  const errorText = error?.message || error?.toString() || "Unknown error";
-  
-  // Check for specific error patterns
-  if (errorText.includes("401") || errorText.includes("unauthorized") || errorText.includes("invalid_token")) {
-    return {
-      type: CreatorIQErrorType.AUTH_ERROR,
-      message: "Authentication error with Creator IQ. Please reconnect your account.",
-      originalError: error,
-      isRetryable: false,
-      context
-    };
-  }
-  
-  if (errorText.includes("403") || errorText.includes("permission") || errorText.includes("access denied")) {
-    return {
-      type: CreatorIQErrorType.PERMISSION_ERROR,
-      message: "You don't have permission to access this Creator IQ resource.",
-      originalError: error,
-      isRetryable: false,
-      context
-    };
-  }
-  
-  if (errorText.includes("network") || errorText.includes("connection") || errorText.includes("timeout") || 
-      errorText.includes("unreachable") || errorText.includes("failed to fetch")) {
-    return {
-      type: CreatorIQErrorType.CONNECTION_ERROR,
-      message: "Unable to connect to Creator IQ. Please check your internet connection and try again.",
-      originalError: error,
-      isRetryable: true,
-      context
-    };
-  }
-  
-  if (errorText.includes("format") || errorText.includes("parse") || errorText.includes("invalid data") || 
-      errorText.includes("unexpected") || errorText.includes("schema")) {
-    return {
-      type: CreatorIQErrorType.DATA_FORMAT_ERROR,
-      message: "The data received from Creator IQ was in an unexpected format.",
-      originalError: error,
-      isRetryable: false,
-      context
-    };
-  }
-
-  if (errorText.includes("state") || errorText.includes("not found") || errorText.includes("missing state")) {
-    return {
-      type: CreatorIQErrorType.STATE_ERROR,
-      message: "Could not retrieve or save state data for your Creator IQ request.",
-      originalError: error,
-      isRetryable: false,
-      context
-    };
-  }
-  
-  // Default to unknown error
-  return {
-    type: CreatorIQErrorType.UNKNOWN_ERROR,
-    message: `Creator IQ error: ${errorText.substring(0, 100)}`,
-    originalError: error,
-    isRetryable: true,
-    context
-  };
-};
-
-// Helper to handle retry logic with exponential backoff
-export const withCreatorIQRetry = async <T>(
+// Retry function for Creator IQ operations
+export async function withCreatorIQRetry<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
-  initialDelay: number = 1000,
-  context?: any
-): Promise<T> => {
-  let lastError: any;
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let retries = 0;
+  let lastError: any = null;
   
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  while (retries < maxRetries) {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error) {
       lastError = error;
-      const parsedError = parseCreatorIQError(error, context);
+      retries++;
       
-      // Only retry if the error is retryable
-      if (!parsedError.isRetryable) {
-        throw parsedError;
+      // Only retry on certain errors
+      const isRetriableError = isErrorRetriable(error);
+      if (!isRetriableError || retries >= maxRetries) {
+        break;
       }
       
-      // Last attempt - don't wait, just throw
-      if (attempt === maxRetries - 1) {
-        throw parsedError;
-      }
-      
-      // Wait before retry with exponential backoff
-      const waitTime = initialDelay * Math.pow(2, attempt);
-      console.log(`Retrying Creator IQ operation in ${waitTime}ms (attempt ${attempt + 1}/${maxRetries})...`, context);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+      // Exponential backoff with jitter
+      const delay = baseDelayMs * Math.pow(2, retries - 1) + Math.random() * 1000;
+      console.log(`Creator IQ operation failed, retry ${retries}/${maxRetries} in ${Math.round(delay)}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   
-  // This should never execute due to the throw in the loop, but TypeScript needs it
-  throw parseCreatorIQError(lastError, context);
-};
-
-// Helper to display Creator IQ errors to users with appropriate messaging
-export const displayCreatorIQError = (error: any) => {
-  const parsedError = error.type ? error : parseCreatorIQError(error);
-  
-  toast({
-    variant: "destructive",
-    title: getCreatorIQErrorTitle(parsedError.type),
-    description: parsedError.message
-  });
-  
-  // Log detailed error for debugging
-  console.error("Creator IQ Error:", {
-    type: parsedError.type,
-    message: parsedError.message,
-    context: parsedError.context,
-    originalError: parsedError.originalError
-  });
-  
-  return parsedError;
-};
-
-// Get appropriate error title based on error type
-const getCreatorIQErrorTitle = (errorType: CreatorIQErrorType): string => {
-  switch (errorType) {
-    case CreatorIQErrorType.AUTH_ERROR:
-      return "Authentication Error";
-    case CreatorIQErrorType.PERMISSION_ERROR:
-      return "Permission Error"; 
-    case CreatorIQErrorType.CONNECTION_ERROR:
-      return "Connection Error";
-    case CreatorIQErrorType.DATA_FORMAT_ERROR:
-      return "Data Format Error";
-    case CreatorIQErrorType.STATE_ERROR:
-      return "State Retrieval Error";
-    case CreatorIQErrorType.INCOMPLETE_DATA:
-      return "Incomplete Data Warning";
-    default:
-      return "Creator IQ Error";
-  }
-};
-
-// Helper for handling partial data scenarios
-export const handlePartialData = <T>(
-  data: Partial<T> | null | undefined,
-  defaults: T,
-  label: string
-): { data: T; isComplete: boolean } => {
-  if (!data) {
-    console.warn(`No ${label} data available, using defaults`);
-    return { data: defaults, isComplete: false };
-  }
-  
-  const mergedData = { ...defaults, ...data };
-  const isComplete = Object.keys(defaults).every(key => 
-    data.hasOwnProperty(key) && data[key as keyof Partial<T>] !== null && data[key as keyof Partial<T>] !== undefined
-  );
-  
-  if (!isComplete) {
-    console.warn(`Incomplete ${label} data, some values are using defaults`, {
-      missing: Object.keys(defaults).filter(key => 
-        !data.hasOwnProperty(key) || data[key as keyof Partial<T>] === null || data[key as keyof Partial<T>] === undefined
-      )
-    });
-  }
-  
-  return { data: mergedData, isComplete };
-};
-
-// Simple cache implementation for fallback data
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  source: 'api' | 'local' | 'fallback';
+  // If we've exhausted retries, throw the last error
+  throw lastError;
 }
 
-export class CreatorIQDataCache {
-  private cache: Map<string, CacheEntry<any>> = new Map();
-  private readonly maxAge: number; // in milliseconds
-  
-  constructor(maxAgeMinutes: number = 30) {
-    this.maxAge = maxAgeMinutes * 60 * 1000;
+// Helper to determine if an error is retriable
+function isErrorRetriable(error: any): boolean {
+  // Network errors are usually retriable
+  if (error?.message?.includes("network") || 
+      error?.message?.includes("timeout") ||
+      error?.message?.includes("connection")) {
+    return true;
   }
   
-  set<T>(key: string, data: T, source: 'api' | 'local' | 'fallback' = 'api'): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      source
-    });
+  // Rate limit errors are retriable after a delay
+  if (error?.message?.includes("rate limit") ||
+      error?.status === 429) {
+    return true;
   }
   
-  get<T>(key: string): { data: T | null; isFresh: boolean; source: string } {
-    const entry = this.cache.get(key) as CacheEntry<T> | undefined;
-    
-    if (!entry) {
-      return { data: null, isFresh: false, source: 'none' };
-    }
-    
-    const isFresh = (Date.now() - entry.timestamp) < this.maxAge;
-    
-    return { 
-      data: entry.data,
-      isFresh,
-      source: entry.source
-    };
+  // Server errors might be temporary
+  if (error?.status >= 500 && error?.status < 600) {
+    return true;
   }
   
-  clear(): void {
-    this.cache.clear();
-  }
+  return false;
 }
-
-// Global cache instance for Creator IQ data
-export const creatorIQCache = new CreatorIQDataCache();

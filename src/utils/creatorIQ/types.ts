@@ -1,44 +1,57 @@
 
-// Define types for our state data
+// Type definitions for Creator IQ state management
+
+export enum CreatorIQErrorType {
+  API_ERROR = 'api_error',
+  DATA_FORMAT_ERROR = 'data_format_error',
+  AUTHENTICATION_ERROR = 'auth_error',
+  RATE_LIMIT_ERROR = 'rate_limit_error',
+  NETWORK_ERROR = 'network_error',
+  UNKNOWN_ERROR = 'unknown_error',
+  INCOMPLETE_DATA = 'incomplete_data'
+}
+
+export interface CreatorIQError {
+  type: CreatorIQErrorType;
+  message: string;
+  originalError?: any;
+  retryCount?: number;
+  isRetryable: boolean;
+}
+
 export interface CreatorIQState {
   campaigns?: any[];
   publishers?: any[];
   lists?: any[];
-  key?: string;
-  userId?: string;
-  data?: any;
-  expiresAt?: Date;
-  createdAt?: Date;
+  operationResults?: any[];
+  context?: string;
+  lastUpdated?: string;
 }
 
-// Define types for the different entities we might store
-export interface CampaignData {
-  id: string;
+export interface CreatorIQOperationResult {
+  successful: boolean;
+  type: string;
+  details: string;
+  id?: string;
+  name?: string;
+  timestamp: string;
+}
+
+export enum CreatorIQOperationType {
+  READ = 'read',
+  WRITE = 'write',
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete'
+}
+
+export interface CreatorIQPayload {
+  [key: string]: any;
+}
+
+export interface CreatorIQEndpoint {
+  route: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   name: string;
-  status?: string;
-  publishersCount?: number;
-}
-
-export interface PublisherData {
-  id: string;
-  name: string;
-  status?: string;
-}
-
-export interface ListData {
-  id: string;
-  name: string;
-  publishersCount?: number;
-}
-
-// Define the structure of the creator_iq_state table for TypeScript
-export interface CreatorIQStateRow {
-  id: string;
-  key: string;
-  user_id: string;
-  data: any;
-  query_context: string | null;
-  expires_at: string;
-  created_at: string;
-  updated_at: string;
+  [key: string]: any;
 }

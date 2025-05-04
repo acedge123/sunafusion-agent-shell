@@ -1,4 +1,3 @@
-
 // Creator IQ API integration
 
 // Updated function to query Creator IQ endpoints with improved pagination support
@@ -19,7 +18,7 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
       'Content-Type': 'application/json'
     };
     
-    console.log(`Querying Creator IQ endpoint: ${endpoint.route} with payload:`, payload);
+    console.log(`Querying Creator IQ endpoint: ${endpoint.route} with method: ${endpoint.method} and payload:`, payload);
 
     // Improved request handling
     let response;
@@ -30,12 +29,19 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
         headers: headers,
         body: JSON.stringify(payload)
       });
+    } else if (endpoint.method === 'PUT') {
+      console.log(`Making PUT request to ${url}`);
+      response = await fetch(url, {
+        method: 'PUT',
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
     } else {
       // For GET requests, properly build URL with query parameters
       const urlParams = new URLSearchParams();
       if (payload) {
         Object.entries(payload).forEach(([key, value]) => {
-          if (!endpoint.route.includes(`{${key}}`) && value !== undefined) {
+          if (!endpoint.route.includes(`{${key}}`) && value !== undefined && typeof value !== 'object') {
             urlParams.append(key, value.toString());
           }
         });
@@ -197,7 +203,8 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
         return {
           endpoint: endpoint.route,
           name: endpoint.name,
-          data: data
+          data: data,
+          method: endpoint.method
         };
       }
       
@@ -383,7 +390,8 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
     return {
       endpoint: endpoint.route,
       name: endpoint.name,
-      data: data
+      data: data,
+      method: endpoint.method
     };
     
   } catch (error) {
@@ -401,13 +409,14 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
   const lowerQuery = query.toLowerCase();
   const endpoints = [];
   
-  // Define all available endpoints with updated terminology
+  // Define all available endpoints with updated terminology including write operations
   const availableEndpoints = {
+    // Read operations
     publishers: {
       route: "/publishers",
       method: "GET",
       name: "List Publishers",
-      keywords: ["publishers", "influencers", "list publishers", "find influencers", "influencer list"]
+      keywords: ["publishers", "influencers", "list publishers", "find influencers", "influencer list", "get publishers"]
     },
     publisher_details: {
       route: "/publishers/{publisher_id}",
@@ -425,7 +434,7 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
       route: "/campaigns",
       method: "GET",
       name: "List Campaigns",
-      keywords: ["campaigns", "marketing campaigns", "influencer campaigns", "list campaigns", "ready rocker", "ambassador program"]
+      keywords: ["campaigns", "marketing campaigns", "influencer campaigns", "list campaigns", "ready rocker", "ambassador program", "get campaigns"]
     },
     campaign_details: {
       route: "/campaigns/{campaign_id}",
@@ -439,7 +448,6 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
       name: "List Content",
       keywords: ["content", "posts", "influencer content", "campaign content", "creator posts"]
     },
-    // Lists endpoints with keywords
     lists: {
       route: "/lists",
       method: "GET",
@@ -457,8 +465,142 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
       method: "GET",
       name: "Get Publishers in List",
       keywords: ["list members", "publishers in list", "list publishers", "influencers in list", "count publishers", "list count"]
+    },
+    
+    // Write operations
+    create_list: {
+      route: "/lists",
+      method: "POST",
+      name: "Create List",
+      keywords: ["create list", "new list", "add list", "make list", "build list"]
+    },
+    update_list: {
+      route: "/lists/{list_id}",
+      method: "PUT",
+      name: "Update List",
+      keywords: ["update list", "edit list", "modify list", "change list"]
+    },
+    add_publisher_to_list: {
+      route: "/lists/{list_id}/publishers",
+      method: "POST",
+      name: "Add Publisher to List",
+      keywords: ["add publisher to list", "add influencer to list", "include publisher", "add to list"]
+    },
+    update_publisher: {
+      route: "/publishers/{publisher_id}",
+      method: "PUT",
+      name: "Update Publisher",
+      keywords: ["update publisher", "edit publisher", "modify publisher", "change publisher status"]
+    },
+    create_campaign: {
+      route: "/campaigns",
+      method: "POST",
+      name: "Create Campaign",
+      keywords: ["create campaign", "new campaign", "add campaign", "make campaign", "start campaign"]
+    },
+    update_campaign: {
+      route: "/campaigns/{campaign_id}",
+      method: "PUT",
+      name: "Update Campaign",
+      keywords: ["update campaign", "edit campaign", "modify campaign", "change campaign"]
+    },
+    add_publisher_to_campaign: {
+      route: "/campaigns/{campaign_id}/publishers",
+      method: "POST",
+      name: "Add Publisher to Campaign",
+      keywords: ["add publisher to campaign", "include publisher in campaign", "invite publisher"]
+    },
+    send_message: {
+      route: "/publishers/{publisher_id}/messages",
+      method: "POST",
+      name: "Send Message to Publisher",
+      keywords: ["send message", "message publisher", "contact publisher", "send notification", "notify publisher"]
     }
   };
+  
+  // Check if query is asking for creating a list
+  const createListMatch = lowerQuery.match(/create\s+(?:a\s+)?list\s+(?:called|named|titled)?\s+["']([^"']+)["']/i) || 
+                         lowerQuery.match(/make\s+(?:a\s+)?(?:new\s+)?list\s+(?:called|named|titled)?\s+["']([^"']+)["']/i);
+  
+  if (createListMatch && createListMatch[1]) {
+    const listName = createListMatch[1].trim();
+    console.log(`Detected CREATE LIST operation with name: "${listName}"`);
+    endpoints.push({
+      ...availableEndpoints.create_list,
+      listName: listName
+    });
+    return endpoints;
+  }
+  
+  // Check if query is asking for sending messages to publishers
+  const sendMessageMatch = lowerQuery.match(/send\s+(?:a\s+)?message\s+to\s+publishers?/i) ||
+                          lowerQuery.match(/message\s+publishers/i);
+  
+  if (sendMessageMatch) {
+    console.log("Detected SEND MESSAGE operation");
+    
+    // If there's a specific campaign or list mentioned, we might need to get publishers first
+    if (lowerQuery.includes("campaign") || lowerQuery.includes("list")) {
+      // This is a complex operation that requires multiple endpoints
+      // First determine if we need campaign or list data
+      if (lowerQuery.includes("campaign")) {
+        endpoints.push(availableEndpoints.campaigns);
+        // We'll need to get publishers for a campaign and then send messages
+        endpoints.push({
+          ...availableEndpoints.send_message,
+          requiresPublishers: true,
+          sourceType: "campaign"
+        });
+      } else if (lowerQuery.includes("list")) {
+        endpoints.push(availableEndpoints.lists);
+        // We'll need to get publishers for a list and then send messages
+        endpoints.push({
+          ...availableEndpoints.send_message,
+          requiresPublishers: true,
+          sourceType: "list"
+        });
+      }
+    } else {
+      // Direct message to publishers
+      endpoints.push(availableEndpoints.publishers);
+      endpoints.push(availableEndpoints.send_message);
+    }
+    
+    return endpoints;
+  }
+  
+  // Check if query is about adding a publisher to a list or campaign
+  const addPublisherMatch = lowerQuery.match(/add\s+publisher(?:s)?\s+to\s+(campaign|list)/i) ||
+                           lowerQuery.match(/invite\s+publisher(?:s)?\s+to\s+(campaign|list)/i);
+  
+  if (addPublisherMatch) {
+    const targetType = addPublisherMatch[1].toLowerCase();
+    console.log(`Detected ADD PUBLISHER TO ${targetType.toUpperCase()} operation`);
+    
+    if (targetType === "campaign") {
+      endpoints.push(availableEndpoints.campaigns);
+      endpoints.push(availableEndpoints.publishers);
+      endpoints.push(availableEndpoints.add_publisher_to_campaign);
+    } else if (targetType === "list") {
+      endpoints.push(availableEndpoints.lists);
+      endpoints.push(availableEndpoints.publishers);
+      endpoints.push(availableEndpoints.add_publisher_to_list);
+    }
+    
+    return endpoints;
+  }
+  
+  // Check if query is about updating publisher status
+  const updatePublisherMatch = lowerQuery.match(/update\s+publisher(?:s)?\s+status/i) ||
+                              lowerQuery.match(/change\s+publisher(?:s)?\s+status/i) ||
+                              lowerQuery.match(/set\s+publisher(?:s)?\s+status/i);
+  
+  if (updatePublisherMatch) {
+    console.log("Detected UPDATE PUBLISHER operation");
+    endpoints.push(availableEndpoints.publishers);
+    endpoints.push(availableEndpoints.update_publisher);
+    return endpoints;
+  }
   
   // Check if query is about showing ALL campaigns
   const showAllCampaigns = lowerQuery.match(/show\s+all(?:\s+\d+)?\s+campaigns/) || 
@@ -590,129 +732,94 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     limit: 50 // Increase default limit to get more results
   };
   
-  // Check if query is about showing ALL campaigns
-  const showAllCampaigns = lowerQuery.match(/show\s+all(?:\s+\d+)?\s+campaigns/) || 
-                          lowerQuery.match(/all\s+\d+\s+campaigns/) ||
-                          lowerQuery.match(/display\s+all\s+campaigns/);
-  
-  if (showAllCampaigns && endpoint.route === "/campaigns") {
-    console.log("Setting up payload for fetching all campaigns");
-    payload.limit = 100; // Try to get more per page when explicitly requested
-  }
-  
-  // Check if query is about showing ALL lists
-  const showAllLists = lowerQuery.match(/show\s+all(?:\s+\d+)?\s+lists/) || 
-                      lowerQuery.match(/all\s+\d+\s+lists/) ||
-                      lowerQuery.match(/display\s+all\s+lists/);
-  
-  if (showAllLists && endpoint.route === "/lists") {
-    console.log("Setting up payload for fetching all lists");
-    payload.limit = 100; // Try to get more per page when explicitly requested
-  }
-  
-  // Apply any params passed explicitly from the frontend
-  if (creator_iq_params) {
-    // If we have a specific campaign ID, use it for relevant endpoints
-    if (creator_iq_params.campaign_id && endpoint.route.includes('/campaigns/')) {
-      // The campaign ID is already in the route, nothing to add to payload
-      console.log(`Using campaign ID from params: ${creator_iq_params.campaign_id}`);
-    }
-    
-    // If we have a campaign search term from frontend
-    if (creator_iq_params.campaign_search_term) {
-      payload.search = creator_iq_params.campaign_search_term;
-      console.log(`Using campaign search term from params: "${payload.search}"`);
-    }
-    
-    // If we have a list ID from params, use it for relevant endpoints
-    if (creator_iq_params.list_id && endpoint.route.includes('/lists/')) {
-      console.log(`Using list ID from params: ${creator_iq_params.list_id}`);
-    }
-    
-    // If we have a list search term from frontend
-    if (creator_iq_params.list_search_term) {
-      payload.search = creator_iq_params.list_search_term;
-      console.log(`Using list search term from params: "${payload.search}"`);
-    }
-    
-    // Copy other relevant params
-    if (creator_iq_params.limit) payload.limit = creator_iq_params.limit;
-    if (creator_iq_params.offset) payload.offset = creator_iq_params.offset;
-    if (creator_iq_params.page) payload.page = creator_iq_params.page;
-    if (creator_iq_params.status) payload.status = creator_iq_params.status;
-  }
-  
-  // Use previous state if available and relevant
-  if (previousState) {
-    // If query is about publishers in a campaign and we have campaign data
-    if (endpoint.route.includes('/publishers') && 
-        endpoint.campaignContext && 
-        endpoint.campaignContext.id) {
-      
-      console.log(`Using campaign context: ${endpoint.campaignContext.name} (${endpoint.campaignContext.id})`);
-      // The campaign ID is already in the route
-    }
-  }
-  
-  // Check for list name in the query
-  const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
-                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
-  
-  if (listNameMatch && listNameMatch[1] && !payload.search) {
-    const listName = listNameMatch[1].trim();
-    console.log(`Adding search parameter for list name: "${listName}"`);
-    payload.search = listName;
-  }
-  
-  // Check for campaign name in the query with improved detection
-  const campaignNameMatch = lowerQuery.match(/campaign(?:\s+called|\s+named|\s+titled)?\s+["']([^"']+)["']/i) || 
-                           lowerQuery.match(/["']([^"']+)["'](?:\s+campaign)/i) ||
-                           lowerQuery.match(/find\s+(?:a\s+)?campaign\s+(?:with|named|called|titled|containing)\s+([a-z0-9\s]+)/i);
-  
-  if (campaignNameMatch && campaignNameMatch[1] && !payload.search) {
-    const campaignName = campaignNameMatch[1].trim();
-    console.log(`Adding search parameter for campaign name: "${campaignName}"`);
-    payload.search = campaignName;
-  }
-  
-  // Check specifically for Ready Rocker Ambassador Program with improved detection
-  if ((lowerQuery.includes("ready rocker") || 
-      (lowerQuery.includes("ready") && lowerQuery.includes("rocker")) || 
-      (lowerQuery.includes("ambassador") && lowerQuery.includes("program"))) && 
-      !payload.search) {
-    console.log("Adding search parameter for Ready Rocker Ambassador Program");
-    payload.search = "Ready Rocker";
-  }
-  
-  // If endpoint is campaigns and we still don't have a search term, check for any campaign-related terms
-  if (endpoint.route === "/campaigns" && !payload.search) {
-    const campaignTerms = ["ambassador", "program", "marketing"];
-    for (const term of campaignTerms) {
-      if (lowerQuery.includes(term)) {
-        console.log(`Adding search parameter for campaign term: "${term}"`);
-        payload.search = term;
+  // Handle write operations with special payload building
+  if (endpoint.method === 'POST' || endpoint.method === 'PUT') {
+    // Build payload based on the specific operation type
+    switch (endpoint.name) {
+      case "Create List":
+        console.log("Building payload for CREATE LIST operation");
+        // List creation requires at least a name
+        payload.Name = endpoint.listName || "New List";
+        payload.Description = extractDescription(query) || `List created on ${new Date().toLocaleDateString()}`;
+        return payload;
+        
+      case "Update List":
+        console.log("Building payload for UPDATE LIST operation");
+        // For list updates, we need the list ID in the route
+        if (creator_iq_params.list_id) {
+          const updates = {};
+          
+          if (lowerQuery.includes("description")) {
+            updates.Description = extractDescription(query);
+          }
+          if (lowerQuery.includes("name")) {
+            const nameMatch = query.match(/name\s+(?:to\s+)?["']([^"']+)["']/i);
+            if (nameMatch && nameMatch[1]) {
+              updates.Name = nameMatch[1].trim();
+            }
+          }
+          
+          return updates;
+        }
         break;
-      }
-    }
-  }
-  
-  // Special handling for full search across all pages
-  if (endpoint.fullSearch) {
-    console.log("Enabling full search across all pages");
-    // Set flag for the caller to know this needs special handling
-    payload._fullSearch = true;
-  }
-  
-  // Handle context for showing all campaigns or lists
-  if (endpoint.getAllPages) {
-    if (endpoint.route === "/campaigns") {
-      console.log("Setting up for retrieving all campaigns");
-      payload._getAllPages = true;
-    } else if (endpoint.route === "/lists") {
-      console.log("Setting up for retrieving all lists");
-      payload._getAllPages = true;
-    }
-  }
-  
-  return payload;
-}
+        
+      case "Add Publisher to List":
+        console.log("Building payload for ADD PUBLISHER TO LIST operation");
+        // We need publisher IDs and list ID
+        if (creator_iq_params.list_id && creator_iq_params.publisher_ids) {
+          return {
+            PublisherIds: Array.isArray(creator_iq_params.publisher_ids) ? 
+              creator_iq_params.publisher_ids : [creator_iq_params.publisher_ids]
+          };
+        }
+        break;
+        
+      case "Update Publisher":
+        console.log("Building payload for UPDATE PUBLISHER operation");
+        // Extract status from query
+        const statusMatch = lowerQuery.match(/status\s+(?:to\s+)?["']?([a-zA-Z]+)["']?/i);
+        if (statusMatch && statusMatch[1]) {
+          const status = statusMatch[1].trim();
+          // Validate status is a valid value
+          const validStatuses = ["active", "inactive", "pending", "invited"];
+          if (validStatuses.includes(status.toLowerCase())) {
+            return {
+              Status: status.toLowerCase()
+            };
+          }
+        }
+        break;
+        
+      case "Send Message to Publisher":
+        console.log("Building payload for SEND MESSAGE TO PUBLISHER operation");
+        // Extract message content
+        const messageMatch = query.match(/message\s+(?:saying\s+|content\s+)?["']([^"']+)["']/i);
+        if (messageMatch && messageMatch[1]) {
+          const messageContent = messageMatch[1].trim();
+          return {
+            Content: messageContent,
+            Subject: extractSubject(query) || "New Message from Creator IQ"
+          };
+        } else {
+          // Try to extract message another way
+          const lines = query.split('\n');
+          for (const line of lines) {
+            if (line.toLowerCase().includes('message:')) {
+              const content = line.substring(line.indexOf(':') + 1).trim();
+              if (content) {
+                return {
+                  Content: content,
+                  Subject: extractSubject(query) || "New Message from Creator IQ"
+                };
+              }
+            }
+          }
+        }
+        
+        // Default message if we couldn't extract one
+        return {
+          Content: "This is an automated message from the Creator IQ system.",
+          Subject: "New Message from Creator IQ"
+        };
+        
+      case "Create Campaign":
