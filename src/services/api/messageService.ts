@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { processCreatorIQResponse } from "./creatorIQService";
 import { getProviderToken, storeProviderToken } from "./tokenService";
 import { buildCreatorIQParams } from "./paramBuilder";
+import { findStateByQuery, generateStateKey } from "@/utils/creatorIQ";
 
 export async function sendMessage(content: string): Promise<Message> {
   try {
@@ -96,9 +97,6 @@ async function prepareCreatorIQState(userId: string | undefined, content: string
       content.toLowerCase().includes('campaign') || 
       content.toLowerCase().includes('publisher') || 
       content.toLowerCase().includes('ready rocker'))) {
-    
-    // Import dynamically to avoid circular dependencies
-    const { findStateByQuery, generateStateKey } = await import("@/utils/creatorIQStateManager");
     
     // Try to find relevant previous state based on query content
     const queryTerms = [

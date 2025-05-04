@@ -1,5 +1,5 @@
 
-import { saveStateToDatabase, extractCampaignData } from "@/utils/creatorIQStateManager";
+import { saveStateToDatabase, extractCampaignData } from "@/utils/creatorIQ";
 
 // Process Creator IQ response and store data for future reference
 export async function processCreatorIQResponse(stateKey: string, userId: string, sources: any[]) {
