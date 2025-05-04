@@ -30,6 +30,18 @@ export interface ListData {
   publishersCount?: number;
 }
 
+// Define the structure of the creator_iq_state table for TypeScript
+interface CreatorIQStateRow {
+  id: string;
+  key: string;
+  user_id: string;
+  data: any;
+  query_context: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Generate a unique state key based on user ID and query
 export const generateStateKey = (userId: string, query: string): string => {
   return `ciq_${userId}_${query.replace(/\s+/g, '_').toLowerCase().substring(0, 20)}_${Date.now()}`;
@@ -76,7 +88,9 @@ export const saveStateToDatabase = async (
     // Calculate expiry time
     const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
     
-    const { error } = await supabase
+    // Use type assertion to bypass type checking for this specific query
+    // since we know the table exists but TypeScript doesn't
+    const { error } = await (supabase as any)
       .from('creator_iq_state')
       .upsert({
         key,
@@ -105,8 +119,8 @@ export const getStateFromDatabase = async (
   key: string
 ): Promise<any> => {
   try {
-    // Get state data
-    const { data, error } = await supabase
+    // Get state data using type assertion to bypass TypeScript limitations
+    const { data, error } = await (supabase as any)
       .from('creator_iq_state')
       .select('data')
       .eq('user_id', userId)
@@ -138,7 +152,7 @@ export const findStateByQuery = async (
 ): Promise<any> => {
   try {
     // Get all state data for the user
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('creator_iq_state')
       .select('key, data')
       .eq('user_id', userId)
