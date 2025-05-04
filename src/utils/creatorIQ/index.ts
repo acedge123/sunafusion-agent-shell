@@ -6,6 +6,7 @@ export * from "./types";
 export * from "./sessionStorage";
 export * from "./dbStorage";
 export * from "./dataExtraction";
+export * from "./errorHandling";
 
 // Generate a unique state key based on user ID and query
 export const generateStateKey = (userId: string, query: string): string => {
