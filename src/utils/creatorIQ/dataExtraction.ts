@@ -1,4 +1,3 @@
-
 // Extract structured data from API responses
 
 /**
@@ -76,15 +75,25 @@ export function extractListData(data: any): any[] {
   try {
     if (!data || !data.ListsCollection) return [];
     
-    return data.ListsCollection
+    const lists = data.ListsCollection
       .filter((list: any) => list && list.List && list.List.Id)
       .map((list: any) => ({
         id: list.List.Id,
         name: list.List.Name || 'Unnamed List',
         description: list.List.Description || '',
         publishersCount: list.List.Publishers || 0,
-        href: list.href
+        href: list.href,
+        // Add pagination information
+        page: data.page || 1,
+        totalPages: data.total_pages || 1
       }));
+    
+    // Add pagination metadata
+    if (data.total !== undefined) {
+      console.log(`Extracted ${lists.length} lists (page ${data.page || 1} of ${data.total_pages || 1}, total: ${data.total})`);
+    }
+    
+    return lists;
   } catch (error) {
     console.error("Error extracting list data:", error);
     return [];
@@ -191,6 +200,27 @@ export function extractCreatedList(data: any): any | null {
     };
   } catch (error) {
     console.error("Error extracting created list:", error);
+    return null;
+  }
+}
+
+/**
+ * Extract pagination metadata from API response
+ */
+export function extractPaginationMetadata(data: any): any {
+  try {
+    if (!data) return null;
+    
+    return {
+      total: data.total,
+      currentPage: data.page || 1,
+      totalPages: data.total_pages || 1,
+      hasNextPage: data.page < data.total_pages,
+      hasPreviousPage: data.page > 1,
+      limit: data.limit || 50
+    };
+  } catch (error) {
+    console.error("Error extracting pagination metadata:", error);
     return null;
   }
 }

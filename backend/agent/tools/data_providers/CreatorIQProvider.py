@@ -1,3 +1,4 @@
+
 import os
 import requests
 from typing import Dict, Any, Optional, List
@@ -21,7 +22,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "limit": "Number of results to return (default: 10)",
                     "offset": "Starting position for pagination",
                     "status": "Filter by publisher status (e.g., active, inactive)",
-                    "search": "Search term to filter publishers by name or other details"
+                    "search": "Search term to filter publishers by name or other details",
+                    "page": "Page number for pagination (starts at 1)"
                 }
             },
             "publisher_details": {
@@ -55,7 +57,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "offset": "Starting position for pagination",
                     "status": "Filter by campaign status",
                     "brand_id": "Filter by brand ID",
-                    "search": "Search term to filter campaigns by name"
+                    "search": "Search term to filter campaigns by name",
+                    "page": "Page number for pagination (starts at 1)"
                 }
             },
             "campaign_details": {
@@ -75,7 +78,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                 "payload": {
                     "campaign_id": "ID of the campaign",
                     "limit": "Number of results to return (default: 10)",
-                    "offset": "Starting position for pagination"
+                    "offset": "Starting position for pagination",
+                    "page": "Page number for pagination (starts at 1)"
                 }
             },
             "content": {
@@ -88,7 +92,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "offset": "Starting position for pagination",
                     "publisher_id": "Filter by publisher ID",
                     "campaign_id": "Filter by campaign ID",
-                    "content_type": "Filter by content type (e.g., post, video, story)"
+                    "content_type": "Filter by content type (e.g., post, video, story)",
+                    "page": "Page number for pagination (starts at 1)"
                 }
             },
             "lists": {
@@ -97,10 +102,11 @@ class CreatorIQProvider(RapidDataProviderBase):
                 "name": "Get Lists",
                 "description": "Get a list of all publisher lists",
                 "payload": {
-                    "limit": "Number of results to return (default: 10)",
+                    "limit": "Number of results to return (default: 50)",
                     "offset": "Starting position for pagination",
                     "search": "Search term to filter lists by name or other details",
-                    "status": "Filter by list status"
+                    "status": "Filter by list status",
+                    "page": "Page number for pagination (starts at 1)"
                 }
             },
             "list_details": {
@@ -120,7 +126,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                 "payload": {
                     "list_id": "ID of the list",
                     "limit": "Number of results to return (default: 10)",
-                    "offset": "Starting position for pagination"
+                    "offset": "Starting position for pagination",
+                    "page": "Page number for pagination (starts at 1)"
                 }
             },
             
@@ -256,6 +263,23 @@ class CreatorIQProvider(RapidDataProviderBase):
             print(f"Headers: {headers}")
             print(f"Payload: {payload}")
 
+            # Special handling for pagination in requests
+            if method == "GET" and payload and "page" in payload:
+                # Convert page to offset for API that expects offset-based pagination
+                if "limit" in payload:
+                    limit = int(payload.get("limit", 50))
+                else:
+                    limit = 50
+                    payload["limit"] = limit
+                
+                page = int(payload["page"])
+                offset = (page - 1) * limit
+                payload["offset"] = offset
+                
+                # Remove page parameter as API uses offset
+                payload = {k: v for k, v in payload.items() if k != "page"}
+                print(f"Converted page {page} to offset {offset} with limit {limit}")
+            
             # Special handling for search operations
             if method == "GET":
                 if route == "lists" and payload and "search" in payload:
@@ -441,7 +465,51 @@ class CreatorIQProvider(RapidDataProviderBase):
                 elif "Send Message" in operation_type:
                     response_data["operation"]["details"] = "Message sent successfully"
             
-            # Additional logging and processing for GET operations
+            # Add pagination information to response
+            if method == "GET":
+                # For lists endpoint, ensure pagination info is included
+                if route == "lists" and "ListsCollection" in response_data:
+                    # If limit is in the payload, use it, otherwise default to 50
+                    limit = int(payload.get("limit", 50)) if payload else 50
+                    offset = int(payload.get("offset", 0)) if payload else 0
+                    page = (offset // limit) + 1
+                    
+                    # Get total item count
+                    total_items = response_data.get("count") or len(response_data.get("ListsCollection", []))
+                    
+                    # Calculate total pages
+                    total_pages = (total_items + limit - 1) // limit if total_items > 0 else 1
+                    
+                    # Add pagination metadata to response
+                    response_data["page"] = page
+                    response_data["limit"] = limit
+                    response_data["offset"] = offset
+                    response_data["total"] = total_items
+                    response_data["total_pages"] = total_pages
+                    
+                    print(f"List pagination: page {page} of {total_pages}, {total_items} total items")
+                
+                # For campaigns endpoint, ensure pagination info is included
+                elif route == "campaigns" and "CampaignCollection" in response_data:
+                    # If limit is in the payload, use it, otherwise default to 50
+                    limit = int(payload.get("limit", 50)) if payload else 50
+                    offset = int(payload.get("offset", 0)) if payload else 0
+                    page = (offset // limit) + 1
+                    
+                    # Get total item count
+                    total_items = response_data.get("count") or len(response_data.get("CampaignCollection", []))
+                    
+                    # Calculate total pages
+                    total_pages = (total_items + limit - 1) // limit if total_items > 0 else 1
+                    
+                    # Add pagination metadata to response
+                    response_data["page"] = page
+                    response_data["limit"] = limit
+                    response_data["offset"] = offset
+                    response_data["total"] = total_items
+                    response_data["total_pages"] = total_pages
+            
+            # Additional logging for GET operations
             if route == "campaigns" and "CampaignCollection" in response_data:
                 campaigns = response_data["CampaignCollection"]
                 campaign_names = []
@@ -497,9 +565,24 @@ class CreatorIQProvider(RapidDataProviderBase):
                     print(f"... and {len(lists) - 5} more")
                     
                 # Add pagination metadata for lists
-                response_data["total"] = response_data.get("total", len(lists))
-                response_data["page"] = payload.get("page", 1) if payload else 1
-                response_data["total_pages"] = response_data.get("total_pages", 1)
+                limit = int(payload.get("limit", 50)) if payload else 50
+                offset = int(payload.get("offset", 0)) if payload else 0
+                page = (offset // limit) + 1
+                
+                # Get total item count from response or use the number of lists we have
+                total_items = response_data.get("total") or response_data.get("count") or len(lists)
+                
+                # Calculate total pages
+                total_pages = (total_items + limit - 1) // limit if total_items > 0 else 1
+                
+                # Update response with pagination metadata
+                response_data["page"] = page
+                response_data["limit"] = limit
+                response_data["offset"] = offset
+                response_data["total"] = total_items
+                response_data["total_pages"] = total_pages
+                
+                print(f"List pagination: page {page} of {total_pages}, {total_items} total items")
                     
                 # Get list details including publisher counts for all lists
                 for list_item in lists:
@@ -540,6 +623,62 @@ class CreatorIQProvider(RapidDataProviderBase):
             print(f"Creator IQ API error: {error_message}")
             raise ValueError(f"Creator IQ API error: {error_message}")
 
+    # Add a new method to get all lists with pagination support
+    def get_all_lists(self, page_size: int = 50, max_pages: int = 10) -> Dict[str, Any]:
+        """
+        Get all lists with pagination support
+        
+        Args:
+            page_size: Number of lists per page
+            max_pages: Maximum number of pages to fetch
+            
+        Returns:
+            Combined response with all lists and metadata
+        """
+        try:
+            all_lists = []
+            total_items = 0
+            total_pages = 1
+            current_page = 1
+            
+            # Make first request to get total count
+            first_page = self.call_endpoint("lists", {"limit": page_size, "page": 1})
+            
+            # Get pagination info
+            if "total" in first_page:
+                total_items = first_page["total"]
+                total_pages = first_page["total_pages"]
+                
+                print(f"Found {total_items} total lists across {total_pages} pages")
+            
+            # Add first page of results
+            if "ListsCollection" in first_page:
+                all_lists.extend(first_page["ListsCollection"])
+                
+            # If we have more pages, fetch them
+            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            
+            for page in range(2, 2 + pages_to_fetch):
+                print(f"Fetching lists page {page} of {total_pages}")
+                page_result = self.call_endpoint("lists", {"limit": page_size, "page": page})
+                
+                if "ListsCollection" in page_result:
+                    all_lists.extend(page_result["ListsCollection"])
+            
+            # Update the first page response with combined results
+            first_page["ListsCollection"] = all_lists
+            first_page["pages_searched"] = min(max_pages, total_pages)
+            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["items_found"] = len(all_lists)
+            
+            print(f"Retrieved {len(all_lists)} lists from {min(max_pages, total_pages)} pages")
+            
+            return first_page
+            
+        except Exception as e:
+            print(f"Error fetching all lists: {str(e)}")
+            return {"ListsCollection": [], "error": str(e)}
+    
     # Helper functions for specific operations
     def search_campaigns_by_name(self, search_term: str) -> List[Dict[str, Any]]:
         """

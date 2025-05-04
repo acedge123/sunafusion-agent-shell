@@ -4,6 +4,7 @@ import {
   extractCampaignData,
   extractPublisherData,
   extractListData,
+  extractPaginationMetadata,
   displayCreatorIQError,
   CreatorIQErrorType,
   withCreatorIQRetry,
@@ -86,7 +87,12 @@ export async function processCreatorIQResponse(stateKey: string, userId: string,
           console.log(`Extracted ${processedData.lists.length} lists`);
           
           if (processedData.lists.length > 0) {
-            context += `lists:${processedData.lists.length},`;
+            const pagination = extractPaginationMetadata(result.data);
+            if (pagination) {
+              context += `lists:${processedData.lists.length}:page=${pagination.currentPage}:total=${pagination.total},`;
+            } else {
+              context += `lists:${processedData.lists.length},`;
+            }
           }
           
           // Store complete list collection in cache if available
@@ -96,7 +102,7 @@ export async function processCreatorIQResponse(stateKey: string, userId: string,
               {
                 total: result.data.total,
                 pages: result.data.pages_searched,
-                total_pages: result.data.total_pages_available
+                total_pages: result.data.total_pages
               }
             );
           }
@@ -221,6 +227,42 @@ export async function getListPublishers(listId: string, listName?: string) {
     console.error("Error retrieving list publishers:", error);
     return {
       publishers: [],
+      _metadata: {
+        source: "error",
+        error: String(error)
+      }
+    };
+  }
+}
+
+// Fetch lists with pagination support
+export async function fetchListsByPage(page: number = 1, limit: number = 50) {
+  try {
+    // Check if we already have this page in cache
+    const cacheKey = `lists_page_${page}_limit_${limit}`;
+    const cached = creatorIQCache.get<any>(cacheKey);
+    
+    if (cached.data && cached.isFresh) {
+      console.log(`Using cached lists for page ${page}`);
+      return cached.data;
+    }
+    
+    console.log(`Lists cache miss for page ${page}, would need to fetch from API`);
+    
+    // In a real implementation, we would fetch from API here
+    // For now, we'll return a message that API fetching would be done
+    return {
+      lists: [],
+      _metadata: {
+        source: "none",
+        message: `Would fetch page ${page} with limit ${limit} from API`,
+        needsApiCall: true
+      }
+    };
+  } catch (error) {
+    console.error(`Error fetching lists page ${page}:`, error);
+    return {
+      lists: [],
       _metadata: {
         source: "error",
         error: String(error)

@@ -156,12 +156,16 @@ export function buildContextFromResults(results, previousState = null) {
           context += "\n";
         }
         
-        // Handle lists data
+        // Handle lists data with pagination information
         if (result.data && result.data.ListsCollection) {
-          context += `Found ${result.data.ListsCollection.length} lists\n`;
+          const totalLists = result.data.total || result.data.ListsCollection.length;
+          const currentPage = result.data.page || 1;
+          const totalPages = result.data.total_pages || 1;
+          
+          context += `Found ${totalLists} lists (page ${currentPage} of ${totalPages})\n`;
           
           if (result.data.ListsCollection.length === 0) {
-            context += "No existing lists found. You can create a new list using the create list operation.\n";
+            context += "No lists found on this page. You can create a new list using the create list operation.\n";
           } else {
             // Add list details
             result.data.ListsCollection.slice(0, 5).forEach((list, lIdx) => {
@@ -173,7 +177,13 @@ export function buildContextFromResults(results, previousState = null) {
               }
             });
             if (result.data.ListsCollection.length > 5) {
-              context += `  ... and ${result.data.ListsCollection.length - 5} more lists\n`;
+              context += `  ... and ${result.data.ListsCollection.length - 5} more lists on this page\n`;
+            }
+            
+            // Add pagination guidance
+            if (totalPages > 1) {
+              context += `  This is page ${currentPage} of ${totalPages}. There are ${totalLists} total lists.\n`;
+              context += `  You can view other pages by specifying page number in your query.\n`;
             }
           }
           context += "\n";

@@ -62,3 +62,23 @@ export interface CreatorIQWriteOperation {
   payload: CreatorIQPayload;
   targetId?: string;
 }
+
+export interface PaginationMetadata {
+  total: number;
+  currentPage: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  limit: number;
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  pagination: PaginationMetadata;
+  _metadata?: {
+    source: 'cache' | 'db' | 'api' | 'none' | 'error';
+    isFresh?: boolean;
+    error?: string;
+    timestamp?: number;
+  };
+}
