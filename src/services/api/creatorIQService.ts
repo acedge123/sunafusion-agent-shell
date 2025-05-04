@@ -22,7 +22,11 @@ export async function processCreatorIQResponse(stateKey: string, userId: string,
     console.log("Storing Creator IQ results for future reference");
     
     // Process and extract structured data from the response with improved error handling
-    const processedData = {
+    const processedData: {
+      campaigns: any[];
+      publishers: any[];
+      lists: any[];
+    } = {
       campaigns: [],
       publishers: [],
       lists: []

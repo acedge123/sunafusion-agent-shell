@@ -13,7 +13,11 @@ import { CreatorIQState } from "./types";
 export async function saveStateToDatabase(
   userId: string,
   stateKey: string, 
-  data: CreatorIQState,
+  data: {
+    campaigns: any[];
+    publishers: any[];
+    lists: any[];
+  },
   context?: string
 ): Promise<boolean> {
   try {
@@ -29,7 +33,7 @@ export async function saveStateToDatabase(
       .upsert({
         key: stateKey,
         user_id: userId,
-        data,
+        data: data as any,
         query_context: context || null,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24h expiry
       }, {

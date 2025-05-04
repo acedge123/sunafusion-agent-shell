@@ -1,11 +1,14 @@
 
 // Define types for our state data
 export interface CreatorIQState {
-  key: string;
-  userId: string;
-  data: any;
-  expiresAt: Date;
-  createdAt: Date;
+  campaigns?: any[];
+  publishers?: any[];
+  lists?: any[];
+  key?: string;
+  userId?: string;
+  data?: any;
+  expiresAt?: Date;
+  createdAt?: Date;
 }
 
 // Define types for the different entities we might store
