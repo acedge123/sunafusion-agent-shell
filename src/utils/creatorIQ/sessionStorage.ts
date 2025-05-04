@@ -103,6 +103,38 @@ export const creatorIQCache = {
     }
   },
   
+  // Store the complete lists collection with pagination metadata
+  storeAllLists: (lists: any[], metadata: any): void => {
+    try {
+      creatorIQCache.set('all_lists', {
+        lists,
+        metadata: {
+          ...metadata,
+          timestamp: Date.now(),
+          complete: true
+        }
+      }, 60 * 60 * 1000); // Keep complete lists collection for 1 hour
+      
+      console.log(`Stored complete lists collection with ${lists.length} lists`);
+    } catch (error) {
+      console.error("Error storing all lists:", error);
+    }
+  },
+  
+  // Retrieve complete lists collection
+  getAllLists: (): { lists: any[], metadata: any } | null => {
+    try {
+      const result = creatorIQCache.get<{ lists: any[], metadata: any }>('all_lists');
+      if (result.data) {
+        return result.data;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error retrieving all lists:", error);
+      return null;
+    }
+  },
+  
   // Search for a campaign by name in the complete list (if available)
   findCampaignByName: (name: string): any[] => {
     try {
@@ -149,6 +181,48 @@ export const creatorIQCache = {
       });
     } catch (error) {
       console.error("Error searching cached campaigns:", error);
+      return [];
+    }
+  },
+  
+  // Search for a list by name in the complete collection (if available)
+  findListByName: (name: string): any[] => {
+    try {
+      const allLists = creatorIQCache.getAllLists();
+      if (!allLists || !allLists.lists) {
+        return [];
+      }
+      
+      const searchTerm = name.toLowerCase();
+      console.log(`Searching cached lists for: "${searchTerm}"`);
+      
+      // Advanced search with fuzzy matching
+      return allLists.lists.filter(list => {
+        if (!list.List || !list.List.Name) return false;
+        
+        const listName = list.List.Name.toLowerCase();
+        
+        // Direct match
+        if (listName.includes(searchTerm)) {
+          return true;
+        }
+        
+        // Word-by-word matching for multiple word searches
+        const searchWords = searchTerm.split(/\s+/);
+        if (searchWords.length > 1) {
+          let matchCount = 0;
+          for (const word of searchWords) {
+            if (word.length > 2 && listName.includes(word)) {
+              matchCount++;
+            }
+          }
+          return matchCount >= Math.ceil(searchWords.length * 0.6);
+        }
+        
+        return false;
+      });
+    } catch (error) {
+      console.error("Error searching cached lists:", error);
       return [];
     }
   }

@@ -45,6 +45,18 @@ export async function processCreatorIQResponse(stateKey: string, userId: string,
           if (processedData.campaigns.length > 0) {
             context += `campaigns:${processedData.campaigns.length},`;
           }
+          
+          // Store complete campaign list in cache if available
+          if (result.data.searched_all_pages && result.data.CampaignCollection?.length > 0) {
+            creatorIQCache.storeAllCampaigns(
+              result.data.CampaignCollection,
+              {
+                total: result.data.total,
+                pages: result.data.pages_searched,
+                total_pages: result.data.total_pages_available
+              }
+            );
+          }
         } else if (result.endpoint.includes("/publishers") && result.data) {
           const publishers = extractPublisherData(result.data);
           processedData.publishers = publishers;
@@ -61,12 +73,32 @@ export async function processCreatorIQResponse(stateKey: string, userId: string,
               publishers
             );
           }
+          
+          // Also cache publishers by list if this is a list-specific request
+          if (result.endpoint.includes("/lists/") && result.data.listId) {
+            creatorIQCache.set(
+              `list_publishers_${result.data.listId}`, 
+              publishers
+            );
+          }
         } else if (result.endpoint === "/lists" && result.data) {
           processedData.lists = extractListData(result.data);
           console.log(`Extracted ${processedData.lists.length} lists`);
           
           if (processedData.lists.length > 0) {
             context += `lists:${processedData.lists.length},`;
+          }
+          
+          // Store complete list collection in cache if available
+          if (result.data.searched_all_pages && result.data.ListsCollection?.length > 0) {
+            creatorIQCache.storeAllLists(
+              result.data.ListsCollection,
+              {
+                total: result.data.total,
+                pages: result.data.pages_searched,
+                total_pages: result.data.total_pages_available
+              }
+            );
           }
         }
         
@@ -146,6 +178,47 @@ export async function getCampaignPublishers(campaignId: string, campaignName?: s
     };
   } catch (error) {
     console.error("Error retrieving campaign publishers:", error);
+    return {
+      publishers: [],
+      _metadata: {
+        source: "error",
+        error: String(error)
+      }
+    };
+  }
+}
+
+// Retrieve list publishers with fallback support
+export async function getListPublishers(listId: string, listName?: string) {
+  try {
+    // Check cache first for immediate response
+    const cached = creatorIQCache.get<any>(`list_publishers_${listId}`);
+    if (cached.data) {
+      // Return with metadata indicating source
+      return {
+        publishers: cached.data,
+        _metadata: {
+          source: cached.source,
+          isFresh: cached.isFresh,
+          timestamp: Date.now()
+        }
+      };
+    }
+    
+    // Nothing in cache, return empty array with metadata
+    return {
+      publishers: [],
+      _metadata: {
+        source: "none",
+        error: "Publishers not found in cache",
+        listDetails: {
+          id: listId,
+          name: listName || "Unknown"
+        }
+      }
+    };
+  } catch (error) {
+    console.error("Error retrieving list publishers:", error);
     return {
       publishers: [],
       _metadata: {

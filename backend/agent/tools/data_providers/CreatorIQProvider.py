@@ -177,6 +177,66 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             # Log the request for debugging
             print(f"Making Creator IQ API request to: {url}")
+
+            # Special handling for lists search - similar to what we do for campaigns
+            if route == "lists" and payload and "search" in payload:
+                search_term = payload["search"]
+                print(f"Searching for lists with term: {search_term}")
+                
+                # First make the request without the search parameter to get all lists
+                search_payload = {k: v for k, v in payload.items() if k != "search"}
+                
+                # Increase the limit to get more potential matches
+                if "limit" not in search_payload:
+                    search_payload["limit"] = 50
+                
+                if method == "GET":
+                    response = requests.get(url, params=search_payload, headers=headers)
+                else:
+                    response = requests.post(url, json=search_payload, headers=headers)
+                
+                # Check for errors
+                response.raise_for_status()
+                
+                # Get the response data
+                full_response = response.json()
+                
+                # Log the raw response for debugging
+                print(f"Raw API response structure: {str(full_response.keys())}")
+                
+                # Process the response to filter by list name
+                if "ListsCollection" in full_response:
+                    # Filter lists by name containing the search term (case-insensitive)
+                    original_lists = full_response["ListsCollection"]
+                    print(f"Found {len(original_lists)} lists before filtering")
+                    
+                    # Enhanced debugging for list structure
+                    if len(original_lists) > 0:
+                        sample_list = original_lists[0]
+                        print(f"Sample list structure: {str(sample_list.keys())}")
+                        if "List" in sample_list:
+                            list_keys = sample_list["List"].keys()
+                            print(f"List details keys: {str(list_keys)}")
+                            if "Name" in sample_list["List"]:
+                                print(f"List name example: {sample_list['List']['Name']}")
+                    
+                    filtered_lists = []
+                    for list_item in original_lists:
+                        if "List" in list_item and "Name" in list_item["List"]:
+                            list_name = list_item["List"]["Name"].lower()
+                            if search_term.lower() in list_name:
+                                print(f"Match found: '{list_name}' matches '{search_term}'")
+                                filtered_lists.append(list_item)
+                    
+                    # Update the response with filtered results
+                    full_response["ListsCollection"] = filtered_lists
+                    full_response["count"] = len(filtered_lists)
+                    full_response["filtered_by"] = search_term
+                    full_response["total"] = len(filtered_lists)  # Update total to reflect filtered count
+                    
+                    print(f"Found {len(filtered_lists)} lists matching '{search_term}'")
+                    
+                    return full_response
             
             # Handle search parameter for campaigns specially
             if route == "campaigns" and payload and "search" in payload:
@@ -313,6 +373,49 @@ class CreatorIQProvider(RapidDataProviderBase):
                                 
                         except Exception as e:
                             print(f"Error getting publishers for campaign {campaign_id}: {str(e)}")
+                            
+            # Handle list response data similarly to campaigns
+            if route == "lists" and "ListsCollection" in response_data:
+                lists = response_data["ListsCollection"]
+                list_names = []
+                for l in lists:
+                    if 'List' in l and 'Name' in l['List']:
+                        list_id = l['List'].get('Id', 'Unknown')
+                        list_name = l['List'].get('Name', 'Unnamed')
+                        list_names.append(f"{list_id}: {list_name}")
+                
+                print(f"Retrieved {len(lists)} lists:")
+                for idx, name in enumerate(list_names[:5]):
+                    print(f"  {idx+1}. {name}")
+                    
+                if len(lists) > 5:
+                    print(f"... and {len(lists) - 5} more")
+                    
+                # Add pagination metadata for lists
+                response_data["total"] = response_data.get("total", len(lists))
+                response_data["page"] = payload.get("page", 1) if payload else 1
+                response_data["total_pages"] = response_data.get("total_pages", 1)
+                    
+                # Get list details including publisher counts for all lists
+                for list_item in lists:
+                    if "List" in list_item and "Id" in list_item["List"]:
+                        list_id = list_item["List"]["Id"]
+                        try:
+                            # Get the count of publishers for this list
+                            publishers_url = f"{self.base_url}/lists/{list_id}/publishers"
+                            publishers_response = requests.get(publishers_url, headers=headers)
+                            
+                            if publishers_response.ok:
+                                publishers_data = publishers_response.json()
+                                publisher_count = publishers_data.get("count", 0)
+                                # Add this information to the list object
+                                list_item["List"]["Publishers"] = publisher_count
+                                print(f"List {list_id} has {publisher_count} publishers")
+                            else:
+                                print(f"Failed to get publishers for list {list_id}: {publishers_response.status_code}")
+                                
+                        except Exception as e:
+                            print(f"Error getting publishers for list {list_id}: {str(e)}")
             
             return response_data
             
@@ -353,4 +456,27 @@ class CreatorIQProvider(RapidDataProviderBase):
             return []
         except Exception as e:
             print(f"Error in search_campaigns_by_name: {e}")
+            return []
+            
+    def search_lists_by_name(self, search_term: str) -> List[Dict[str, Any]]:
+        """
+        Helper method to specifically search for lists by name
+        
+        Args:
+            search_term: The list name or partial name to search for
+            
+        Returns:
+            List of matching lists with details
+        """
+        print(f"Searching for lists with name containing: {search_term}")
+        
+        try:
+            # Add a higher limit to get more lists
+            response = self.call_endpoint("lists", {"limit": 50, "search": search_term})
+            
+            if "ListsCollection" in response:
+                return response["ListsCollection"]
+            return []
+        except Exception as e:
+            print(f"Error in search_lists_by_name: {e}")
             return []

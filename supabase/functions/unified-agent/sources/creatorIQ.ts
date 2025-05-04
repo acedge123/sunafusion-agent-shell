@@ -232,6 +232,154 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
       }
     }
     
+    // Enhanced search handling for lists
+    if (endpoint.route === "/lists") {
+      // Special handling for list searches that need to check all pages
+      if (payload.search) {
+        const searchTerm = payload.search.toLowerCase();
+        console.log(`Searching for lists by term: "${searchTerm}" across all pages`);
+        
+        // Store the first page results
+        let allLists = [...(data.ListsCollection || [])];
+        let currentPage = 1;
+        const totalPages = data.total_pages || 1;
+        
+        // If there are more pages and we're doing a specific search, fetch all pages
+        if (totalPages > 1 && searchTerm) {
+          console.log(`Found ${totalPages} pages of lists, fetching all pages for complete search...`);
+          
+          // Fetch the remaining pages
+          while (currentPage < totalPages && currentPage < 10) { // Limit to 10 pages max as safety
+            currentPage++;
+            const nextPagePayload = { ...payload, page: currentPage };
+            const nextPageUrlParams = new URLSearchParams();
+            
+            Object.entries(nextPagePayload).forEach(([key, value]) => {
+              if (value !== undefined) {
+                nextPageUrlParams.append(key, value.toString());
+              }
+            });
+            
+            const nextPageUrl = `${url}?${nextPageUrlParams.toString()}`;
+            console.log(`Fetching lists page ${currentPage}/${totalPages} from ${nextPageUrl}`);
+            
+            try {
+              const nextPageResponse = await fetch(nextPageUrl, {
+                method: 'GET',
+                headers: headers
+              });
+              
+              if (nextPageResponse.ok) {
+                const nextPageData = await nextPageResponse.json();
+                if (nextPageData.ListsCollection && nextPageData.ListsCollection.length > 0) {
+                  console.log(`Found ${nextPageData.ListsCollection.length} lists on page ${currentPage}`);
+                  allLists = [...allLists, ...nextPageData.ListsCollection];
+                }
+              } else {
+                console.error(`Error fetching page ${currentPage}: ${nextPageResponse.status}`);
+              }
+            } catch (pageError) {
+              console.error(`Error fetching page ${currentPage}:`, pageError);
+            }
+          }
+          
+          console.log(`Fetched a total of ${allLists.length} lists across ${currentPage} pages`);
+        }
+        
+        // Now perform the search on the complete dataset
+        const filteredLists = allLists.filter((listItem) => {
+          if (listItem.List && listItem.List.Name) {
+            const listName = listItem.List.Name.toLowerCase();
+            
+            // Direct match
+            if (listName.includes(searchTerm)) {
+              return true;
+            }
+            
+            // Match by separate words in the search term
+            const searchWords = searchTerm.split(/\s+/);
+            if (searchWords.length > 1) {
+              // If multiple search words, consider it a match if most words are found
+              let matchCount = 0;
+              for (const word of searchWords) {
+                if (word.length > 2 && listName.includes(word)) { // Only count words longer than 2 chars
+                  matchCount++;
+                }
+              }
+              // Match if at least 60% of the search words are found
+              return matchCount >= Math.ceil(searchWords.length * 0.6);
+            }
+          }
+          return false;
+        });
+        
+        console.log(`Found ${filteredLists.length} lists matching "${searchTerm}" across all pages`);
+        
+        // Save the total list count for reference
+        const totalLists = allLists.length;
+        
+        // For each list, get publisher counts
+        for (const listItem of filteredLists) {
+          if (listItem.List && listItem.List.Id) {
+            try {
+              const listId = listItem.List.Id;
+              const publishersUrl = `${baseUrl}/lists/${listId}/publishers`;
+              const publishersResponse = await fetch(publishersUrl, {
+                method: 'GET',
+                headers: headers
+              });
+              
+              if (publishersResponse.ok) {
+                const publishersData = await publishersResponse.json();
+                listItem.List.Publishers = publishersData.count || 0;
+                console.log(`List ${listId} has ${listItem.List.Publishers} publishers`);
+              }
+            } catch (error) {
+              console.error("Error getting publisher count:", error);
+            }
+          }
+        }
+        
+        // Update the response with filtered results
+        data.ListsCollection = filteredLists;
+        data.filtered_by = searchTerm;
+        data.count = filteredLists.length;
+        data.total = totalLists;
+        data.searched_all_pages = true;
+        data.pages_searched = currentPage;
+        data.total_pages_available = totalPages;
+      } else {
+        // For non-search requests, ensure pagination metadata is present
+        if (data.ListsCollection) {
+          data.total = data.total || data.ListsCollection.length || 0;
+          data.page = payload.page || 1;
+          data.total_pages = data.total_pages || Math.ceil(data.total / (payload.limit || 50)) || 1;
+          
+          // Get list details including publisher counts
+          for (const listItem of data.ListsCollection) {
+            if (listItem.List && listItem.List.Id) {
+              try {
+                const listId = listItem.List.Id;
+                const publishersUrl = `${baseUrl}/lists/${listId}/publishers`;
+                const publishersResponse = await fetch(publishersUrl, {
+                  method: 'GET',
+                  headers: headers
+                });
+                
+                if (publishersResponse.ok) {
+                  const publishersData = await publishersResponse.json();
+                  listItem.List.Publishers = publishersData.count || 0;
+                  console.log(`List ${listId} has ${listItem.List.Publishers} publishers`);
+                }
+              } catch (error) {
+                console.error(`Error getting publishers for list ${listItem.List.Id}:`, error);
+              }
+            }
+          }
+        }
+      }
+    }
+    
     return {
       endpoint: endpoint.route,
       name: endpoint.name,
@@ -326,6 +474,20 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
     return endpoints;
   }
   
+  // Check if query is about showing ALL lists
+  const showAllLists = lowerQuery.match(/show\s+all(?:\s+\d+)?\s+lists/) || 
+                      lowerQuery.match(/all\s+\d+\s+lists/) ||
+                      lowerQuery.match(/display\s+all\s+lists/);
+  
+  if (showAllLists) {
+    console.log("Query is about showing ALL lists");
+    endpoints.push({
+      ...availableEndpoints.lists,
+      getAllPages: true
+    });
+    return endpoints;
+  }
+  
   // Check if query is asking for a specific list by name
   const listNameMatch = lowerQuery.match(/list\s+([a-z0-9\s]+)/i) || 
                        lowerQuery.match(/([a-z0-9\s]+)\s+list/i);
@@ -384,7 +546,10 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
     // If there's a specific list name mentioned, prioritize list_details and list_publishers
     if (listName) {
       console.log(`Adding list endpoints for list name: "${listName}"`);
-      endpoints.push(availableEndpoints.lists);
+      endpoints.push({
+        ...availableEndpoints.lists,
+        fullSearch: true
+      });
       
       // If query is about counting or finding publishers in a list, add list_publishers endpoint
       if (lowerQuery.includes("count") || 
@@ -435,6 +600,16 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     payload.limit = 100; // Try to get more per page when explicitly requested
   }
   
+  // Check if query is about showing ALL lists
+  const showAllLists = lowerQuery.match(/show\s+all(?:\s+\d+)?\s+lists/) || 
+                      lowerQuery.match(/all\s+\d+\s+lists/) ||
+                      lowerQuery.match(/display\s+all\s+lists/);
+  
+  if (showAllLists && endpoint.route === "/lists") {
+    console.log("Setting up payload for fetching all lists");
+    payload.limit = 100; // Try to get more per page when explicitly requested
+  }
+  
   // Apply any params passed explicitly from the frontend
   if (creator_iq_params) {
     // If we have a specific campaign ID, use it for relevant endpoints
@@ -447,6 +622,17 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
     if (creator_iq_params.campaign_search_term) {
       payload.search = creator_iq_params.campaign_search_term;
       console.log(`Using campaign search term from params: "${payload.search}"`);
+    }
+    
+    // If we have a list ID from params, use it for relevant endpoints
+    if (creator_iq_params.list_id && endpoint.route.includes('/lists/')) {
+      console.log(`Using list ID from params: ${creator_iq_params.list_id}`);
+    }
+    
+    // If we have a list search term from frontend
+    if (creator_iq_params.list_search_term) {
+      payload.search = creator_iq_params.list_search_term;
+      console.log(`Using list search term from params: "${payload.search}"`);
     }
     
     // Copy other relevant params
@@ -511,18 +697,22 @@ export function buildCreatorIQPayload(endpoint, query, creator_iq_params = {}, p
   }
   
   // Special handling for full search across all pages
-  if (endpoint.fullSearch && endpoint.route === "/campaigns") {
+  if (endpoint.fullSearch) {
     console.log("Enabling full search across all pages");
     // Set flag for the caller to know this needs special handling
     payload._fullSearch = true;
   }
   
-  // Handle context for showing all campaigns
-  if (endpoint.getAllPages && endpoint.route === "/campaigns") {
-    console.log("Setting up for retrieving all campaigns");
-    payload._getAllPages = true;
+  // Handle context for showing all campaigns or lists
+  if (endpoint.getAllPages) {
+    if (endpoint.route === "/campaigns") {
+      console.log("Setting up for retrieving all campaigns");
+      payload._getAllPages = true;
+    } else if (endpoint.route === "/lists") {
+      console.log("Setting up for retrieving all lists");
+      payload._getAllPages = true;
+    }
   }
   
   return payload;
 }
-
