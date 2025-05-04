@@ -33,6 +33,10 @@ export function displayCreatorIQError(error: CreatorIQError): void {
     case CreatorIQErrorType.DATA_FORMAT_ERROR:
       title = "Data Format Error";
       break;
+    case CreatorIQErrorType.WRITE_OPERATION_ERROR:
+      title = "Creator IQ Write Operation Failed";
+      message = `Unable to perform the requested operation: ${error.message}`;
+      break;
   }
   
   // Show toast message
@@ -96,5 +100,84 @@ function isErrorRetriable(error: any): boolean {
     return true;
   }
   
+  // Some write operations might be retriable
+  if (error?.message?.includes("retry") ||
+      error?.message?.includes("temporary")) {
+    return true;
+  }
+  
   return false;
+}
+
+/**
+ * Handle success messages for Creator IQ operations
+ */
+export function displayCreatorIQSuccess(operation: string, details?: string): void {
+  const message = details || `Operation completed successfully`;
+  
+  toast({
+    title: `Creator IQ: ${operation}`,
+    description: message,
+    variant: "default",
+  });
+  
+  // Log success for developers
+  console.log(`Creator IQ Success (${operation}):`, message);
+}
+
+/**
+ * Process the result of a Creator IQ write operation 
+ * and return a structured result object
+ */
+export function processWriteOperationResult(data: any, operationType: string): any {
+  try {
+    // If operation metadata is available
+    if (data.operation) {
+      const result = {
+        successful: data.operation.successful === true,
+        type: operationType,
+        details: data.operation.details || `${operationType} operation completed`,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add resource-specific data
+      if (operationType.includes('List') && data.List) {
+        return {
+          ...result,
+          id: data.List.Id,
+          name: data.List.Name,
+        };
+      }
+      
+      return result;
+    }
+    
+    // For list creation responses
+    if (operationType.includes('List') && data.List && data.List.Id) {
+      return {
+        successful: true,
+        type: 'Create List',
+        details: `Created list: ${data.List.Name || 'New List'} (ID: ${data.List.Id})`,
+        id: data.List.Id,
+        name: data.List.Name,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Generic success response when we can't determine specifics
+    return {
+      successful: true,
+      type: operationType,
+      details: `${operationType} completed successfully`,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error("Error processing write operation result:", error);
+    return {
+      successful: false,
+      type: operationType,
+      details: `Error processing result: ${error.message}`,
+      timestamp: new Date().toISOString()
+    };
+  }
 }

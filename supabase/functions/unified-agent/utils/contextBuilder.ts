@@ -4,6 +4,17 @@ export function buildContextFromResults(results, previousState = null) {
   try {
     let context = "--- CONTEXT START ---\n\n";
     
+    // Add Creator IQ capabilities section at the very beginning
+    context += "CREATOR IQ CAPABILITIES:\n";
+    context += "This tool can perform both read and write operations in Creator IQ:\n";
+    context += "- READ: Search for campaigns, publishers, and lists; get detailed information\n";
+    context += "- WRITE: Create new lists, update publisher status, add publishers to lists, send messages\n";
+    context += "When no search results are found, you can still create new resources (like lists) as needed.\n\n";
+    context += "Example commands:\n";
+    context += "- \"Create a new list called 'New Campaign Influencers'\" - Creates a new empty list\n";
+    context += "- \"Update publisher status to active\" - Changes publisher status\n";
+    context += "- \"Send a message to publisher with ID 12345\" - Sends a direct message\n\n";
+    
     // Add previous state context if available
     if (previousState) {
       context += "PREVIOUS CONTEXT:\n";
@@ -31,6 +42,15 @@ export function buildContextFromResults(results, previousState = null) {
       if (previousState.lists && previousState.lists.length > 0) {
         context += "Previously identified lists:\n";
         context += `Total: ${previousState.lists.length} lists\n\n`;
+      }
+      
+      // Add operation results if available
+      if (previousState.operationResults && previousState.operationResults.length > 0) {
+        context += "Previously completed operations:\n";
+        previousState.operationResults.forEach((operation, idx) => {
+          context += `[${idx + 1}] ${operation.type}: ${operation.details} (${operation.successful ? 'Success' : 'Failed'})\n`;
+        });
+        context += "\n";
       }
     }
     
@@ -140,17 +160,34 @@ export function buildContextFromResults(results, previousState = null) {
         if (result.data && result.data.ListsCollection) {
           context += `Found ${result.data.ListsCollection.length} lists\n`;
           
-          // Add list details
-          result.data.ListsCollection.slice(0, 5).forEach((list, lIdx) => {
-            if (list.List) {
-              const l = list.List;
-              context += `  List ${lIdx + 1}: ${l.Name || 'Unnamed'} (ID: ${l.Id})\n`;
-              if (l.Description) context += `    Description: ${l.Description}\n`;
-              if (l.Publishers) context += `    Publishers: ${l.Publishers.length}\n`;
+          if (result.data.ListsCollection.length === 0) {
+            context += "No existing lists found. You can create a new list using the create list operation.\n";
+          } else {
+            // Add list details
+            result.data.ListsCollection.slice(0, 5).forEach((list, lIdx) => {
+              if (list.List) {
+                const l = list.List;
+                context += `  List ${lIdx + 1}: ${l.Name || 'Unnamed'} (ID: ${l.Id})\n`;
+                if (l.Description) context += `    Description: ${l.Description}\n`;
+                if (l.Publishers) context += `    Publishers: ${l.Publishers.length}\n`;
+              }
+            });
+            if (result.data.ListsCollection.length > 5) {
+              context += `  ... and ${result.data.ListsCollection.length - 5} more lists\n`;
             }
-          });
-          if (result.data.ListsCollection.length > 5) {
-            context += `  ... and ${result.data.ListsCollection.length - 5} more lists\n`;
+          }
+          context += "\n";
+        }
+        
+        // Add write operation results
+        if (result.data && result.data.operation) {
+          const op = result.data.operation;
+          context += `WRITE OPERATION RESULT: ${op.type}\n`;
+          context += `  Status: ${op.successful ? 'SUCCESS' : 'FAILED'}\n`;
+          context += `  Details: ${op.details || 'No details provided'}\n`;
+          if (result.data.List) {
+            context += `  Created list ID: ${result.data.List.Id}\n`;
+            context += `  Created list name: ${result.data.List.Name}\n`;
           }
           context += "\n";
         }

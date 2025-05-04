@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -392,10 +391,86 @@ serve(async (req) => {
     console.log("Synthesizing results with OpenAI");
     const answer = await synthesizeWithAI(query, results, conversation_history, previous_state);
 
+    // Process and store any write operation results
+    const creatorIQResults = results.find(r => r.source === "creator_iq");
+    if (creatorIQResults && creatorIQResults.results) {
+      // Look for write operation results
+      const writeOperationResults = creatorIQResults.results
+        .filter(result => 
+          result.data && 
+          (result.data.operation || 
+           (result.data.List && result.data.List.Id) ||
+           (result.data.success === true))
+        )
+        .map(result => {
+          // Extract operation result
+          if (result.data.operation) {
+            return {
+              successful: result.data.operation.successful === true,
+              type: result.data.operation.type || result.name || 'Unknown operation',
+              details: result.data.operation.details || '',
+              timestamp: result.data.operation.timestamp || new Date().toISOString()
+            };
+          } 
+          // For list creation
+          else if (result.data.List && result.data.List.Id) {
+            const newList = {
+              id: result.data.List.Id,
+              name: result.data.List.Name || 'New List',
+              description: result.data.List.Description || '',
+              publishersCount: 0
+            };
+            
+            // Add the newly created list to the state data
+            if (stateData && stateData.newData && stateData.newData.lists) {
+              stateData.newData.lists.push(newList);
+              console.log(`Added newly created list to state: ${newList.name} (ID: ${newList.id})`);
+            }
+            
+            return {
+              successful: true,
+              type: 'Create List',
+              details: `Created list: ${newList.name} (ID: ${newList.id})`,
+              id: newList.id,
+              name: newList.name,
+              timestamp: new Date().toISOString()
+            };
+          }
+          // Generic success
+          else if (result.data.success === true) {
+            return {
+              successful: true,
+              type: result.name || 'Operation',
+              details: result.data.message || 'Operation completed successfully',
+              timestamp: new Date().toISOString()
+            };
+          }
+          
+          return null;
+        })
+        .filter(Boolean);
+      
+      // If we have operation results, store them in the state
+      if (writeOperationResults && writeOperationResults.length > 0) {
+        console.log(`Found ${writeOperationResults.length} write operation results to store`);
+        
+        // Add to state data
+        if (stateData) {
+          stateData.newData.operationResults = writeOperationResults;
+        }
+        
+        // Also add to the results to be returned
+        if (creatorIQResults.state && creatorIQResults.state.data) {
+          creatorIQResults.state.data.operationResults = writeOperationResults;
+        }
+      }
+    }
+
     // If state key and user ID are provided, save state data to the database
     if (state_key && userId && (stateData.newData.campaigns.length > 0 || 
                                stateData.newData.publishers.length > 0 || 
-                               stateData.newData.lists.length > 0)) {
+                               stateData.newData.lists.length > 0 ||
+                               (stateData.newData.operationResults && stateData.newData.operationResults.length > 0))) {
       try {
         console.log("Saving Creator IQ state to database");
         

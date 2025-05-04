@@ -8,7 +8,8 @@ export enum CreatorIQErrorType {
   RATE_LIMIT_ERROR = 'rate_limit_error',
   NETWORK_ERROR = 'network_error',
   UNKNOWN_ERROR = 'unknown_error',
-  INCOMPLETE_DATA = 'incomplete_data'
+  INCOMPLETE_DATA = 'incomplete_data',
+  WRITE_OPERATION_ERROR = 'write_operation_error'
 }
 
 export interface CreatorIQError {
@@ -54,4 +55,10 @@ export interface CreatorIQEndpoint {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   name: string;
   [key: string]: any;
+}
+
+export interface CreatorIQWriteOperation {
+  type: 'create_list' | 'update_publisher' | 'add_publisher_to_list' | 'send_message';
+  payload: CreatorIQPayload;
+  targetId?: string;
 }

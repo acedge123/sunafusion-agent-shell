@@ -1,3 +1,4 @@
+
 // Helper function to build Creator IQ parameters based on content
 export function buildCreatorIQParams(content: string, previousState: any = null) {
   const lowerContent = content.toLowerCase();
@@ -26,13 +27,42 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
       
       params.create_list = true;
       
-      // Extract list name
-      const listNameMatch = content.match(/list\s+(?:called|named|titled)?\s+["']([^"']+)["']/i) ||
-                            content.match(/["']([^"']+)["'](?:\s+list)/i);
+      // Extract list name - enhanced pattern matching
+      // Look for patterns like:
+      // - "create a list called X"
+      // - "create a new list named X"
+      // - "make a list titled X"
+      // - "create list X"
+      // - "create list called X"
+      let listNameMatch = content.match(/list\s+(?:called|named|titled)?\s+["']([^"']+)["']/i) ||
+                          content.match(/["']([^"']+)["'](?:\s+list)/i) ||
+                          content.match(/(?:create|make)\s+(?:a\s+)?(?:new\s+)?list\s+(?:called|named|titled)?\s+["']([^"']+)["']/i);
+      
+      // If no match yet, try without quotes
+      if (!listNameMatch) {
+        listNameMatch = content.match(/list\s+(?:called|named|titled)?\s+([^\s.,!?]+)/i) ||
+                       content.match(/([^\s.,!?]+)(?:\s+list)/i) ||
+                       content.match(/(?:create|make)\s+(?:a\s+)?(?:new\s+)?list\s+(?:called|named|titled)?\s+([^\s.,!?]+)/i);
+      }
       
       if (listNameMatch && listNameMatch[1]) {
         params.list_name = listNameMatch[1].trim();
         console.log(`Extracted list name for creation: "${params.list_name}"`);
+      }
+      
+      // If no specific match but we detect list creation, use default name
+      if (!params.list_name && params.create_list) {
+        // Extract any capitalized words that might be a name
+        const possibleNameMatch = content.match(/(?:create|make)\s+(?:a\s+)?(?:new\s+)?list\s+(?:called|named|titled)?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+        
+        if (possibleNameMatch && possibleNameMatch[1]) {
+          params.list_name = possibleNameMatch[1].trim();
+          console.log(`Extracted potential list name from capitalized words: "${params.list_name}"`);
+        } else {
+          // Use a timestamp-based name as fallback
+          params.list_name = `New List ${new Date().toISOString().split('T')[0]}`;
+          console.log(`Using default list name: "${params.list_name}"`);
+        }
       }
       
       // Extract description if available
@@ -112,7 +142,7 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
     }
   }
   
-  // For read operations, add campaign-specific parameters (keeping existing logic)
+  // For read operations, add campaign-specific parameters
   if (!isWriteOperation && (
      lowerContent.includes('campaign') || 
      lowerContent.includes('ready rocker') || 

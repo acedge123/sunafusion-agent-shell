@@ -160,3 +160,37 @@ export function extractOperationResult(data: any): any {
     return null;
   }
 }
+
+/**
+ * Check if a response contains a write operation result
+ */
+export function isWriteOperationResponse(data: any): boolean {
+  if (!data) return false;
+  
+  return !!(
+    (data.operation && typeof data.operation === 'object') || 
+    (data.List && data.List.Id) ||
+    (data.Publisher && data.Publisher.Id && data.Publisher.Status) ||
+    (data.success === true && (data.messageId || data.message))
+  );
+}
+
+/**
+ * Extract the newly created list data from response
+ */
+export function extractCreatedList(data: any): any | null {
+  try {
+    if (!data || !data.List || !data.List.Id) return null;
+    
+    return {
+      id: data.List.Id,
+      name: data.List.Name || 'New List',
+      description: data.List.Description || '',
+      publishersCount: data.List.Publishers ? data.List.Publishers.length : 0,
+      href: data.href
+    };
+  } catch (error) {
+    console.error("Error extracting created list:", error);
+    return null;
+  }
+}
