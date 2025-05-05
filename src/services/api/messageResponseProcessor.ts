@@ -75,7 +75,7 @@ export async function processAgentResponse(
     
     // Process and store any Creator IQ data for future reference
     if (stateKey && userId && responseData.sources) {
-      await processCreatorIQResponse(stateKey, userId, responseData.sources);
+      await processCreatorIQResponse(responseData.sources);
     }
 
     return {

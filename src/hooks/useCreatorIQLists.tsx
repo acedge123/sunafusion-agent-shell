@@ -9,12 +9,12 @@ export function useCreatorIQLists() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Fetch lists by page
-  const fetchLists = useCallback(async (page = 1, search = searchTerm) => {
+  // Fetch lists by page with option to specify a large limit for "show all"
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000) => {
     setIsLoading(true);
     try {
-      console.log(`Fetching lists page ${page}${search ? ` with search "${search}"` : ''}`);
-      const data = await fetchListsByPage(page, search);
+      console.log(`Fetching lists page ${page}${search ? ` with search "${search}"` : ''} with limit ${limit}`);
+      const data = await fetchListsByPage(page, search, limit);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -40,18 +40,18 @@ export function useCreatorIQLists() {
   }, [searchTerm]);
   
   // Search lists
-  const searchLists = useCallback(async (term: string) => {
+  const searchLists = useCallback(async (term: string, limit = 1000) => {
     if (!term.trim()) {
       setSearchTerm('');
-      return fetchLists(1, '');
+      return fetchLists(1, '', limit);
     }
     
     setIsLoading(true);
     setSearchTerm(term);
     
     try {
-      console.log(`Searching lists with term: ${term}`);
-      const data = await searchListsByName(term);
+      console.log(`Searching lists with term: ${term} and limit: ${limit}`);
+      const data = await searchListsByName(term, limit);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -77,9 +77,9 @@ export function useCreatorIQLists() {
   }, [fetchLists]);
   
   // Handle page change
-  const changePage = useCallback(async (page: number) => {
-    return await fetchLists(page);
-  }, [fetchLists]);
+  const changePage = useCallback(async (page: number, limit = 1000) => {
+    return await fetchLists(page, searchTerm, limit);
+  }, [fetchLists, searchTerm]);
   
   return {
     isLoading,

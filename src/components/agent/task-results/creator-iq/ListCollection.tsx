@@ -10,6 +10,7 @@ interface ListCollectionProps {
       total?: number;
       page?: number | string;
       total_pages?: number | string;
+      limit?: number;
     };
   };
   onPageChange?: (page: number) => void;
@@ -17,6 +18,16 @@ interface ListCollectionProps {
 
 export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  
+  // Get the complete list collection
+  const lists = endpoint.data.ListsCollection || [];
+  
+  // Determine if we need to show pagination controls
+  const totalLists = endpoint.data.total || lists.length;
+  const currentPage = parseInt(String(endpoint.data.page || 1));
+  const totalPages = parseInt(String(endpoint.data.total_pages || 1));
+  const hasMultiplePages = totalPages > 1;
   
   const handlePageChange = async (page: number) => {
     if (onPageChange) {
@@ -33,22 +44,53 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
     }
   };
   
+  const handleShowAllToggle = () => {
+    setShowAll(prev => !prev);
+    if (!showAll && onPageChange) {
+      // Load all possible data when toggling "show all"
+      setIsLoading(true);
+      try {
+        // Request a very large limit to ensure all data is fetched
+        onPageChange(1);
+        toast.success("Loading all lists");
+      } catch (error) {
+        toast.error("Failed to load all lists");
+        console.error("Error loading all lists:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+  
   return (
     <>
-      <div className="text-sm text-muted-foreground">
-        {endpoint.data.total || endpoint.data.ListsCollection.length} lists found 
-        (page {endpoint.data.page || 1} of {endpoint.data.total_pages || 1})
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-muted-foreground">
+          {totalLists} lists found 
+          {hasMultiplePages && !showAll ? ` (page ${currentPage} of ${totalPages})` : ''}
+        </div>
+        
+        {hasMultiplePages && (
+          <button 
+            onClick={handleShowAllToggle}
+            className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+          >
+            {showAll ? "Show paged view" : "Show all lists"}
+          </button>
+        )}
       </div>
       
-      {/* Add pagination for lists */}
-      <PaginationDisplay 
-        data={endpoint.data} 
-        onPageChange={handlePageChange} 
-      />
+      {/* Show pagination only if we have multiple pages and not in "show all" mode */}
+      {hasMultiplePages && !showAll && (
+        <PaginationDisplay 
+          data={endpoint.data} 
+          onPageChange={handlePageChange}
+        />
+      )}
       
       <div className={`space-y-2 mt-3 ${isLoading ? 'opacity-60' : ''}`}>
-        {endpoint.data.ListsCollection.length > 0 ? (
-          endpoint.data.ListsCollection.map((listItem: any, lIdx: number) => {
+        {lists.length > 0 ? (
+          lists.map((listItem: any, lIdx: number) => {
             // Make sure we're accessing the nested list data correctly
             const listData = listItem.List || {};
             

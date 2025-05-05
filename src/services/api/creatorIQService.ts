@@ -73,9 +73,9 @@ export async function getListPublishers(listId, listName) {
 }
 
 // Fetch lists by page number
-export async function fetchListsByPage(page = 1, searchTerm = '') {
+export async function fetchListsByPage(page = 1, searchTerm = '', limit = 1000) {
   try {
-    console.log(`Fetching lists page ${page}${searchTerm ? ` with search term "${searchTerm}"` : ''}`);
+    console.log(`Fetching lists page ${page}${searchTerm ? ` with search term "${searchTerm}"` : ''} with limit ${limit}`);
     
     const supabase = createClient(
       import.meta.env.VITE_SUPABASE_URL,
@@ -85,6 +85,7 @@ export async function fetchListsByPage(page = 1, searchTerm = '') {
     const params = {
       list_search_term: searchTerm || undefined,
       page: page,
+      limit: limit, // Add large limit parameter to get more results
       _fullSearch: Boolean(searchTerm) // Enable full search when searching for specific lists
     };
     
@@ -95,7 +96,7 @@ export async function fetchListsByPage(page = 1, searchTerm = '') {
         include_web: false,
         include_drive: false,
         include_slack: false,
-        query: `Get lists page ${page}${searchTerm ? ` containing "${searchTerm}"` : ''}`,
+        query: `Get lists page ${page}${searchTerm ? ` containing "${searchTerm}"` : ''} with limit ${limit}`,
         creator_iq_params: params,
         task_mode: false
       }
@@ -110,7 +111,7 @@ export async function fetchListsByPage(page = 1, searchTerm = '') {
 }
 
 // Fetch publishers by page number
-export async function fetchPublishersByPage(page = 1, searchTerm = '') {
+export async function fetchPublishersByPage(page = 1, searchTerm = '', limit = 1000) {
   try {
     const supabase = createClient(
       import.meta.env.VITE_SUPABASE_URL,
@@ -122,10 +123,11 @@ export async function fetchPublishersByPage(page = 1, searchTerm = '') {
         include_web: false,
         include_drive: false,
         include_slack: false,
-        query: `Get publishers page ${page}${searchTerm ? ` containing "${searchTerm}"` : ''}`,
+        query: `Get publishers page ${page}${searchTerm ? ` containing "${searchTerm}"` : ''} with limit ${limit}`,
         creator_iq_params: {
           publisher_search_term: searchTerm || undefined,
-          page: page
+          page: page,
+          limit: limit
         },
         task_mode: false
       }
@@ -140,7 +142,7 @@ export async function fetchPublishersByPage(page = 1, searchTerm = '') {
 }
 
 // Search for publishers by name
-export async function searchPublishersByName(name) {
+export async function searchPublishersByName(name, limit = 1000) {
   try {
     const supabase = createClient(
       import.meta.env.VITE_SUPABASE_URL,
@@ -154,7 +156,8 @@ export async function searchPublishersByName(name) {
         include_slack: false,
         query: `Find publishers with name containing "${name}"`,
         creator_iq_params: {
-          publisher_search_term: name
+          publisher_search_term: name,
+          limit: limit
         },
         task_mode: false
       }
@@ -169,9 +172,9 @@ export async function searchPublishersByName(name) {
 }
 
 // Search for lists by name
-export async function searchListsByName(name) {
+export async function searchListsByName(name, limit = 1000) {
   try {
-    console.log(`Searching for lists with name containing "${name}"`);
+    console.log(`Searching for lists with name containing "${name}" with limit ${limit}`);
     const supabase = createClient(
       import.meta.env.VITE_SUPABASE_URL,
       import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -182,10 +185,11 @@ export async function searchListsByName(name) {
         include_web: false,
         include_drive: false,
         include_slack: false,
-        query: `Find lists with name containing "${name}"`,
+        query: `Find lists with name containing "${name}" with limit ${limit}`,
         creator_iq_params: {
           list_search_term: name,
-          _fullSearch: true // Enable full search across all pages
+          _fullSearch: true, // Enable full search across all pages
+          limit: limit
         },
         task_mode: false
       }
