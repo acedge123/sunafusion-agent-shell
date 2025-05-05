@@ -290,14 +290,34 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
       (lowerQuery.includes('publisher') || lowerQuery.includes('influencer')))) {
     console.log("Detected message sending request");
     
-    // Try to extract publisher ID directly from the query
-    const publisherIdMatch = query.match(/publisher\s+(?:id\s+)?(\d+)/i) || 
-                           query.match(/(?:send|message)(?:\s+to)?\s+publisher\s+(?:id\s+)?(\d+)/i) ||
-                           query.match(/publisher\s+(?:with\s+id\s+)?(\d+)/i);
+    // Enhanced publisher ID extraction from query
+    // Look for patterns like "publisher 12345" or "publisher ID 12345" or just a standalone number
+    const publisherIdPatterns = [
+      // "publisher 12345" or "publisher ID 12345"
+      /publisher\s+(?:id\s+)?(\d+)/i,
+      // "send message to publisher 12345"
+      /(?:send|message)(?:\s+to)?\s+publisher\s+(?:id\s+)?(\d+)/i,
+      // "publisher with id 12345" 
+      /publisher\s+(?:with\s+id\s+)?(\d+)/i,
+      // "this publisher 12345"
+      /this\s+publisher\s+(\d+)/i,
+      // Standalone number that could be a publisher ID
+      /\b(\d{6,10})\b/ // Looking for 6-10 digit numbers that are likely publisher IDs
+    ];
     
-    if (publisherIdMatch && publisherIdMatch[1]) {
-      const publisherId = publisherIdMatch[1].trim();
-      console.log(`Found explicit publisher ID in query: ${publisherId}`);
+    let publisherId = null;
+    // Try each pattern until we find a match
+    for (const pattern of publisherIdPatterns) {
+      const match = query.match(pattern);
+      if (match && match[1]) {
+        publisherId = match[1].trim();
+        console.log(`Found publisher ID in query using pattern ${pattern}: ${publisherId}`);
+        break;
+      }
+    }
+    
+    if (publisherId) {
+      console.log(`Using explicit publisher ID from query: ${publisherId}`);
       
       // Use the exact publisher ID in the endpoint
       endpoints.push({
@@ -307,8 +327,9 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
         publisherId: publisherId
       });
     } 
-    // If we don't have an ID in the query, we'll need to determine it later
+    // If we don't have an ID in the query, we need a placeholder endpoint
     else {
+      console.log("No publisher ID found in the query, will need to determine it later");
       endpoints.push({
         route: "/publishers/{publisher_id}/messages",
         method: "POST",
@@ -549,46 +570,86 @@ export function buildCreatorIQPayload(endpoint, query, params = {}, previousStat
     };
   }
   
-  // Message sending
+  // Message sending - Improved handling
   if (endpoint.route.includes("/publishers/") && endpoint.route.includes("/messages")) {
     console.log("Building payload for message sending");
-    const messageContent = params.message_content || extractMessageFromQuery(query);
+    
+    // Extract message from query or params
+    const messageContent = params.message_content || extractMessageFromQuery(query) || "Hello from Creator IQ!";
     const messageSubject = params.message_subject || "Message from Creator IQ";
+    
+    // If the endpoint already has a publisher ID directly in the route (not a placeholder)
+    if (endpoint.publisherId || !endpoint.route.includes("{publisher_id}")) {
+      if (endpoint.publisherId) {
+        console.log(`Using publisher ID from endpoint: ${endpoint.publisherId}`);
+      } else {
+        // Extract the publisher ID from the route if it's not a placeholder
+        const idMatch = endpoint.route.match(/\/publishers\/(\d+)\/messages/);
+        if (idMatch && idMatch[1]) {
+          endpoint.publisherId = idMatch[1];
+          console.log(`Extracted publisher ID from route: ${endpoint.publisherId}`);
+        }
+      }
+      
+      return {
+        Subject: messageSubject,
+        Content: messageContent
+      };
+    }
     
     // If we have a publisher ID in params, update the endpoint
     if (params.publisher_id) {
       // Replace the placeholder in the endpoint with the actual publisher ID
       if (endpoint.route.includes("{publisher_id}")) {
         endpoint.route = endpoint.route.replace("{publisher_id}", params.publisher_id);
-        console.log(`Updated endpoint with publisher ID: ${endpoint.route}`);
+        console.log(`Updated endpoint with publisher ID from params: ${endpoint.route}`);
       }
       // Also store the publisher ID in the endpoint object for reference
       endpoint.publisherId = params.publisher_id;
+      
+      return {
+        Subject: messageSubject,
+        Content: messageContent
+      };
     }
-    // If we have a publisherId directly in the endpoint object, no need to replace
-    else if (endpoint.publisherId) {
-      console.log(`Using publisher ID from endpoint: ${endpoint.publisherId}`);
-      if (endpoint.route.includes("{publisher_id}")) {
-        endpoint.route = endpoint.route.replace("{publisher_id}", endpoint.publisherId);
-        console.log(`Updated endpoint with publisher ID: ${endpoint.route}`);
-      }
-    }
-    // If we still have a placeholder, try to get a publisher ID from previous state
-    else if (endpoint.route.includes("{publisher_id}")) {
+    
+    // Try to get a publisher ID from previous state if we still have a placeholder
+    if (endpoint.route.includes("{publisher_id}")) {
+      let publisherId = null;
+      
+      // Try first to get the most recent publisher from previous state
       if (previousState && previousState.publishers && previousState.publishers.length > 0) {
-        const publisherId = previousState.publishers[0].id;
+        publisherId = previousState.publishers[0].id;
+        console.log(`Using publisher ID from state: ${publisherId}`);
+      }
+      
+      // Look for publisher ID in the query
+      if (!publisherId) {
+        const idMatch = query.match(/\b(\d{6,10})\b/); // Look for 6-10 digit numbers that could be publisher IDs
+        if (idMatch && idMatch[1]) {
+          publisherId = idMatch[1];
+          console.log(`Extracted potential publisher ID from query: ${publisherId}`);
+        }
+      }
+      
+      if (publisherId) {
         endpoint.route = endpoint.route.replace("{publisher_id}", publisherId);
         endpoint.publisherId = publisherId;
-        console.log(`Using publisher ID from state: ${publisherId}`);
-      } else {
-        console.error("Error: No publisher ID available for message sending");
-        // Leave the placeholder as is, it will be caught as an error during the API call
+        console.log(`Updated endpoint with publisher ID: ${endpoint.route}`);
+        
+        return {
+          Subject: messageSubject,
+          Content: messageContent
+        };
       }
+      
+      console.error("Error: No publisher ID available for message sending");
+      // We keep the placeholder, the error will be caught during the API call
     }
     
     return {
       Subject: messageSubject,
-      Content: messageContent || "Hello from Creator IQ!"
+      Content: messageContent
     };
   }
 
@@ -694,23 +755,40 @@ function extractStatusFromQuery(query) {
 
 // Extract message content from query
 function extractMessageFromQuery(query) {
-  const messageMatch = query.match(/message\s+(?:saying\s+|content\s+)?["']([^"']+)["']/i);
-  if (messageMatch && messageMatch[1]) {
-    return messageMatch[1].trim();
+  // Added more patterns to extract messages
+  const patterns = [
+    // "message saying 'hello world'"
+    /message\s+(?:saying\s+|content\s+)?["']([^"']+)["']/i,
+    // "with message 'hello world'"
+    /with\s+message\s+["']([^"']+?)["']/i,
+    // "message hello world"
+    /message\s+["']?([^"']+?)["']?\s*(?:to|$)/i,
+    // "hello test" (quotation marks without explicit "message" keyword)
+    /["']([^"']{3,100})["']/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = query.match(pattern);
+    if (match && match[1]) {
+      const extracted = match[1].trim();
+      console.log(`Extracted message content: "${extracted}"`);
+      return extracted;
+    }
   }
   
-  // Try to extract message another way
+  // Try to extract message after a colon or newline
   const lines = query.split('\n');
   for (const line of lines) {
     if (line.toLowerCase().includes('message:')) {
       const messageContent = line.substring(line.indexOf(':') + 1).trim();
       if (messageContent) {
+        console.log(`Extracted message after colon: "${messageContent}"`);
         return messageContent;
       }
     }
   }
   
-  return "Hello from Creator IQ!"; // Default message
+  return null; // No message found
 }
 
 // Query Creator IQ API endpoint
@@ -722,11 +800,11 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
   
   let url = `https://apis.creatoriq.com/crm/v1/api${endpoint.route}`;
   
-  // Check for unresolved publisher_id in message endpoints
+  // Enhanced error handling for publisher ID placeholder in message endpoints
   if (endpoint.route.includes("{publisher_id}") && endpoint.route.includes("/messages")) {
-    console.error("Error: Publisher ID placeholder not replaced in endpoint URL");
+    console.error("Error: Publisher ID placeholder not resolved in message endpoint URL");
     
-    // Return a structured error response instead of throwing
+    // Create a more descriptive error response
     return {
       endpoint: endpoint.route,
       method: endpoint.method,
@@ -736,7 +814,7 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
         operation: {
           successful: false,
           type: "Send Message",
-          details: "Failed to send message: No publisher ID specified",
+          details: "Failed to send message: No publisher ID specified. Please provide a specific publisher ID.",
           timestamp: new Date().toISOString()
         },
         success: false,
@@ -777,10 +855,13 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
     
     console.log(`Creator IQ API response status: ${response.status}`);
     
+    // Enhanced error handling for common error codes
     if (!response.ok) {
-      // For 404 errors on message sending, provide a more helpful error
+      // For 404 errors on message sending, provide a more helpful error with publisher ID
       if (response.status === 404 && endpoint.route.includes("/messages")) {
         const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+        
+        console.error(`Publisher not found: ${publisherId || "Unknown ID"}`);
         
         return {
           endpoint: endpoint.route,
@@ -795,12 +876,32 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
               timestamp: new Date().toISOString()
             },
             success: false,
+            messageId: null,
+            publisherId: publisherId,
             message: `Publisher with ID ${publisherId || "Unknown"} not found`
           }
         };
       }
       
-      throw new Error(`Creator IQ API error: ${response.status} ${response.statusText}`);
+      // Handle other error status codes
+      const errorText = await response.text();
+      let errorMessage = `Creator IQ API error: ${response.status} ${response.statusText}`;
+      
+      try {
+        // Try to parse error response as JSON for more details
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.message) {
+          errorMessage += ` - ${errorJson.message}`;
+        }
+      } catch (e) {
+        // If not JSON, use the text directly if available
+        if (errorText) {
+          errorMessage += ` - ${errorText}`;
+        }
+      }
+      
+      console.error(errorMessage);
+      throw new Error(errorMessage);
     }
     
     const data = await response.json();
@@ -868,14 +969,14 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
       data.publisherIds = publisherIds;
     }
     
-    // Add metadata for message operations
+    // Enhanced handling for message operations
     if (endpoint.route.includes("/messages") && endpoint.method === "POST") {
       // Extract publisher ID from the URL
       const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
       
       console.log(`Successfully sent message to publisher ${publisherId}`);
       
-      // Add operation metadata
+      // Add more detailed operation metadata
       data.operation = {
         type: "Send Message",
         successful: true,
@@ -887,7 +988,16 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
       // Add additional metadata for state tracking
       data.publisherId = publisherId;
       data.success = true;
+      data.messageId = data.MessageId || data.Id || new Date().getTime().toString(); // Use API-provided ID or generate one
       data.message = `Message sent successfully to publisher ${publisherId}`;
+      
+      // Store the publisher ID and message content for future reference
+      data.sentMessage = {
+        publisherId: publisherId,
+        content: payload.Content,
+        subject: payload.Subject,
+        sentAt: new Date().toISOString()
+      };
     }
     
     return {
@@ -899,8 +1009,8 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
   } catch (error) {
     console.error(`Error querying endpoint ${endpoint.route}:`, error);
     
-    // Create a structured error response
-    return {
+    // Enhanced error response structure
+    const errorResponse = {
       endpoint: endpoint.route,
       method: endpoint.method,
       name: endpoint.name,
@@ -916,5 +1026,16 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
         message: error.message || "Unknown error"
       }
     };
+    
+    // Special handling for message operations
+    if (endpoint.route.includes("/messages")) {
+      const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+      if (publisherId) {
+        errorResponse.data.publisherId = publisherId;
+        errorResponse.data.operation.details += ` (Publisher ID: ${publisherId})`;
+      }
+    }
+    
+    return errorResponse;
   }
 }

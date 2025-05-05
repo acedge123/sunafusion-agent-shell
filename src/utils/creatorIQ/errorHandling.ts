@@ -37,6 +37,10 @@ export function displayCreatorIQError(error: CreatorIQError): void {
       title = "Creator IQ Write Operation Failed";
       message = `Unable to perform the requested operation: ${error.message}`;
       break;
+    case CreatorIQErrorType.PUBLISHER_NOT_FOUND:
+      title = "Publisher Not Found";
+      message = "The specified publisher ID was not found. Please verify the ID and try again.";
+      break;
   }
   
   // Show toast message
@@ -150,10 +154,10 @@ export function processWriteOperationResult(data: any, operationType: string): a
       }
       
       // Add message-specific data
-      if (operationType.includes('Message') && data.messageId) {
+      if (operationType.includes('Message') && (data.messageId || data.MessageId)) {
         return {
           ...result,
-          messageId: data.messageId,
+          messageId: data.messageId || data.MessageId,
           publisherId: data.publisherId
         };
       }
@@ -174,12 +178,12 @@ export function processWriteOperationResult(data: any, operationType: string): a
     }
     
     // For message sending responses
-    if (operationType.includes('Message') && data.success === true && data.messageId) {
+    if (operationType.includes('Message') && data.success === true && (data.messageId || data.MessageId)) {
       return {
         successful: true,
         type: 'Send Message',
         details: `Message sent successfully to publisher ${data.publisherId || 'Unknown'}`,
-        messageId: data.messageId,
+        messageId: data.messageId || data.MessageId,
         publisherId: data.publisherId,
         timestamp: new Date().toISOString()
       };
@@ -240,7 +244,7 @@ export function formatCreatorIQErrorMessage(error: any): string {
   
   // Not found errors
   if (error.message?.includes('404')) {
-    if (error.message.includes('messages')) {
+    if (error.message.includes('messages') || error.message.includes('/publishers/')) {
       return "Could not send message. The publisher was not found.";
     }
     return "The requested resource was not found.";
@@ -248,4 +252,70 @@ export function formatCreatorIQErrorMessage(error: any): string {
   
   // Return the original message if no specific format is needed
   return error.message || "An error occurred with the Creator IQ operation";
+}
+
+/**
+ * Handle specific publisher not found errors
+ */
+export function handlePublisherNotFoundError(publisherId: string | number): CreatorIQError {
+  const message = `Publisher with ID ${publisherId} was not found. Please verify the ID and try again.`;
+  
+  return createCreatorIQError(
+    CreatorIQErrorType.PUBLISHER_NOT_FOUND,
+    message,
+    { status: 404, message: `Publisher ${publisherId} not found` },
+    false
+  );
+}
+
+/**
+ * Extract and log all available publisher IDs from a response or state
+ * Useful for debugging and helping users find valid IDs
+ */
+export function logAvailablePublisherIds(data: any): void {
+  try {
+    const publishers: any[] = [];
+    
+    // Extract publishers from different data structures
+    if (data.publishers && Array.isArray(data.publishers)) {
+      publishers.push(...data.publishers);
+    }
+    
+    if (data.results) {
+      data.results.forEach((result: any) => {
+        if (result.data && result.data.PublisherCollection) {
+          const resultPublishers = Array.isArray(result.data.PublisherCollection) 
+            ? result.data.PublisherCollection 
+            : [];
+          publishers.push(...resultPublishers);
+        }
+      });
+    }
+    
+    if (publishers.length > 0) {
+      console.log(`Found ${publishers.length} available publishers:`);
+      
+      // Extract and log IDs and names if available
+      const publisherInfo = publishers.slice(0, 10).map(p => {
+        if (p.id) return { id: p.id, name: p.name || 'Unknown' };
+        if (p.Publisher && p.Publisher.Id) {
+          return { 
+            id: p.Publisher.Id, 
+            name: p.Publisher.Name || p.Publisher.Username || 'Unknown'
+          };
+        }
+        return null;
+      }).filter(Boolean);
+      
+      console.table(publisherInfo);
+      
+      if (publishers.length > 10) {
+        console.log(`... and ${publishers.length - 10} more publishers`);
+      }
+    } else {
+      console.log("No publishers found in the provided data");
+    }
+  } catch (error) {
+    console.error("Error logging publisher IDs:", error);
+  }
 }

@@ -1,23 +1,21 @@
-
 // Type definitions for Creator IQ state management
 
 export enum CreatorIQErrorType {
   API_ERROR = 'api_error',
-  DATA_FORMAT_ERROR = 'data_format_error',
-  AUTHENTICATION_ERROR = 'auth_error',
+  AUTHENTICATION_ERROR = 'authentication_error',
   RATE_LIMIT_ERROR = 'rate_limit_error',
   NETWORK_ERROR = 'network_error',
-  UNKNOWN_ERROR = 'unknown_error',
+  DATA_FORMAT_ERROR = 'data_format_error',
   INCOMPLETE_DATA = 'incomplete_data',
-  WRITE_OPERATION_ERROR = 'write_operation_error'
+  WRITE_OPERATION_ERROR = 'write_operation_error',
+  PUBLISHER_NOT_FOUND = 'publisher_not_found'
 }
 
 export interface CreatorIQError {
   type: CreatorIQErrorType;
   message: string;
   originalError?: any;
-  retryCount?: number;
-  isRetryable: boolean;
+  isRetryable?: boolean;
 }
 
 export interface CreatorIQState {

@@ -33,6 +33,33 @@ export async function sendMessage(content: string): Promise<Message> {
     const creatorIQParams = buildCreatorIQParams(content, previousState);
     console.log("Using Creator IQ params:", creatorIQParams);
 
+    // Extract publisher ID if present in the message for direct message sending
+    const publisherIdMatch = content.match(/\b(\d{6,10})\b/); // Look for 6-10 digit numbers that could be publisher IDs
+    if (publisherIdMatch && publisherIdMatch[1]) {
+      const potentialPublisherId = publisherIdMatch[1].trim();
+      console.log(`Potential publisher ID found in message: ${potentialPublisherId}`);
+      
+      // Add to the params if not already there
+      if (!creatorIQParams.publisher_id) {
+        creatorIQParams.publisher_id = potentialPublisherId;
+        console.log(`Added publisher ID to params: ${potentialPublisherId}`);
+      }
+    }
+    
+    // Extract message content if this appears to be a message sending request
+    const messageMatch = content.match(/message\s+["']([^"']+)["']/i) || 
+                         content.match(/["']([^"']{3,100})["']/);
+    if (messageMatch && messageMatch[1]) {
+      const messageContent = messageMatch[1].trim();
+      console.log(`Message content found: "${messageContent}"`);
+      
+      // Add to the params if not already there
+      if (!creatorIQParams.message_content) {
+        creatorIQParams.message_content = messageContent;
+        console.log(`Added message content to params: "${messageContent}"`);
+      }
+    }
+
     // Pass the state key and previous state to the edge function
     const response = await supabase.functions.invoke('unified-agent', {
       body: {
@@ -86,6 +113,34 @@ export async function sendMessage(content: string): Promise<Message> {
       if (operationErrors.length > 0) {
         console.warn("Creator IQ operation errors:", operationErrors);
       }
+      
+      // Extract successful operations and log them
+      const successfulOperations = creatorIQSource.results
+        .filter(result => !result.error && result.data && result.data.operation && result.data.operation.successful === true)
+        .map(result => ({
+          endpoint: result.endpoint,
+          operation: result.data.operation,
+          name: result.name
+        }));
+      
+      if (successfulOperations.length > 0) {
+        console.info("Creator IQ successful operations:", successfulOperations);
+      }
+      
+      // Extract and log message sending results specifically
+      const messageResults = creatorIQSource.results
+        .filter(result => result.name && result.name.includes("Send Message"));
+      
+      if (messageResults.length > 0) {
+        console.info("Message sending results:", messageResults);
+        
+        // Check for publisher IDs to store in previous state
+        messageResults.forEach(result => {
+          if (result.data && result.data.publisherId) {
+            console.log(`Message sent to publisher ID: ${result.data.publisherId}`);
+          }
+        });
+      }
     }
     
     // Store provider token if available
@@ -133,6 +188,15 @@ async function prepareCreatorIQState(userId: string | undefined, content: string
       
       if (previousState) {
         console.log("Found previous Creator IQ state:", previousState);
+        
+        // Extract publisher IDs from previous state for potential message sending
+        if (previousState.publishers && previousState.publishers.length > 0) {
+          console.log(`Found ${previousState.publishers.length} publishers in previous state`);
+          
+          // Log first few publisher IDs for debugging
+          const samplePublishers = previousState.publishers.slice(0, 3);
+          console.log("Sample publishers from previous state:", samplePublishers.map(p => p.id));
+        }
       }
     }
     
