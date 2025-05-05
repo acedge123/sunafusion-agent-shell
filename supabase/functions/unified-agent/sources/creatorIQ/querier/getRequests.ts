@@ -48,7 +48,7 @@ function debugListItems(allItems: any[]): void {
     .filter(Boolean);
   
   const testListItems = listNames.filter(
-    name => name.toLowerCase().includes('test')
+    name => name && name.toLowerCase && name.toLowerCase().includes('test')
   );
   
   if (testListItems.length > 0) {
@@ -120,13 +120,12 @@ export async function handleGetRequest(
     if ('all_pages' in queryPayload) delete queryPayload.all_pages;
     if ('max_pages' in queryPayload) delete queryPayload.max_pages;
     
-    // Override with more aggressive pagination parameters for lists
-    if (endpoint.route === '/lists') {
-      queryPayload.limit = queryPayload.limit || 1000; // Use a larger limit
-    }
+    // Fix for Lists API - CreatorIQ always limits to 20 per page for lists regardless
+    // of the requested limit, so we adapt our logic accordingly
+    const isList = endpoint.route === '/lists';
+    const pageSize = isList ? 20 : (queryPayload.limit || 50);
     
-    // Define a function to fetch a single page
-    const pageSize = queryPayload.limit || 50;
+    console.log(`Using page size: ${pageSize} for endpoint ${endpoint.route}`);
     
     // Start by fetching the first page to determine total pages
     const queryParams = new URLSearchParams();
@@ -149,8 +148,13 @@ export async function handleGetRequest(
     let shouldPaginate = enableAllPages && 
                      endpoint.route.match(/\/(lists|publishers|campaigns)(?:\/\d+\/publishers)?$/);
     
+    // Log pagination information from the response
+    if (initialData.total_pages && initialData.total) {
+      console.log(`API returned: ${initialData.total} items across ${initialData.total_pages} pages (currently showing page ${initialData.page || 1})`);
+    }
+    
     if (shouldPaginate) {
-      console.log("Pagination detected, checking if multiple pages exist");
+      console.log("Pagination enabled, checking if multiple pages exist");
       
       if (!collectionField || !initialData[collectionField]) {
         console.log(`No collection field '${collectionField}' found in response, pagination not possible`);
@@ -196,20 +200,24 @@ export async function handleGetRequest(
         let successCount = 0;
         let failCount = 0;
         
-        for (const pageResult of pageResults) {
+        for (let i = 0; i < pageResults.length; i++) {
+          const pageResult = pageResults[i];
+          const pageNumber = i + 2; // Page 2 is the first additional page
+          
           if (pageResult.status === 'fulfilled') {
             const pageData = pageResult.value;
             if (pageData[collectionField] && Array.isArray(pageData[collectionField])) {
               // Normalize nested structures in page items
               const pageItems = normalizeNestedItems(pageData[collectionField], collectionField);
+              console.log(`Page ${pageNumber} returned ${pageItems.length} items`);
               allItems.push(...pageItems);
               successCount++;
             } else {
-              console.warn(`Missing ${collectionField} in page response:`, pageData);
+              console.warn(`Missing ${collectionField} in page ${pageNumber} response:`, pageData);
               failCount++;
             }
           } else {
-            console.error(`Page fetch failed:`, pageResult.reason);
+            console.error(`Page ${pageNumber} fetch failed:`, pageResult.reason);
             failCount++;
           }
         }

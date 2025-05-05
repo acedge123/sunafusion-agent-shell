@@ -21,17 +21,29 @@ export function buildListCreationPayload({ query, params }: BuildPayloadOptions)
  * Build payload for list query endpoint
  */
 export function buildListQueryPayload({ params }: BuildPayloadOptions): any {
-  const searchParams: any = { limit: 50 };
+  // Start with default reasonable limit (20 matches API's actual behavior)
+  const searchParams: any = { 
+    limit: params.limit || 20
+  };
+  
+  // Important: Pass through pagination parameters correctly
+  if (params.page) {
+    searchParams.page = params.page;
+  }
+  
+  // Pass through all_pages parameter from frontend to trigger complete pagination
+  if (params.all_pages === true || params._fullSearch === true) {
+    searchParams._fullSearch = true;
+    searchParams.all_pages = true;
+    console.log("Enabling full pagination for lists query");
+  }
   
   if (params.list_search_term) {
     searchParams.search = params.list_search_term;
     console.log(`Adding search parameter for list name: "${params.list_search_term}"`);
-    
-    // Enable search across all pages
-    searchParams._fullSearch = true;
-    console.log("Enabling full search across all pages");
   }
   
+  console.log(`List query parameters: ${JSON.stringify(searchParams)}`);
   return searchParams;
 }
 

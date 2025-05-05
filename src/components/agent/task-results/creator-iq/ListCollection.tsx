@@ -69,21 +69,7 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
         console.log(`Found Test-related list entries:`, testListEntries);
       } else {
         console.log('No Test-related lists found in current data');
-        // Log all list names for debugging purposes
-        console.log('All list names:', listNames);
       }
-      
-      // Check list IDs too
-      const listIds = lists.map(listItem => {
-        if (listItem.List && listItem.List.List) {
-          return listItem.List.List.Id;
-        } else if (listItem.List) {
-          return listItem.List.Id;
-        }
-        return null;
-      }).filter(Boolean);
-      
-      console.log(`List IDs sample (${listIds.length}):`, listIds.slice(0, 5));
     }
   }, [lists]);
   
@@ -91,7 +77,9 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
     if (onPageChange) {
       setIsLoading(true);
       try {
-        await onPageChange(page, 2000, true); // Always try to fetch all with a large limit
+        // When changing pages, we want to get all items for that page
+        // but with a reasonable limit
+        await onPageChange(page, 100, true);
         toast.success(`Loaded page ${page}`);
       } catch (error) {
         toast.error(`Failed to load page ${page}`);
@@ -123,9 +111,12 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   // Effect to check if we need to load all lists when first mounted
   useEffect(() => {
     // If the data shows we have multiple pages but are only showing a subset of data
+    // and all pages weren't fetched yet
     if (hasMultiplePages && actualItemCount < totalLists && !allPagesFetched && onPageChange) {
       console.log("Lists data is incomplete, attempting to load all lists...");
-      onPageChange(1, 2000, true);
+      setIsLoading(true);
+      onPageChange(1, 2000, true)
+        .finally(() => setIsLoading(false));
     }
   }, [hasMultiplePages, actualItemCount, totalLists, allPagesFetched, onPageChange]);
   

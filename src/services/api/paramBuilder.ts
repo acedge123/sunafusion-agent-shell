@@ -1,4 +1,3 @@
-
 // Helper function to build Creator IQ parameters based on content
 export function buildCreatorIQParams(content: string, previousState: any = null) {
   const lowerContent = content.toLowerCase();
@@ -333,6 +332,12 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
         console.log(`Extracted message subject: "${params.message_subject}"`);
       }
     }
+  }
+  
+  // For read operations, add pagination parameters
+  if (!isWriteOperation) {
+    // Default to fetching all pages for better results
+    params.all_pages = true;
   }
   
   // For read operations, add campaign-specific parameters

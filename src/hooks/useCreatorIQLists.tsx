@@ -34,15 +34,9 @@ export function useCreatorIQLists() {
       console.log(`Total lists claimed by API: ${listsData.data.total || 'unknown'}`);
       console.log(`Lists actually in collection: ${listsData.data.ListsCollection.length}`);
       
-      // Check for TestList specifically
-      const hasTestList = names.some((name: string) => 
-        name && typeof name === 'string' && name.toLowerCase().includes('test')
-      );
-      console.log(`Test-related lists found in state data: ${hasTestList ? 'Yes' : 'No'}`);
-      
       // Check if we might be missing data
       const totalLists = listsData.data.total || 0;
-      if (totalLists > names.length && !attemptedFullLoad) {
+      if (totalLists > names.length && !attemptedFullLoad && !listsData.data._all_pages_fetched) {
         console.warn(`Data discrepancy: API reports ${totalLists} total lists but we only have ${names.length} in our collection`);
         // This will trigger a retry with more aggressive parameters if we detect missing data
         setAttemptedFullLoad(true);
@@ -57,7 +51,7 @@ export function useCreatorIQLists() {
     
     try {
       console.log(`Fetching lists page ${page}${search ? ` with search "${search}"` : ''} with limit ${limit}${fetchAll ? ' (fetching all)' : ''}`);
-      const data = await fetchListsByPage(page, search, limit);
+      const data = await fetchListsByPage(page, search, limit, fetchAll);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -76,29 +70,13 @@ export function useCreatorIQLists() {
             all_pages_fetched: listsEndpoint.data?._all_pages_fetched
           });
           
-          // Check for TestList specifically in the raw data
-          if (listsEndpoint.data?.ListsCollection) {
-            const listNames = listsEndpoint.data.ListsCollection
-              .map((item: any) => {
-                // Handle nested List structures
-                if (item.List && item.List.List) {
-                  return item.List.List.Name;
-                } else if (item.List) {
-                  return item.List.Name;
-                }
-                return null;
-              })
-              .filter(Boolean);
-            
-            const testLists = listNames.filter((name: string) => 
-              name && typeof name === 'string' && name.toLowerCase().includes('test')
-            );
-            
-            if (testLists.length > 0) {
-              console.log(`Test-related lists found in raw API data:`, testLists);
-            } else {
-              console.log(`No test-related lists found in raw API data`);
-            }
+          // If we got data but don't have all pages and the metadata says there are more pages,
+          // but we should have fetched them all, log a warning
+          if (listCount > 0 && 
+              listsEndpoint.data?.total_pages > 1 && 
+              fetchAll && 
+              !listsEndpoint.data?._all_pages_fetched) {
+            console.warn("Warning: Expected all pages to be fetched but the metadata indicates otherwise");
           }
           
           setListsData(listsEndpoint);
@@ -117,7 +95,7 @@ export function useCreatorIQLists() {
     }
   }, [searchTerm]);
   
-  // If we detect missing data, retry with even more aggressive parameters
+  // If we detect missing data, retry with more aggressive parameters
   useEffect(() => {
     if (attemptedFullLoad && !isLoading) {
       console.log("Attempting to reload all data with more aggressive parameters");
@@ -139,7 +117,7 @@ export function useCreatorIQLists() {
     
     try {
       console.log(`Searching lists with term: ${term} and limit: ${limit}${fetchAll ? ' (fetching all)' : ''}`);
-      const data = await searchListsByName(term, limit);
+      const data = await searchListsByName(term, limit, fetchAll);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -150,27 +128,6 @@ export function useCreatorIQLists() {
         if (listsEndpoint) {
           const listCount = listsEndpoint.data?.ListsCollection?.length || 0;
           console.log(`Retrieved search results with ${listCount} items`);
-          
-          // Check if the search found our test list
-          if (listsEndpoint.data?.ListsCollection) {
-            const listNames = listsEndpoint.data.ListsCollection
-              .map((item: any) => {
-                // Handle nested List structures
-                if (item.List && item.List.List) {
-                  return item.List.List.Name;
-                } else if (item.List) {
-                  return item.List.Name;
-                }
-                return null;
-              })
-              .filter(Boolean);
-            
-            const matchingLists = listNames.filter((name: string) => 
-              name && typeof name === 'string' && name.toLowerCase().includes(term.toLowerCase())
-            );
-            
-            console.log(`Lists matching "${term}" in search results:`, matchingLists.length > 0 ? matchingLists : 'None found');
-          }
           
           setListsData(listsEndpoint);
           setCurrentPage(1);
