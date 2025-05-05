@@ -40,7 +40,16 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   // Check for specific list names in the data for debugging
   useEffect(() => {
     if (lists && lists.length > 0) {
-      const listNames = lists.map(listItem => listItem.List?.Name).filter(Boolean);
+      const listNames = lists.map(listItem => {
+        // Handle nested List structures
+        if (listItem.List && listItem.List.List) {
+          return listItem.List.List.Name;
+        } else if (listItem.List) {
+          return listItem.List.Name;
+        }
+        return null;
+      }).filter(Boolean);
+      
       console.log(`List names sample in component (${listNames.length}):`, listNames.slice(0, 10));
       
       // Check for TestList specifically
@@ -57,7 +66,15 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       }
       
       // Check list IDs too
-      const listIds = lists.map(listItem => listItem.List?.Id).filter(Boolean);
+      const listIds = lists.map(listItem => {
+        if (listItem.List && listItem.List.List) {
+          return listItem.List.List.Id;
+        } else if (listItem.List) {
+          return listItem.List.Id;
+        }
+        return null;
+      }).filter(Boolean);
+      
       console.log(`List IDs sample (${listIds.length}):`, listIds.slice(0, 5));
     }
   }, [lists]);
@@ -140,8 +157,21 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       <div className={`space-y-2 mt-3 ${isLoading ? 'opacity-60' : ''}`}>
         {lists.length > 0 ? (
           lists.map((listItem: any, lIdx: number) => {
-            // Make sure we're accessing the nested list data correctly
-            const listData = listItem.List || {};
+            // Handle nested list data correctly
+            let listData = {};
+            
+            // First try with List.List pattern
+            if (listItem.List && listItem.List.List) {
+              listData = listItem.List.List;
+            } 
+            // Then try just List
+            else if (listItem.List) {
+              listData = listItem.List;
+            } 
+            // Fallback to the item itself
+            else {
+              listData = listItem;
+            }
             
             return (
               <div key={lIdx} className="border rounded p-3 bg-muted/30">

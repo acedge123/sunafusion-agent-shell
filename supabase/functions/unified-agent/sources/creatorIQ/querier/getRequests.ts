@@ -48,7 +48,7 @@ function debugListItems(allItems: any[]): void {
     .filter(Boolean);
   
   const testListItems = listNames.filter(
-    name => name.toLowerCase().includes('testlist')
+    name => name.toLowerCase().includes('test')
   );
   
   if (testListItems.length > 0) {
@@ -117,6 +117,13 @@ export async function handleGetRequest(
     
     // Remove special parameters that shouldn't be sent as query params
     if ('_fullSearch' in queryPayload) delete queryPayload._fullSearch;
+    if ('all_pages' in queryPayload) delete queryPayload.all_pages;
+    if ('max_pages' in queryPayload) delete queryPayload.max_pages;
+    
+    // Override with more aggressive pagination parameters for lists
+    if (endpoint.route === '/lists') {
+      queryPayload.limit = queryPayload.limit || 1000; // Use a larger limit
+    }
     
     // Define a function to fetch a single page
     const pageSize = queryPayload.limit || 50;
@@ -126,7 +133,7 @@ export async function handleGetRequest(
       
     // Add all parameters from payload
     for (const [key, value] of Object.entries(queryPayload)) {
-      if (key !== 'page' && key !== 'limit' && key !== 'all_pages' && key !== 'max_pages') { // Don't override our pagination params or internal params
+      if (key !== 'page' && key !== 'limit') { // Don't override our pagination params
         queryParams.append(key, String(value));
       }
     }
@@ -171,7 +178,7 @@ export async function handleGetRequest(
           
           // Add all parameters from payload (except pagination ones)
           for (const [key, value] of Object.entries(queryPayload)) {
-            if (key !== 'page' && key !== 'limit' && key !== 'all_pages' && key !== 'max_pages') {
+            if (key !== 'page' && key !== 'limit') {
               pageQueryParams.append(key, String(value));
             }
           }

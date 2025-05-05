@@ -16,7 +16,15 @@ export function useCreatorIQLists() {
   useEffect(() => {
     if (listsData?.data?.ListsCollection) {
       const names = listsData.data.ListsCollection
-        .map((item: any) => item.List?.Name)
+        .map((item: any) => {
+          // Handle nested List structures
+          if (item.List && item.List.List) {
+            return item.List.List.Name;
+          } else if (item.List) {
+            return item.List.Name;
+          }
+          return null;
+        })
         .filter(Boolean);
       
       setListNames(names);
@@ -28,7 +36,7 @@ export function useCreatorIQLists() {
       
       // Check for TestList specifically
       const hasTestList = names.some((name: string) => 
-        name.toLowerCase().includes('test')
+        name && typeof name === 'string' && name.toLowerCase().includes('test')
       );
       console.log(`Test-related lists found in state data: ${hasTestList ? 'Yes' : 'No'}`);
       
@@ -43,7 +51,7 @@ export function useCreatorIQLists() {
   }, [listsData, attemptedFullLoad]);
   
   // Fetch lists by page with option to specify a large limit for "show all"
-  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000, fetchAll = true) => {
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 2000, fetchAll = true) => {
     setIsLoading(true);
     setShowingAllLists(fetchAll);
     
@@ -71,11 +79,19 @@ export function useCreatorIQLists() {
           // Check for TestList specifically in the raw data
           if (listsEndpoint.data?.ListsCollection) {
             const listNames = listsEndpoint.data.ListsCollection
-              .map((item: any) => item.List?.Name)
+              .map((item: any) => {
+                // Handle nested List structures
+                if (item.List && item.List.List) {
+                  return item.List.List.Name;
+                } else if (item.List) {
+                  return item.List.Name;
+                }
+                return null;
+              })
               .filter(Boolean);
             
             const testLists = listNames.filter((name: string) => 
-              name.toLowerCase().includes('test')
+              name && typeof name === 'string' && name.toLowerCase().includes('test')
             );
             
             if (testLists.length > 0) {
@@ -111,7 +127,7 @@ export function useCreatorIQLists() {
   }, [attemptedFullLoad, isLoading, fetchLists]);
   
   // Search lists with enhanced error handling
-  const searchLists = useCallback(async (term: string, limit = 1000, fetchAll = true) => {
+  const searchLists = useCallback(async (term: string, limit = 2000, fetchAll = true) => {
     if (!term.trim()) {
       setSearchTerm('');
       return fetchLists(1, '', limit, fetchAll);
@@ -138,11 +154,19 @@ export function useCreatorIQLists() {
           // Check if the search found our test list
           if (listsEndpoint.data?.ListsCollection) {
             const listNames = listsEndpoint.data.ListsCollection
-              .map((item: any) => item.List?.Name)
+              .map((item: any) => {
+                // Handle nested List structures
+                if (item.List && item.List.List) {
+                  return item.List.List.Name;
+                } else if (item.List) {
+                  return item.List.Name;
+                }
+                return null;
+              })
               .filter(Boolean);
             
             const matchingLists = listNames.filter((name: string) => 
-              name.toLowerCase().includes(term.toLowerCase())
+              name && typeof name === 'string' && name.toLowerCase().includes(term.toLowerCase())
             );
             
             console.log(`Lists matching "${term}" in search results:`, matchingLists.length > 0 ? matchingLists : 'None found');
@@ -165,7 +189,7 @@ export function useCreatorIQLists() {
   }, [fetchLists]);
   
   // Handle page change
-  const changePage = useCallback(async (page: number, limit = 1000, fetchAll = true) => {
+  const changePage = useCallback(async (page: number, limit = 2000, fetchAll = true) => {
     return await fetchLists(page, searchTerm, limit, fetchAll);
   }, [fetchLists, searchTerm]);
   

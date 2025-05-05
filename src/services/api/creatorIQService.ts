@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // Process the Creator IQ API response
@@ -121,7 +122,15 @@ export async function fetchListsByPage(page = 1, searchTerm = '', limit = 1000) 
     if (listsEndpoint) {
       const listCount = listsEndpoint.data?.ListsCollection?.length || 0;
       const totalItems = listsEndpoint.data?.total || 0;
-      const listNames = listsEndpoint.data?.ListsCollection?.map(item => item.List?.Name).filter(Boolean);
+      const listNames = listsEndpoint.data?.ListsCollection?.map(item => {
+        // Handle nested List structures
+        if (item.List && item.List.List) {
+          return item.List.List.Name;
+        } else if (item.List) {
+          return item.List.Name;
+        }
+        return null;
+      }).filter(Boolean);
       
       console.log(`Retrieved ${listCount} lists out of ${totalItems} total. Names sample:`, listNames?.slice(0, 5));
       
@@ -267,7 +276,15 @@ export async function searchListsByName(name, limit = 1000) {
     if (listsEndpoint) {
       const listCount = listsEndpoint.data?.ListsCollection?.length || 0;
       const totalItems = listsEndpoint.data?.total || 0;
-      const listNames = listsEndpoint.data?.ListsCollection?.map(item => item.List?.Name).filter(Boolean);
+      const listNames = listsEndpoint.data?.ListsCollection?.map(item => {
+        // Handle nested List structures
+        if (item.List && item.List.List) {
+          return item.List.List.Name;
+        } else if (item.List) {
+          return item.List.Name;
+        }
+        return null;
+      }).filter(Boolean);
       
       console.log(`Search returned ${listCount} lists out of ${totalItems} total items. Names sample:`, listNames?.slice(0, 5));
       

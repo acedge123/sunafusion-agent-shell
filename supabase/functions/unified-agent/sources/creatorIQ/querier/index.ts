@@ -59,29 +59,77 @@ export async function queryCreatorIQEndpoint(endpoint: any, payload: any): Promi
 export function processNestedResponse(response: any): any {
   if (!response) return null;
   
+  // Create a deep copy to avoid mutating the original
+  const normalized = JSON.parse(JSON.stringify(response));
+  
   // Process lists collection
-  if (response.ListsCollection && Array.isArray(response.ListsCollection)) {
-    response.ListsCollection = response.ListsCollection.map((listItem: any) => {
+  if (normalized.ListsCollection && Array.isArray(normalized.ListsCollection)) {
+    normalized.ListsCollection = normalized.ListsCollection.map((listItem: any) => {
       // Handle doubly nested list data
       if (listItem.List && listItem.List.List) {
-        listItem.List = listItem.List.List;
+        const newItem = { ...listItem };
+        newItem.List = listItem.List.List;
+        return newItem;
       }
       return listItem;
     });
   }
   
   // Process publishers collection
-  if (response.PublisherCollection && Array.isArray(response.PublisherCollection)) {
-    response.PublisherCollection = response.PublisherCollection.map((pubItem: any) => {
+  if (normalized.PublisherCollection && Array.isArray(normalized.PublisherCollection)) {
+    normalized.PublisherCollection = normalized.PublisherCollection.map((pubItem: any) => {
       // Handle doubly nested publisher data
       if (pubItem.Publisher && pubItem.Publisher.Publisher) {
-        pubItem.Publisher = pubItem.Publisher.Publisher;
+        const newItem = { ...pubItem };
+        newItem.Publisher = pubItem.Publisher.Publisher;
+        return newItem;
       }
       return pubItem;
     });
   }
   
-  return response;
+  // Process alternate publishers collection name
+  if (normalized.PublishersCollection && Array.isArray(normalized.PublishersCollection)) {
+    normalized.PublishersCollection = normalized.PublishersCollection.map((pubItem: any) => {
+      // Handle doubly nested publisher data
+      if (pubItem.Publisher && pubItem.Publisher.Publisher) {
+        const newItem = { ...pubItem };
+        newItem.Publisher = pubItem.Publisher.Publisher;
+        return newItem;
+      }
+      return pubItem;
+    });
+  }
+  
+  // Process campaigns collection
+  if (normalized.CampaignCollection && Array.isArray(normalized.CampaignCollection)) {
+    normalized.CampaignCollection = normalized.CampaignCollection.map((campaignItem: any) => {
+      // Handle doubly nested campaign data
+      if (campaignItem.Campaign && campaignItem.Campaign.Campaign) {
+        const newItem = { ...campaignItem };
+        newItem.Campaign = campaignItem.Campaign.Campaign;
+        return newItem;
+      }
+      return campaignItem;
+    });
+  }
+  
+  // Process direct list object
+  if (normalized.List && normalized.List.List) {
+    normalized.List = normalized.List.List;
+  }
+  
+  // Process direct publisher object
+  if (normalized.Publisher && normalized.Publisher.Publisher) {
+    normalized.Publisher = normalized.Publisher.Publisher;
+  }
+  
+  // Process direct campaign object
+  if (normalized.Campaign && normalized.Campaign.Campaign) {
+    normalized.Campaign = normalized.Campaign.Campaign;
+  }
+  
+  return normalized;
 }
 
 // Re-export types
