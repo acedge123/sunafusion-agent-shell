@@ -1,3 +1,4 @@
+
 // Creator IQ API integration
 
 // Determine which Creator IQ endpoints to query based on the user's query
@@ -14,6 +15,101 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
       method: "POST",
       name: "Create List"
     });
+    return endpoints;
+  }
+  
+  // Check for add publisher to list operation
+  if ((lowerQuery.includes('add') || lowerQuery.includes('copy') || lowerQuery.includes('move')) && 
+     (lowerQuery.includes('publisher') || lowerQuery.includes('influencer')) && 
+      lowerQuery.includes('list')) {
+    console.log("Detected request to add publisher to list");
+    
+    // Try to extract source and target list info from the query
+    let sourceListId, targetListId;
+    let sourceListName, targetListName;
+    
+    // Find list names in the query
+    const sourcePhrases = ['from list', 'in list', 'list called', 'source list'];
+    const targetPhrases = ['to list', 'into list', 'target list'];
+    
+    // Extract list names from query
+    for (const phrase of sourcePhrases) {
+      if (lowerQuery.includes(phrase)) {
+        const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
+        const listNameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
+                             afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
+        if (listNameMatch) {
+          sourceListName = listNameMatch[1].trim();
+          console.log(`Found potential source list name: "${sourceListName}"`);
+          break;
+        }
+      }
+    }
+    
+    for (const phrase of targetPhrases) {
+      if (lowerQuery.includes(phrase)) {
+        const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
+        const listNameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
+                             afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
+        if (listNameMatch) {
+          targetListName = listNameMatch[1].trim();
+          console.log(`Found potential target list name: "${targetListName}"`);
+          break;
+        }
+      }
+    }
+    
+    // If we have previous state with lists, try to find the lists by name
+    if (previousState && previousState.lists && previousState.lists.length > 0) {
+      if (sourceListName) {
+        const sourceList = previousState.lists.find(list => 
+          list.name.toLowerCase().includes(sourceListName.toLowerCase())
+        );
+        if (sourceList) {
+          sourceListId = sourceList.id;
+          console.log(`Found source list ID: ${sourceListId} for "${sourceListName}"`);
+        }
+      }
+      
+      if (targetListName) {
+        const targetList = previousState.lists.find(list => 
+          list.name.toLowerCase().includes(targetListName.toLowerCase())
+        );
+        if (targetList) {
+          targetListId = targetList.id;
+          console.log(`Found target list ID: ${targetListId} for "${targetListName}"`);
+        }
+      }
+    }
+    
+    // If we found a source list, get its publishers
+    if (sourceListId) {
+      endpoints.push({
+        route: `/lists/${sourceListId}/publishers`,
+        method: "GET",
+        name: "Get Source List Publishers",
+        sourceListId: sourceListId
+      });
+    } else {
+      // If no source list identified, we need to get all lists first
+      endpoints.push({
+        route: "/lists",
+        method: "GET",
+        name: "Get Lists"
+      });
+    }
+    
+    // If we found both source and target list IDs and they're different, add the endpoint to add publishers
+    if (sourceListId && targetListId && sourceListId !== targetListId) {
+      endpoints.push({
+        route: `/lists/${targetListId}/publishers`,
+        method: "POST",
+        name: "Add Publishers To List",
+        targetListId: targetListId,
+        sourceListId: sourceListId
+      });
+    }
+    
     return endpoints;
   }
   
@@ -164,6 +260,38 @@ export function buildCreatorIQPayload(endpoint, query, params = {}, previousStat
     };
   }
   
+  // Add publishers to list
+  if (endpoint.route.includes('/lists/') && endpoint.route.includes('/publishers') && endpoint.method === "POST") {
+    console.log("Building payload for adding publishers to list");
+    
+    // If we have specific publisher IDs to add
+    if (params.publisher_ids && Array.isArray(params.publisher_ids) && params.publisher_ids.length > 0) {
+      console.log(`Using ${params.publisher_ids.length} publisher IDs from params`);
+      return {
+        PublisherIds: params.publisher_ids
+      };
+    }
+    
+    // If we have source list publishers in previous state
+    if (previousState && previousState.publishers && previousState.publishers.length > 0 && 
+        endpoint.sourceListId && previousState.publishers.some(p => p.listId === endpoint.sourceListId)) {
+      
+      const sourceListPublishers = previousState.publishers.filter(p => p.listId === endpoint.sourceListId);
+      const publisherIds = sourceListPublishers.map(p => p.id);
+      
+      console.log(`Using ${publisherIds.length} publisher IDs from source list ${endpoint.sourceListId}`);
+      
+      return {
+        PublisherIds: publisherIds
+      };
+    }
+    
+    // Default empty array if no publishers identified
+    return {
+      PublisherIds: []
+    };
+  }
+  
   // Publisher status update
   if (endpoint.route.includes("/publishers/") && endpoint.method === "PUT") {
     console.log("Building payload for publisher status update");
@@ -256,7 +384,7 @@ export function buildCreatorIQPayload(endpoint, query, params = {}, previousStat
   }
 
   // For GET requests to list publishers in a list
-  if (endpoint.route.includes("/lists/") && endpoint.route.includes("/publishers")) {
+  if (endpoint.route.includes("/lists/") && endpoint.route.includes("/publishers") && endpoint.method === "GET") {
     return { limit: 50 };
   }
 
@@ -389,6 +517,31 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
       details: `Created list: ${data.List.Name} (ID: ${data.List.Id})`,
       timestamp: new Date().toISOString()
     };
+  }
+  
+  // If this is a successful publisher addition to list, add metadata
+  if (endpoint.method === "POST" && endpoint.route.includes("/lists/") && endpoint.route.includes("/publishers")) {
+    // Extract list ID from the URL
+    const listId = endpoint.route.match(/\/lists\/(\d+)\/publishers/)?.[1];
+    const publisherIds = payload.PublisherIds || [];
+    
+    console.log(`Added ${publisherIds.length} publishers to list ${listId}`);
+    
+    // Add operation metadata
+    data.operation = {
+      type: "Add Publishers To List",
+      successful: true,
+      details: `Added ${publisherIds.length} publishers to list ${listId}`,
+      timestamp: new Date().toISOString(),
+      listId: listId,
+      publisherIds: publisherIds
+    };
+    
+    // Add additional metadata for state tracking
+    data.listId = listId;
+    data.success = true;
+    data.message = `${publisherIds.length} publishers added to list ${listId}`;
+    data.publisherIds = publisherIds;
   }
   
   return {

@@ -16,7 +16,8 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
     lowerContent.includes('update') || 
     lowerContent.includes('change') ||
     lowerContent.includes('send message') ||
-    lowerContent.includes('invite');
+    lowerContent.includes('invite') ||
+    lowerContent.includes('copy');
   
   if (isWriteOperation) {
     params.operation_type = 'write';
@@ -72,6 +73,78 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
       if (descriptionMatch && descriptionMatch[1]) {
         params.list_description = descriptionMatch[1].trim();
         console.log(`Extracted list description: "${params.list_description}"`);
+      }
+    }
+    
+    // Check for adding publishers to list operations
+    else if ((lowerContent.includes('add') || lowerContent.includes('copy')) && 
+            (lowerContent.includes('publisher') || lowerContent.includes('influencer')) && 
+             lowerContent.includes('list')) {
+      
+      params.add_publishers_to_list = true;
+      
+      // Extract source list and target list names
+      let sourceListName, targetListName;
+      
+      // Try to find the source list name
+      const sourceRegexPatterns = [
+        /from\s+(?:list|the\s+list)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
+        /from\s+the\s+["']([^"']+)["']\s+list/i,
+        /(\b[A-Z][a-zA-Z0-9\s-]+)(?:\s+list)?\s+(?:to|into)/i
+      ];
+      
+      for (const pattern of sourceRegexPatterns) {
+        const match = content.match(pattern);
+        if (match && match[1]) {
+          sourceListName = match[1].trim();
+          console.log(`Found potential source list name: "${sourceListName}"`);
+          break;
+        }
+      }
+      
+      // Try to find the target list name
+      const targetRegexPatterns = [
+        /(?:to|into)(?:\s+list|\s+the\s+list)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
+        /(?:to|into)\s+the\s+["']([^"']+)["']\s+list/i,
+        /(?:to|into)\s+(?:list|the\s+list)\s+(\b[A-Z][a-zA-Z0-9\s-]+\b)/i
+      ];
+      
+      for (const pattern of targetRegexPatterns) {
+        const match = content.match(pattern);
+        if (match && match[1]) {
+          targetListName = match[1].trim();
+          console.log(`Found potential target list name: "${targetListName}"`);
+          break;
+        }
+      }
+      
+      // Check if we have list data from previous state
+      if (previousState && previousState.lists && previousState.lists.length > 0) {
+        // Find source list ID if we have a name
+        if (sourceListName) {
+          const sourceList = previousState.lists.find((l: any) => 
+            l.name.toLowerCase().includes(sourceListName.toLowerCase())
+          );
+          
+          if (sourceList) {
+            params.source_list_id = sourceList.id;
+            params.source_list_name = sourceList.name;
+            console.log(`Found matching source list: ${sourceList.name} (ID: ${sourceList.id})`);
+          }
+        }
+        
+        // Find target list ID if we have a name
+        if (targetListName) {
+          const targetList = previousState.lists.find((l: any) => 
+            l.name.toLowerCase().includes(targetListName.toLowerCase())
+          );
+          
+          if (targetList) {
+            params.target_list_id = targetList.id;
+            params.target_list_name = targetList.name;
+            console.log(`Found matching target list: ${targetList.name} (ID: ${targetList.id})`);
+          }
+        }
       }
     }
     

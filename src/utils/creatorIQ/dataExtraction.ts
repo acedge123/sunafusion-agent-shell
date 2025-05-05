@@ -1,3 +1,4 @@
+
 // Extract structured data from API responses
 
 /**
@@ -137,6 +138,18 @@ export function extractOperationResult(data: any): any {
         details: `Updated publisher ${data.Publisher.PublisherName || data.Publisher.Id} status to ${data.Publisher.Status}`,
         id: data.Publisher.Id,
         status: data.Publisher.Status,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // For adding publisher to list responses
+    if (data.success === true && data.message && data.message.includes('added to list')) {
+      return {
+        successful: true,
+        type: 'Add Publisher To List',
+        details: data.message,
+        listId: data.listId,
+        publisherId: data.publisherId,
         timestamp: new Date().toISOString()
       };
     }

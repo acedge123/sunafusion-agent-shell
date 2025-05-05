@@ -43,7 +43,8 @@ export enum CreatorIQOperationType {
   WRITE = 'write',
   CREATE = 'create',
   UPDATE = 'update',
-  DELETE = 'delete'
+  DELETE = 'delete',
+  ADD = 'add'
 }
 
 export interface CreatorIQPayload {
@@ -54,6 +55,9 @@ export interface CreatorIQEndpoint {
   route: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   name: string;
+  sourceListId?: string;
+  targetListId?: string;
+  publisherId?: string;
   [key: string]: any;
 }
 
