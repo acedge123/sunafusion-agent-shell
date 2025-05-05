@@ -836,6 +836,22 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
     if (endpoint.method === "GET") {
       // For GET requests, convert payload to query params
       const queryParams = new URLSearchParams();
+      
+      // Handle the _fullSearch parameter for list searches
+      const useAllPages = payload._fullSearch === true;
+      
+      // Remove _fullSearch from payload so it doesn't get sent as a query param
+      if ('_fullSearch' in payload) {
+        delete payload._fullSearch;
+      }
+      
+      // Add all_pages parameter if _fullSearch was true
+      if (useAllPages && endpoint.route === "/lists") {
+        queryParams.append('all_pages', 'true');
+        console.log("Adding all_pages=true parameter to enable full pagination");
+      }
+      
+      // Add the rest of the payload as query params
       for (const [key, value] of Object.entries(payload)) {
         queryParams.append(key, String(value));
       }

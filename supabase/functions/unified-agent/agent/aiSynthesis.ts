@@ -25,6 +25,9 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
     // Add list-specific guidance if this appears to be a list-related query
     if (isListQuery) {
       systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs. If a user asks to move publishers between lists or work with specific lists, ensure these lists exist in the provided context. If you find lists with names that closely match what the user is asking for, work with those. If you cannot find an exact match for a list name but find something similar, suggest using that instead.';
+      
+      // Add specific instructions about pagination and search
+      systemMessage += ' Also, when searching for lists, make sure to check all available pages of results as the specific list may be on a later page. If a list is not found in the initial results, consider that it might exist on another page.';
     }
     
     // Prepare messages for OpenAI API
