@@ -2,9 +2,30 @@
 // Main entry point for Creator IQ integration
 // This file is a thin wrapper that exports all functionality from the modular files
 
-import { determineCreatorIQEndpoints } from './creatorIQ/endpointDeterminer.ts';
-import { buildCreatorIQPayload } from './creatorIQ/payloadBuilder.ts';
-import { queryCreatorIQEndpoint } from './creatorIQ/endpointQuerier.ts';
+import { 
+  determineCreatorIQEndpoints, 
+  buildCreatorIQPayload, 
+  queryCreatorIQEndpoint,
+  processResponseMetadata,
+  extractListNameFromQuery,
+  extractStatusFromQuery,
+  extractMessageFromQuery,
+  processCreatorIQQuery
+} from './creatorIQ/index.ts';
 
 // Re-export the main functions
-export { determineCreatorIQEndpoints, buildCreatorIQPayload, queryCreatorIQEndpoint };
+export { 
+  determineCreatorIQEndpoints, 
+  buildCreatorIQPayload, 
+  queryCreatorIQEndpoint,
+  processResponseMetadata,
+  extractListNameFromQuery,
+  extractStatusFromQuery,
+  extractMessageFromQuery,
+  processCreatorIQQuery
+};
+
+// For backwards compatibility
+export default async function handleCreatorIQQuery(query: string, params: any = {}, previousState: any = null) {
+  return await processCreatorIQQuery(query, params, previousState);
+}
