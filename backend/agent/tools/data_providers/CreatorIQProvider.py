@@ -1,4 +1,3 @@
-
 import os
 import requests
 from typing import Dict, Any, Optional, List
@@ -757,16 +756,13 @@ class CreatorIQProvider(RapidDataProviderBase):
             total_items = 0
             total_pages = 1
             current_page = 1
-            max_pages = 10  # Default max pages to fetch
             
             # Set up parameters
             if not payload:
                 payload = {}
             
-            # Use provided limit or default to 50
-            page_size = int(payload.get("limit", 50))
-            if "max_pages" in payload:
-                max_pages = int(payload.get("max_pages"))
+            # CreatorIQ API always limits lists to 20 items per page
+            page_size = 20
             
             # Make first request to get total count
             first_page_payload = {**payload, "limit": page_size, "page": 1}
@@ -788,7 +784,7 @@ class CreatorIQProvider(RapidDataProviderBase):
                 all_lists.extend(first_page["ListsCollection"])
                 
             # If we have more pages, fetch them
-            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            pages_to_fetch = total_pages - 1  # -1 because we already fetched page 1
             
             for page in range(2, 2 + pages_to_fetch):
                 print(f"Fetching lists page {page} of {total_pages}")
@@ -803,11 +799,11 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             # Update the first page response with combined results
             first_page["ListsCollection"] = all_lists
-            first_page["pages_searched"] = min(max_pages, total_pages)
-            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["pages_searched"] = total_pages
+            first_page["searched_all_pages"] = True
             first_page["items_found"] = len(all_lists)
             
-            print(f"Retrieved {len(all_lists)} lists from {min(max_pages, total_pages)} pages")
+            print(f"Retrieved {len(all_lists)} lists from {total_pages} pages")
             
             return first_page
             
@@ -830,17 +826,13 @@ class CreatorIQProvider(RapidDataProviderBase):
             all_publishers = []
             total_items = 0
             total_pages = 1
-            current_page = 1
-            max_pages = 10  # Default max pages to fetch
             
             # Set up parameters
             if not payload:
                 payload = {}
             
-            # Use provided limit or default to 50
-            page_size = int(payload.get("limit", 50))
-            if "max_pages" in payload:
-                max_pages = int(payload.get("max_pages"))
+            # CreatorIQ API always limits publishers to 20 items per page
+            page_size = 20
             
             # Make first request to get total count
             first_page_payload = {**payload, "limit": page_size, "page": 1}
@@ -862,7 +854,7 @@ class CreatorIQProvider(RapidDataProviderBase):
                 all_publishers.extend(first_page["PublisherCollection"])
                 
             # If we have more pages, fetch them
-            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            pages_to_fetch = total_pages - 1  # -1 because we already fetched page 1
             
             for page in range(2, 2 + pages_to_fetch):
                 print(f"Fetching publishers page {page} of {total_pages}")
@@ -877,11 +869,11 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             # Update the first page response with combined results
             first_page["PublisherCollection"] = all_publishers
-            first_page["pages_searched"] = min(max_pages, total_pages)
-            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["pages_searched"] = total_pages
+            first_page["searched_all_pages"] = True
             first_page["items_found"] = len(all_publishers)
             
-            print(f"Retrieved {len(all_publishers)} publishers from {min(max_pages, total_pages)} pages")
+            print(f"Retrieved {len(all_publishers)} publishers from {total_pages} pages")
             
             return first_page
             
@@ -904,16 +896,13 @@ class CreatorIQProvider(RapidDataProviderBase):
             all_campaigns = []
             total_items = 0
             total_pages = 1
-            max_pages = 10  # Default max pages to fetch
             
             # Set up parameters
             if not payload:
                 payload = {}
             
-            # Use provided limit or default to 50
-            page_size = int(payload.get("limit", 50))
-            if "max_pages" in payload:
-                max_pages = int(payload.get("max_pages"))
+            # CreatorIQ API always limits campaigns to 20 items per page
+            page_size = 20
             
             # Make first request to get total count
             first_page_payload = {**payload, "limit": page_size, "page": 1}
@@ -935,7 +924,7 @@ class CreatorIQProvider(RapidDataProviderBase):
                 all_campaigns.extend(first_page["CampaignCollection"])
                 
             # If we have more pages, fetch them
-            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            pages_to_fetch = total_pages - 1  # -1 because we already fetched page 1
             
             for page in range(2, 2 + pages_to_fetch):
                 print(f"Fetching campaigns page {page} of {total_pages}")
@@ -950,12 +939,11 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             # Update the first page response with combined results
             first_page["CampaignCollection"] = all_campaigns
-            first_page["pages_searched"] = min(max_pages, total_pages)
-            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["pages_searched"] = total_pages
+            first_page["searched_all_pages"] = True
             first_page["items_found"] = len(all_campaigns)
-            first_page["total_pages_available"] = total_pages
             
-            print(f"Retrieved {len(all_campaigns)} campaigns from {min(max_pages, total_pages)} pages")
+            print(f"Retrieved {len(all_campaigns)} campaigns from {total_pages} pages")
             
             return first_page
             

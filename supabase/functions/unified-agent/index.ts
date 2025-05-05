@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -495,9 +494,47 @@ serve(async (req) => {
                                stateData.newData.lists.length > 0 ||
                                (stateData.newData.operationResults && stateData.newData.operationResults.length > 0))) {
       try {
-        console.log("Saving Creator IQ state to database");
+        console.log("=== Creator IQ State Storage Debug ===");
+        console.log("State storage parameters:", {
+          state_key,
+          userId,
+          hasCampaigns: stateData.newData.campaigns.length > 0,
+          hasPublishers: stateData.newData.publishers.length > 0,
+          hasLists: stateData.newData.lists.length > 0,
+          hasOperationResults: stateData.newData.operationResults?.length > 0
+        });
+
+        // Log detailed data counts
+        console.log("Data counts:", {
+          campaigns: stateData.newData.campaigns.length,
+          publishers: stateData.newData.publishers.length,
+          lists: stateData.newData.lists.length,
+          operationResults: stateData.newData.operationResults?.length || 0
+        });
+
+        // Log sample data structure
+        if (stateData.newData.campaigns.length > 0) {
+          console.log("Sample campaign data:", {
+            firstCampaign: stateData.newData.campaigns[0],
+            totalCampaigns: stateData.newData.campaigns.length
+          });
+        }
+        if (stateData.newData.publishers.length > 0) {
+          console.log("Sample publisher data:", {
+            firstPublisher: stateData.newData.publishers[0],
+            totalPublishers: stateData.newData.publishers.length
+          });
+        }
+        if (stateData.newData.lists.length > 0) {
+          console.log("Sample list data:", {
+            firstList: stateData.newData.lists[0],
+            totalLists: stateData.newData.lists.length
+          });
+        }
+
+        console.log("Attempting to save state to database...");
         
-        const { error } = await supabase
+        const { data: savedData, error } = await supabase
           .from('creator_iq_state')
           .upsert({
             key: state_key,
@@ -508,16 +545,41 @@ serve(async (req) => {
             created_at: new Date().toISOString()
           }, {
             onConflict: 'key'
-          });
+          })
+          .select();
           
         if (error) {
-          console.error("Error saving state to database:", error);
+          console.error("Error saving state to database:", {
+            error: error.message,
+            code: error.code,
+            details: error.details,
+            hint: error.hint
+          });
         } else {
-          console.log("Successfully saved state to database");
+          console.log("Successfully saved state to database:", {
+            savedKey: savedData?.[0]?.key,
+            savedUserId: savedData?.[0]?.user_id,
+            savedAt: savedData?.[0]?.created_at,
+            expiresAt: savedData?.[0]?.expires_at
+          });
         }
+        console.log("=== End Creator IQ State Storage Debug ===");
       } catch (stateError) {
-        console.error("Error in state storage:", stateError);
+        console.error("Error in state storage:", {
+          error: stateError,
+          message: stateError.message,
+          stack: stateError.stack
+        });
       }
+    } else {
+      console.log("State not saved - missing required data:", {
+        hasStateKey: !!state_key,
+        hasUserId: !!userId,
+        hasCampaigns: stateData.newData.campaigns.length > 0,
+        hasPublishers: stateData.newData.publishers.length > 0,
+        hasLists: stateData.newData.lists.length > 0,
+        hasOperationResults: stateData.newData.operationResults?.length > 0
+      });
     }
     
     // Return the combined results
