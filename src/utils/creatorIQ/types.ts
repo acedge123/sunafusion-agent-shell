@@ -8,7 +8,8 @@ export enum CreatorIQErrorType {
   DATA_FORMAT_ERROR = 'data_format_error',
   INCOMPLETE_DATA = 'incomplete_data',
   WRITE_OPERATION_ERROR = 'write_operation_error',
-  PUBLISHER_NOT_FOUND = 'publisher_not_found'
+  PUBLISHER_NOT_FOUND = 'publisher_not_found',
+  UNKNOWN_ERROR = 'unknown_error'
 }
 
 export interface CreatorIQError {
