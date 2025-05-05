@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Re-export all functions and types from their respective modules
 export * from "./types";
-export * from "./dbStorage";
+export * from "./db";
 export * from "./dataExtraction";
 export * from "./errorHandling";
 

@@ -2,7 +2,7 @@
 import { Message } from "@/components/chat/ChatContainer";
 import { v4 as uuidv4 } from "uuid";
 import { storeProviderToken } from "./tokenService";
-import { processCreatorIQResponse } from "./creatorIQService";
+import { processCreatorIQResponse } from "./creatorIQ";
 import { normalizeNestedData, extractPublisherIds } from "../../utils/creatorIQ/dataExtraction";
 
 /**
