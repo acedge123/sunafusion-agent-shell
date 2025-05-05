@@ -22,7 +22,7 @@ interface ListCollectionProps {
       _all_pages_fetched?: boolean;
     };
   };
-  onPageChange?: (page: number, limit?: number, fetchAll?: boolean) => void;
+  onPageChange?: (page: number, limit?: number, fetchAll?: boolean) => Promise<any> | void;
 }
 
 export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) => {
@@ -97,12 +97,17 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       setIsLoading(true);
       try {
         // Request a very large limit to ensure all data is fetched
-        onPageChange(1, 2000, true);
-        toast.success("Loading all lists");
+        onPageChange(1, 2000, true)
+          .catch(error => {
+            console.error("Error loading all lists:", error);
+            toast.error("Failed to load all lists");
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
       } catch (error) {
         toast.error("Failed to load all lists");
         console.error("Error loading all lists:", error);
-      } finally {
         setIsLoading(false);
       }
     }
@@ -115,8 +120,19 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
     if (hasMultiplePages && actualItemCount < totalLists && !allPagesFetched && onPageChange) {
       console.log("Lists data is incomplete, attempting to load all lists...");
       setIsLoading(true);
-      onPageChange(1, 2000, true)
-        .finally(() => setIsLoading(false));
+      
+      // Handle the Promise properly
+      const loadData = async () => {
+        try {
+          await onPageChange(1, 2000, true);
+        } catch (error) {
+          console.error("Error loading all lists:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      loadData();
     }
   }, [hasMultiplePages, actualItemCount, totalLists, allPagesFetched, onPageChange]);
   
