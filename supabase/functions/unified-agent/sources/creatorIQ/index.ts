@@ -3,8 +3,8 @@
 // Re-exports all functionality from modules
 
 export { determineCreatorIQEndpoints } from './endpoint/index.ts';
-export { buildCreatorIQPayload } from './payload/index.ts';
-export { queryCreatorIQEndpoint } from './endpointQuerier.ts';
+export { buildCreatorIQPayload } from './payloadBuilder.ts';
+export { queryCreatorIQEndpoint } from './querier/index.ts';
 export { processResponseMetadata } from './responseProcessor.ts';
 export { extractListNameFromQuery, extractStatusFromQuery, extractMessageFromQuery } from './textExtractors.ts';
 
