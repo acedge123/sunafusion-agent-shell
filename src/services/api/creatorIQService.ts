@@ -30,7 +30,8 @@ export async function getCampaignPublishers(campaignId, campaignName) {
           campaign_id: campaignId,
           campaign_name: campaignName,
           all_pages: true,  // Request all pages
-          limit: 1000       // Request a large limit
+          limit: 1000,      // Request a large limit
+          max_pages: 50     // Increase max pages to fetch
         },
         task_mode: false
       }
@@ -62,7 +63,8 @@ export async function getListPublishers(listId, listName) {
           list_id: listId,
           list_name: listName,
           all_pages: true,  // Request all pages
-          limit: 1000       // Request a large limit
+          limit: 1000,      // Request a large limit
+          max_pages: 50     // Increase max pages to fetch
         },
         task_mode: false
       }
@@ -91,7 +93,8 @@ export async function fetchListsByPage(page = 1, searchTerm = '', limit = 1000) 
       page: page,
       limit: limit,
       _fullSearch: Boolean(searchTerm),  // Enable full search when searching for specific lists
-      all_pages: true  // Always request all pages
+      all_pages: true,                  // Always request all pages
+      max_pages: 50                     // Increase max pages to fetch
     };
     
     console.log('Requesting with params:', params);
@@ -133,7 +136,8 @@ export async function fetchPublishersByPage(page = 1, searchTerm = '', limit = 1
           publisher_search_term: searchTerm || undefined,
           page: page,
           limit: limit,
-          all_pages: true  // Always request all pages
+          all_pages: true,  // Always request all pages
+          max_pages: 50     // Increase max pages to fetch
         },
         task_mode: false
       }
@@ -164,8 +168,9 @@ export async function searchPublishersByName(name, limit = 1000) {
         creator_iq_params: {
           publisher_search_term: name,
           limit: limit,
-          all_pages: true,  // Always request all pages
-          _fullSearch: true  // Enable full search
+          all_pages: true,   // Always request all pages
+          _fullSearch: true,  // Enable full search
+          max_pages: 50      // Increase max pages to fetch
         },
         task_mode: false
       }
@@ -196,9 +201,10 @@ export async function searchListsByName(name, limit = 1000) {
         query: `Find lists with name containing "${name}" with limit ${limit}`,
         creator_iq_params: {
           list_search_term: name,
-          _fullSearch: true,  // Enable full search across all pages
-          all_pages: true,    // Always request all pages
-          limit: limit
+          _fullSearch: true,   // Enable full search across all pages
+          all_pages: true,     // Always request all pages
+          limit: limit,
+          max_pages: 50        // Increase max pages to fetch
         },
         task_mode: false
       }

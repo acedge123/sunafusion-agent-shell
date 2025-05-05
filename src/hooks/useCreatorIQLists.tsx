@@ -8,12 +8,15 @@ export function useCreatorIQLists() {
   const [listsData, setListsData] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showingAllLists, setShowingAllLists] = useState(false);
   
   // Fetch lists by page with option to specify a large limit for "show all"
-  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000) => {
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000, fetchAll = false) => {
     setIsLoading(true);
+    setShowingAllLists(fetchAll);
+    
     try {
-      console.log(`Fetching lists page ${page}${search ? ` with search "${search}"` : ''} with limit ${limit}`);
+      console.log(`Fetching lists page ${page}${search ? ` with search "${search}"` : ''} with limit ${limit}${fetchAll ? ' (fetching all)' : ''}`);
       const data = await fetchListsByPage(page, search, limit);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
@@ -48,17 +51,18 @@ export function useCreatorIQLists() {
   }, [searchTerm]);
   
   // Search lists
-  const searchLists = useCallback(async (term: string, limit = 1000) => {
+  const searchLists = useCallback(async (term: string, limit = 1000, fetchAll = false) => {
     if (!term.trim()) {
       setSearchTerm('');
-      return fetchLists(1, '', limit);
+      return fetchLists(1, '', limit, fetchAll);
     }
     
     setIsLoading(true);
     setSearchTerm(term);
+    setShowingAllLists(fetchAll);
     
     try {
-      console.log(`Searching lists with term: ${term} and limit: ${limit}`);
+      console.log(`Searching lists with term: ${term} and limit: ${limit}${fetchAll ? ' (fetching all)' : ''}`);
       const data = await searchListsByName(term, limit);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
@@ -86,8 +90,8 @@ export function useCreatorIQLists() {
   }, [fetchLists]);
   
   // Handle page change
-  const changePage = useCallback(async (page: number, limit = 1000) => {
-    return await fetchLists(page, searchTerm, limit);
+  const changePage = useCallback(async (page: number, limit = 1000, fetchAll = false) => {
+    return await fetchLists(page, searchTerm, limit, fetchAll);
   }, [fetchLists, searchTerm]);
   
   return {
@@ -95,6 +99,7 @@ export function useCreatorIQLists() {
     listsData,
     currentPage,
     searchTerm,
+    showingAllLists,
     fetchLists,
     searchLists,
     changePage

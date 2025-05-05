@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PaginationDisplay } from "./PaginationDisplay";
 import { toast } from "sonner";
 
@@ -13,7 +13,7 @@ interface ListCollectionProps {
       limit?: number;
     };
   };
-  onPageChange?: (page: number) => void;
+  onPageChange?: (page: number, limit?: number, fetchAll?: boolean) => void;
 }
 
 export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) => {
@@ -38,7 +38,7 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
     if (onPageChange) {
       setIsLoading(true);
       try {
-        await onPageChange(page);
+        await onPageChange(page, 1000, false);
         toast.success(`Loaded page ${page}`);
       } catch (error) {
         toast.error(`Failed to load page ${page}`);
@@ -56,7 +56,7 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       setIsLoading(true);
       try {
         // Request a very large limit to ensure all data is fetched
-        onPageChange(1);
+        onPageChange(1, 1000, true);
         toast.success("Loading all lists");
       } catch (error) {
         toast.error("Failed to load all lists");
@@ -66,6 +66,16 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       }
     }
   };
+  
+  // Effect to check if we need to load all lists when first mounted
+  useEffect(() => {
+    // If the data shows we have multiple pages but are only showing a subset of data
+    if (hasMultiplePages && actualItemCount < totalLists && !showAll && onPageChange) {
+      console.log("Lists data is incomplete, attempting to load all lists...");
+      setShowAll(true);
+      onPageChange(1, 1000, true);
+    }
+  }, [hasMultiplePages, actualItemCount, totalLists, showAll, onPageChange]);
   
   return (
     <>
