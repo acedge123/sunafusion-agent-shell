@@ -66,6 +66,22 @@ export async function processAgentResponse(
           }
         });
       }
+      
+      // Log information about paginated results
+      const listResults = creatorIQSource.results
+        .filter((result: any) => result.name && result.name.includes("Get Lists"));
+        
+      if (listResults.length > 0) {
+        listResults.forEach((result: any) => {
+          if (result.data && result.data.ListsCollection) {
+            console.log(`Lists result contains ${result.data.ListsCollection.length} items out of ${result.data.total || 'unknown'} total`);
+            
+            if (result.data.total_pages && result.data.total_pages > 1) {
+              console.log(`Multiple pages detected: ${result.data.page || 1} of ${result.data.total_pages}`);
+            }
+          }
+        });
+      }
     }
     
     // Store provider token if available

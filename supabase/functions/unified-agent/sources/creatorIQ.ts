@@ -791,7 +791,7 @@ function extractMessageFromQuery(query) {
   return null; // No message found
 }
 
-// Query Creator IQ API endpoint
+// Query Creator IQ API endpoint with automatic pagination support
 export async function queryCreatorIQEndpoint(endpoint, payload) {
   const apiKey = Deno.env.get("CREATOR_IQ_API_KEY");
   if (!apiKey) {
@@ -830,228 +830,349 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
   
   console.log(`Querying endpoint ${endpoint.route} with payload:`, payload);
   
-  let response;
-  
-  try {
-    if (endpoint.method === "GET") {
-      // For GET requests, convert payload to query params
-      const queryParams = new URLSearchParams();
+  // For GET requests, need to handle pagination
+  if (endpoint.method === "GET") {
+    try {
+      // Extract pagination-related parameters
+      const enableAllPages = payload._fullSearch === true || 
+                           (payload.all_pages === true) || 
+                           ('all_pages' in payload && payload.all_pages === 'true');
       
-      // Handle the _fullSearch parameter for list searches
-      const useAllPages = payload._fullSearch === true;
+      // Deep clone the payload to avoid modifying the original
+      const queryPayload = { ...payload };
       
-      // Remove _fullSearch from payload so it doesn't get sent as a query param
-      if ('_fullSearch' in payload) {
-        delete payload._fullSearch;
+      // Remove special parameters that shouldn't be sent as query params
+      if ('_fullSearch' in queryPayload) delete queryPayload._fullSearch;
+      
+      // Define a function to fetch a single page
+      const fetchPage = async (page = 1, limit = queryPayload.limit || 50) => {
+        const queryParams = new URLSearchParams();
+        
+        // Add all parameters from payload
+        for (const [key, value] of Object.entries(queryPayload)) {
+          if (key !== 'page' && key !== 'limit') { // Don't override our pagination params
+            queryParams.append(key, String(value));
+          }
+        }
+        
+        // Add pagination parameters
+        queryParams.append('page', String(page));
+        queryParams.append('limit', String(limit));
+        
+        const fullUrl = `${url}?${queryParams.toString()}`;
+        console.log(`Fetching page ${page} with limit ${limit} from ${fullUrl}`);
+        
+        const response = await fetch(fullUrl, { headers });
+        
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status} ${response.statusText}`);
+        }
+        
+        return await response.json();
+      };
+      
+      // Start by fetching the first page to determine total pages
+      let initialData = await fetchPage(1);
+      
+      // Check if we need to handle pagination and endpoint supports it
+      let shouldPaginate = enableAllPages && 
+                         endpoint.route.match(/\/(lists|publishers|campaigns)(?:\/\d+\/publishers)?$/);
+      
+      if (shouldPaginate) {
+        console.log("Pagination detected, checking if multiple pages exist");
+        
+        // Determine the collection field name based on endpoint
+        let collectionField = null;
+        if (endpoint.route === '/lists') {
+          collectionField = 'ListsCollection';
+        } else if (endpoint.route === '/publishers') {
+          collectionField = 'PublisherCollection';
+        } else if (endpoint.route === '/campaigns') {
+          collectionField = 'CampaignCollection';
+        } else if (endpoint.route.includes('/publishers')) {
+          collectionField = 'PublisherCollection';
+        }
+        
+        if (!collectionField || !initialData[collectionField]) {
+          console.log(`No collection field '${collectionField}' found in response, pagination not possible`);
+          shouldPaginate = false;
+        }
       }
       
-      // Add all_pages parameter if _fullSearch was true
-      if (useAllPages && endpoint.route === "/lists") {
-        queryParams.append('all_pages', 'true');
-        console.log("Adding all_pages=true parameter to enable full pagination");
+      // If we have multiple pages and should paginate, fetch all pages and combine results
+      if (shouldPaginate && initialData.total_pages && initialData.total_pages > 1) {
+        const totalPages = initialData.total_pages;
+        const totalItems = initialData.total || 0;
+        console.log(`Found ${totalPages} pages with ${totalItems} total items. Starting pagination...`);
+        
+        // Determine the collection field name based on endpoint
+        const collectionField = endpoint.route === '/lists' ? 'ListsCollection' : 
+                               endpoint.route === '/publishers' ? 'PublisherCollection' :
+                               endpoint.route === '/campaigns' ? 'CampaignCollection' :
+                               endpoint.route.includes('/publishers') ? 'PublisherCollection' : null;
+        
+        if (collectionField && initialData[collectionField]) {
+          // Store all items from all pages in this array
+          const allItems = [...initialData[collectionField]];
+          
+          // Fetch the remaining pages (starting from page 2)
+          const pagePromises = [];
+          for (let page = 2; page <= totalPages; page++) {
+            pagePromises.push(fetchPage(page));
+          }
+          
+          console.log(`Fetching ${pagePromises.length} additional pages in parallel...`);
+          const pageResults = await Promise.all(pagePromises);
+          
+          // Combine all results
+          for (const pageData of pageResults) {
+            if (pageData[collectionField] && Array.isArray(pageData[collectionField])) {
+              allItems.push(...pageData[collectionField]);
+            } else {
+              console.warn(`Missing ${collectionField} in page response:`, pageData);
+            }
+          }
+          
+          console.log(`Combined ${allItems.length} items from ${totalPages} pages`);
+          
+          // Replace the collection in the initial data with the combined collection
+          initialData[collectionField] = allItems;
+          
+          // Update pagination metadata to reflect that we've fetched everything
+          initialData.page = 1;
+          initialData.pages_count = 1;
+          initialData.is_paginated = false;
+        } else {
+          console.warn(`Unable to determine collection field for endpoint ${endpoint.route}`);
+        }
       }
       
-      // Add the rest of the payload as query params
-      for (const [key, value] of Object.entries(payload)) {
-        queryParams.append(key, String(value));
-      }
+      // Process results based on endpoint type
+      processResponseMetadata(initialData, endpoint);
       
-      const fullUrl = `${url}?${queryParams.toString()}`;
-      console.log(`Making GET request to ${fullUrl}`);
-      response = await fetch(fullUrl, { headers });
-    } else {
-      // For POST, PUT, DELETE requests
+      return {
+        endpoint: endpoint.route,
+        method: endpoint.method,
+        name: endpoint.name,
+        data: initialData
+      };
+    } catch (error) {
+      console.error(`Error during paginated request to ${endpoint.route}:`, error);
+      return {
+        endpoint: endpoint.route,
+        method: endpoint.method,
+        name: endpoint.name,
+        error: error.message || "Unknown error",
+        data: {
+          operation: {
+            successful: false,
+            type: endpoint.name,
+            details: `Pagination failed: ${error.message || "Unknown error"}`,
+            timestamp: new Date().toISOString()
+          }
+        }
+      };
+    }
+  } else {
+    // For non-GET methods (POST, PUT, DELETE)
+    try {
       console.log(`Making ${endpoint.method} request to ${url} with payload:`, payload);
-      response = await fetch(url, {
+      const response = await fetch(url, {
         method: endpoint.method,
         headers,
         body: JSON.stringify(payload)
       });
-    }
-    
-    console.log(`Creator IQ API response status: ${response.status}`);
-    
-    // Enhanced error handling for common error codes
-    if (!response.ok) {
-      // For 404 errors on message sending, provide a more helpful error with publisher ID
-      if (response.status === 404 && endpoint.route.includes("/messages")) {
-        const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+      
+      console.log(`Creator IQ API response status: ${response.status}`);
+      
+      // Enhanced error handling for common error codes
+      if (!response.ok) {
+        // For 404 errors on message sending, provide a more helpful error with publisher ID
+        if (response.status === 404 && endpoint.route.includes("/messages")) {
+          const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+          
+          console.error(`Publisher not found: ${publisherId || "Unknown ID"}`);
+          
+          return {
+            endpoint: endpoint.route,
+            method: endpoint.method,
+            name: endpoint.name,
+            error: `Publisher not found: ${publisherId || "Unknown ID"}`,
+            data: {
+              operation: {
+                successful: false,
+                type: "Send Message",
+                details: `Failed to send message: Publisher with ID ${publisherId || "Unknown"} not found`,
+                timestamp: new Date().toISOString()
+              },
+              success: false,
+              messageId: null,
+              publisherId: publisherId,
+              message: `Publisher with ID ${publisherId || "Unknown"} not found`
+            }
+          };
+        }
         
-        console.error(`Publisher not found: ${publisherId || "Unknown ID"}`);
+        // Handle other error status codes
+        const errorText = await response.text();
+        let errorMessage = `Creator IQ API error: ${response.status} ${response.statusText}`;
         
-        return {
-          endpoint: endpoint.route,
-          method: endpoint.method,
-          name: endpoint.name,
-          error: `Publisher not found: ${publisherId || "Unknown ID"}`,
-          data: {
-            operation: {
-              successful: false,
-              type: "Send Message",
-              details: `Failed to send message: Publisher with ID ${publisherId || "Unknown"} not found`,
-              timestamp: new Date().toISOString()
-            },
-            success: false,
-            messageId: null,
-            publisherId: publisherId,
-            message: `Publisher with ID ${publisherId || "Unknown"} not found`
+        try {
+          // Try to parse error response as JSON for more details
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.message) {
+            errorMessage += ` - ${errorJson.message}`;
           }
-        };
+        } catch (e) {
+          // If not JSON, use the text directly if available
+          if (errorText) {
+            errorMessage += ` - ${errorText}`;
+          }
+        }
+        
+        console.error(errorMessage);
+        throw new Error(errorMessage);
       }
       
-      // Handle other error status codes
-      const errorText = await response.text();
-      let errorMessage = `Creator IQ API error: ${response.status} ${response.statusText}`;
+      const data = await response.json();
       
-      try {
-        // Try to parse error response as JSON for more details
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.message) {
-          errorMessage += ` - ${errorJson.message}`;
+      // Process operation metadata based on endpoint type
+      processResponseMetadata(data, endpoint);
+      
+      return {
+        endpoint: endpoint.route,
+        method: endpoint.method,
+        name: endpoint.name,
+        data
+      };
+    } catch (error) {
+      console.error(`Error querying endpoint ${endpoint.route}:`, error);
+      
+      // Enhanced error response structure
+      const errorResponse = {
+        endpoint: endpoint.route,
+        method: endpoint.method,
+        name: endpoint.name,
+        error: error.message || "Unknown error",
+        data: {
+          operation: {
+            successful: false,
+            type: endpoint.name,
+            details: `Operation failed: ${error.message || "Unknown error"}`,
+            timestamp: new Date().toISOString()
+          },
+          success: false,
+          message: error.message || "Unknown error"
         }
-      } catch (e) {
-        // If not JSON, use the text directly if available
-        if (errorText) {
-          errorMessage += ` - ${errorText}`;
+      };
+      
+      // Special handling for message operations
+      if (endpoint.route.includes("/messages")) {
+        const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+        if (publisherId) {
+          errorResponse.data.publisherId = publisherId;
+          errorResponse.data.operation.details += ` (Publisher ID: ${publisherId})`;
         }
       }
       
-      console.error(errorMessage);
-      throw new Error(errorMessage);
+      return errorResponse;
     }
+  }
+}
+
+// Helper function to process metadata in responses
+function processResponseMetadata(data, endpoint) {
+  // If this is a successful list creation, add metadata
+  if (endpoint.method === "POST" && endpoint.route === "/lists" && data.List && data.List.Id) {
+    console.log(`Successfully created list: ${data.List.Name} (ID: ${data.List.Id})`);
     
-    const data = await response.json();
-    
-    // If this is a successful list creation, add metadata
-    if (endpoint.method === "POST" && endpoint.route === "/lists" && data.List && data.List.Id) {
-      console.log(`Successfully created list: ${data.List.Name} (ID: ${data.List.Id})`);
-      
-      // Add operation metadata
-      data.operation = {
-        type: "Create List",
-        successful: true,
-        details: `Created list: ${data.List.Name} (ID: ${data.List.Id})`,
-        timestamp: new Date().toISOString()
-      };
-    }
-    
-    // If this is a successful publisher addition to list, add metadata
-    if (endpoint.method === "POST" && endpoint.route.includes("/lists/") && endpoint.route.includes("/publishers")) {
-      // Extract list ID from the URL
-      const listId = endpoint.route.match(/\/lists\/(\d+)\/publishers/)?.[1];
-      const publisherIds = payload.PublisherIds || [];
-      
-      console.log(`Added ${publisherIds.length} publishers to list ${listId}`);
-      
-      // Add operation metadata
-      data.operation = {
-        type: "Add Publishers To List",
-        successful: true,
-        details: `Added ${publisherIds.length} publishers to list ${listId}`,
-        timestamp: new Date().toISOString(),
-        listId: listId,
-        publisherIds: publisherIds
-      };
-      
-      // Add additional metadata for state tracking
-      data.listId = listId;
-      data.success = true;
-      data.message = `${publisherIds.length} publishers added to list ${listId}`;
-      data.publisherIds = publisherIds;
-    }
-    
-    // If this is a successful publisher addition to campaign, add metadata
-    if (endpoint.method === "POST" && endpoint.route.includes("/campaigns/") && endpoint.route.includes("/publishers")) {
-      // Extract campaign ID from the URL
-      const campaignId = endpoint.route.match(/\/campaigns\/(\d+)\/publishers/)?.[1];
-      const publisherIds = payload.PublisherIds || [];
-      
-      console.log(`Added ${publisherIds.length} publishers to campaign ${campaignId}`);
-      
-      // Add operation metadata
-      data.operation = {
-        type: "Add Publishers To Campaign",
-        successful: true,
-        details: `Added ${publisherIds.length} publishers to campaign ${campaignId}`,
-        timestamp: new Date().toISOString(),
-        campaignId: campaignId,
-        publisherIds: publisherIds
-      };
-      
-      // Add additional metadata for state tracking
-      data.campaignId = campaignId;
-      data.success = true;
-      data.message = `${publisherIds.length} publishers added to campaign ${campaignId}`;
-      data.publisherIds = publisherIds;
-    }
-    
-    // Enhanced handling for message operations
-    if (endpoint.route.includes("/messages") && endpoint.method === "POST") {
-      // Extract publisher ID from the URL
-      const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
-      
-      console.log(`Successfully sent message to publisher ${publisherId}`);
-      
-      // Add more detailed operation metadata
-      data.operation = {
-        type: "Send Message",
-        successful: true,
-        details: `Message sent successfully to publisher ${publisherId}`,
-        timestamp: new Date().toISOString(),
-        publisherId: publisherId
-      };
-      
-      // Add additional metadata for state tracking
-      data.publisherId = publisherId;
-      data.success = true;
-      data.messageId = data.MessageId || data.Id || new Date().getTime().toString(); // Use API-provided ID or generate one
-      data.message = `Message sent successfully to publisher ${publisherId}`;
-      
-      // Store the publisher ID and message content for future reference
-      data.sentMessage = {
-        publisherId: publisherId,
-        content: payload.Content,
-        subject: payload.Subject,
-        sentAt: new Date().toISOString()
-      };
-    }
-    
-    return {
-      endpoint: endpoint.route,
-      method: endpoint.method,
-      name: endpoint.name,
-      data
+    // Add operation metadata
+    data.operation = {
+      type: "Create List",
+      successful: true,
+      details: `Created list: ${data.List.Name} (ID: ${data.List.Id})`,
+      timestamp: new Date().toISOString()
     };
-  } catch (error) {
-    console.error(`Error querying endpoint ${endpoint.route}:`, error);
+  }
+  
+  // If this is a successful publisher addition to list, add metadata
+  if (endpoint.method === "POST" && endpoint.route.includes("/lists/") && endpoint.route.includes("/publishers")) {
+    // Extract list ID from the URL
+    const listId = endpoint.route.match(/\/lists\/(\d+)\/publishers/)?.[1];
+    const publisherIds = endpoint?.payload?.PublisherIds || [];
     
-    // Enhanced error response structure
-    const errorResponse = {
-      endpoint: endpoint.route,
-      method: endpoint.method,
-      name: endpoint.name,
-      error: error.message || "Unknown error",
-      data: {
-        operation: {
-          successful: false,
-          type: endpoint.name,
-          details: `Operation failed: ${error.message || "Unknown error"}`,
-          timestamp: new Date().toISOString()
-        },
-        success: false,
-        message: error.message || "Unknown error"
-      }
+    console.log(`Added publishers to list ${listId}`);
+    
+    // Add operation metadata
+    data.operation = {
+      type: "Add Publishers To List",
+      successful: true,
+      details: `Added publishers to list ${listId}`,
+      timestamp: new Date().toISOString(),
+      listId: listId,
+      publisherIds: publisherIds
     };
     
-    // Special handling for message operations
-    if (endpoint.route.includes("/messages")) {
-      const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
-      if (publisherId) {
-        errorResponse.data.publisherId = publisherId;
-        errorResponse.data.operation.details += ` (Publisher ID: ${publisherId})`;
-      }
-    }
+    // Add additional metadata for state tracking
+    data.listId = listId;
+    data.success = true;
+    data.message = `Publishers added to list ${listId}`;
+    data.publisherIds = publisherIds;
+  }
+  
+  // If this is a successful publisher addition to campaign, add metadata
+  if (endpoint.method === "POST" && endpoint.route.includes("/campaigns/") && endpoint.route.includes("/publishers")) {
+    // Extract campaign ID from the URL
+    const campaignId = endpoint.route.match(/\/campaigns\/(\d+)\/publishers/)?.[1];
+    const publisherIds = endpoint?.payload?.PublisherIds || [];
     
-    return errorResponse;
+    console.log(`Added publishers to campaign ${campaignId}`);
+    
+    // Add operation metadata
+    data.operation = {
+      type: "Add Publishers To Campaign",
+      successful: true,
+      details: `Added publishers to campaign ${campaignId}`,
+      timestamp: new Date().toISOString(),
+      campaignId: campaignId,
+      publisherIds: publisherIds
+    };
+    
+    // Add additional metadata for state tracking
+    data.campaignId = campaignId;
+    data.success = true;
+    data.message = `Publishers added to campaign ${campaignId}`;
+    data.publisherIds = publisherIds;
+  }
+  
+  // Enhanced handling for message operations
+  if (endpoint.route.includes("/messages") && endpoint.method === "POST") {
+    // Extract publisher ID from the URL
+    const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+    
+    console.log(`Successfully sent message to publisher ${publisherId}`);
+    
+    // Add more detailed operation metadata
+    data.operation = {
+      type: "Send Message",
+      successful: true,
+      details: `Message sent successfully to publisher ${publisherId}`,
+      timestamp: new Date().toISOString(),
+      publisherId: publisherId
+    };
+    
+    // Add additional metadata for state tracking
+    data.publisherId = publisherId;
+    data.success = true;
+    data.messageId = data.MessageId || data.Id || new Date().getTime().toString(); // Use API-provided ID or generate one
+    data.message = `Message sent successfully to publisher ${publisherId}`;
+    
+    // Store the publisher ID and message content for future reference
+    data.sentMessage = {
+      publisherId: publisherId,
+      content: endpoint?.payload?.Content,
+      subject: endpoint?.payload?.Subject,
+      sentAt: new Date().toISOString()
+    };
   }
 }

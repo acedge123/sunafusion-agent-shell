@@ -29,6 +29,10 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   const totalPages = parseInt(String(endpoint.data.total_pages || 1));
   const hasMultiplePages = totalPages > 1;
   
+  // For debugging purposes - this helps track how many items we're actually showing
+  const actualItemCount = lists.length;
+  // console.log(`Rendering ${actualItemCount} lists out of ${totalLists} total items`);
+  
   const handlePageChange = async (page: number) => {
     if (onPageChange) {
       setIsLoading(true);
@@ -68,6 +72,13 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
         <div className="text-sm text-muted-foreground">
           {totalLists} lists found 
           {hasMultiplePages && !showAll ? ` (page ${currentPage} of ${totalPages})` : ''}
+          
+          {/* Debug info */}
+          {actualItemCount !== totalLists && (
+            <span className="ml-2 text-xs text-blue-500">
+              (showing {actualItemCount} items)
+            </span>
+          )}
         </div>
         
         {hasMultiplePages && (
