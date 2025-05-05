@@ -3,6 +3,7 @@ import { Message } from "@/components/chat/ChatContainer";
 import { v4 as uuidv4 } from "uuid";
 import { storeProviderToken } from "./tokenService";
 import { processCreatorIQResponse } from "./creatorIQService";
+import { normalizeNestedData, extractPublisherIds } from "../../utils/creatorIQ/dataExtraction";
 
 /**
  * Process the agent response data and create a response message
@@ -89,6 +90,29 @@ export async function processAgentResponse(
               limit: result.data.limit,
               isPaginated: result.data.is_paginated
             });
+            
+            // Check for TestList specifically, handle nested data
+            const listNames = result.data.ListsCollection
+              .map((item: any) => {
+                // Handle nested List structures
+                if (item.List && item.List.List) {
+                  return item.List.List.Name;
+                } else if (item.List) {
+                  return item.List.Name;
+                }
+                return null;
+              })
+              .filter(Boolean);
+            
+            console.log(`List names found:`, listNames.slice(0, 10));
+            
+            const testLists = listNames.filter(
+              (name: string) => name && typeof name === 'string' && name.toLowerCase().includes('test')
+            );
+            
+            if (testLists.length > 0) {
+              console.log(`Test-related lists found:`, testLists);
+            }
           }
         });
       }
@@ -101,8 +125,29 @@ export async function processAgentResponse(
         
       if (publisherResults.length > 0) {
         publisherResults.forEach((result: any) => {
-          if (result.data && result.data.PublisherCollection) {
-            console.log(`Publishers result contains ${result.data.PublisherCollection.length} items out of ${result.data.total || 'unknown'} total`);
+          // Check for nested structures in publishers
+          if (result.data) {
+            // Handle both PublisherCollection and PublishersCollection
+            const collection = result.data.PublisherCollection || result.data.PublishersCollection;
+            
+            if (collection && Array.isArray(collection)) {
+              const publisherCount = collection.length;
+              console.log(`Publishers result contains ${publisherCount} items`);
+              
+              // Extract and log publisher IDs from potentially nested structures
+              const publisherIds = collection.map((item: any) => {
+                if (item.Publisher && item.Publisher.Publisher) {
+                  return item.Publisher.Publisher.Id;
+                } else if (item.Publisher) {
+                  return item.Publisher.Id;
+                }
+                return null;
+              }).filter(Boolean);
+              
+              if (publisherIds.length > 0) {
+                console.log(`First 5 publisher IDs:`, publisherIds.slice(0, 5));
+              }
+            }
             
             if (result.data.total_pages && result.data.total_pages > 1) {
               console.log(`Multiple pages detected: ${result.data.page || 1} of ${result.data.total_pages}`);
@@ -110,6 +155,24 @@ export async function processAgentResponse(
           }
         });
       }
+      
+      // Look for nested data in all results
+      creatorIQSource.results.forEach((result: any) => {
+        if (result.data) {
+          // Check for double-nested list structures
+          if (result.data.List && result.data.List.List) {
+            console.log(`Found double-nested list structure in ${result.name}. Normalizing...`);
+            // Extract the nested data for processing
+            const normalizedData = normalizeNestedData(result.data);
+            
+            // If there are publisher IDs in the list, extract them
+            if (normalizedData && Array.isArray(normalizedData.Publishers)) {
+              const publisherIds = extractPublisherIds(normalizedData);
+              console.log(`Extracted ${publisherIds.length} publisher IDs from nested list data`);
+            }
+          }
+        }
+      });
     }
     
     // Store provider token if available

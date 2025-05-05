@@ -52,5 +52,37 @@ export async function queryCreatorIQEndpoint(endpoint: any, payload: any): Promi
   }
 }
 
+/**
+ * Process the response to handle deeply nested structures
+ * This helper normalizes API responses that have multiple layers of nesting
+ */
+export function processNestedResponse(response: any): any {
+  if (!response) return null;
+  
+  // Process lists collection
+  if (response.ListsCollection && Array.isArray(response.ListsCollection)) {
+    response.ListsCollection = response.ListsCollection.map((listItem: any) => {
+      // Handle doubly nested list data
+      if (listItem.List && listItem.List.List) {
+        listItem.List = listItem.List.List;
+      }
+      return listItem;
+    });
+  }
+  
+  // Process publishers collection
+  if (response.PublisherCollection && Array.isArray(response.PublisherCollection)) {
+    response.PublisherCollection = response.PublisherCollection.map((pubItem: any) => {
+      // Handle doubly nested publisher data
+      if (pubItem.Publisher && pubItem.Publisher.Publisher) {
+        pubItem.Publisher = pubItem.Publisher.Publisher;
+      }
+      return pubItem;
+    });
+  }
+  
+  return response;
+}
+
 // Re-export types
 export type { QueryResult, QueryOptions, PaginationInfo } from './types.ts';

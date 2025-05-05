@@ -1,101 +1,91 @@
 
-// Processes API responses from Creator IQ
+// This file processes the API response metadata from Creator IQ endpoints
+// and adds additional context to help with future queries
 
 /**
- * Process metadata in API responses
+ * Process the response metadata to provide better context for future interactions
  */
-export function processResponseMetadata(data: any, endpoint: any) {
-  // If this is a successful list creation, add metadata
-  if (endpoint.method === "POST" && endpoint.route === "/lists" && data.List && data.List.Id) {
-    console.log(`Successfully created list: ${data.List.Name} (ID: ${data.List.Id})`);
+export function processResponseMetadata(responseData: any, endpoint: any) {
+  // For list endpoints, extract list name and ID for context
+  if (endpoint.route === '/lists' && responseData && responseData.ListsCollection) {
+    console.log(`Processing ${responseData.ListsCollection.length} lists`);
     
-    // Add operation metadata
-    data.operation = {
-      type: "Create List",
-      successful: true,
-      details: `Created list: ${data.List.Name} (ID: ${data.List.Id})`,
-      timestamp: new Date().toISOString()
-    };
+    // Add information about pagination
+    if (responseData.total && responseData.total_pages) {
+      console.log(`Lists pagination info: ${responseData.page || 1}/${responseData.total_pages} pages, ${responseData.total} total items`);
+    }
   }
   
-  // If this is a successful publisher addition to list, add metadata
-  if (endpoint.method === "POST" && endpoint.route.includes("/lists/") && endpoint.route.includes("/publishers")) {
-    // Extract list ID from the URL
-    const listId = endpoint.route.match(/\/lists\/(\d+)\/publishers/)?.[1];
-    const publisherIds = endpoint?.payload?.PublisherIds || [];
+  // For list detail endpoints
+  else if (endpoint.route.match(/\/lists\/\d+$/) && responseData && responseData.List) {
+    // Handle nested response structure
+    const listData = responseData.List.List || responseData.List;
     
-    console.log(`Added publishers to list ${listId}`);
-    
-    // Add operation metadata
-    data.operation = {
-      type: "Add Publishers To List",
-      successful: true,
-      details: `Added publishers to list ${listId}`,
-      timestamp: new Date().toISOString(),
-      listId: listId,
-      publisherIds: publisherIds
-    };
-    
-    // Add additional metadata for state tracking
-    data.listId = listId;
-    data.success = true;
-    data.message = `Publishers added to list ${listId}`;
-    data.publisherIds = publisherIds;
+    if (listData) {
+      console.log(`Got list: ${listData.Name || listData.name || 'Unknown list'}`);
+      
+      // Extract publisher count if available
+      if (Array.isArray(listData.Publishers)) {
+        console.log(`List has ${listData.Publishers.length} publishers`);
+        
+        // Ensure responseData is properly formed for extraction
+        responseData.publisherCount = listData.Publishers.length;
+        responseData.publisherIds = listData.Publishers;
+      }
+    }
   }
   
-  // If this is a successful publisher addition to campaign, add metadata
-  if (endpoint.method === "POST" && endpoint.route.includes("/campaigns/") && endpoint.route.includes("/publishers")) {
-    // Extract campaign ID from the URL
-    const campaignId = endpoint.route.match(/\/campaigns\/(\d+)\/publishers/)?.[1];
-    const publisherIds = endpoint?.payload?.PublisherIds || [];
-    
-    console.log(`Added publishers to campaign ${campaignId}`);
-    
-    // Add operation metadata
-    data.operation = {
-      type: "Add Publishers To Campaign",
-      successful: true,
-      details: `Added publishers to campaign ${campaignId}`,
-      timestamp: new Date().toISOString(),
-      campaignId: campaignId,
-      publisherIds: publisherIds
-    };
-    
-    // Add additional metadata for state tracking
-    data.campaignId = campaignId;
-    data.success = true;
-    data.message = `Publishers added to campaign ${campaignId}`;
-    data.publisherIds = publisherIds;
+  // For campaign endpoints
+  else if (endpoint.route === '/campaigns' && responseData && responseData.CampaignCollection) {
+    console.log(`Processing ${responseData.CampaignCollection.length} campaigns`);
   }
   
-  // Enhanced handling for message operations
-  if (endpoint.route.includes("/messages") && endpoint.method === "POST") {
-    // Extract publisher ID from the URL
-    const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+  // For campaign detail endpoints
+  else if (endpoint.route.match(/\/campaigns\/\d+$/) && responseData && responseData.Campaign) {
+    // Handle nested response structure
+    const campaignData = responseData.Campaign.Campaign || responseData.Campaign;
     
-    console.log(`Successfully sent message to publisher ${publisherId}`);
-    
-    // Add more detailed operation metadata
-    data.operation = {
-      type: "Send Message",
-      successful: true,
-      details: `Message sent successfully to publisher ${publisherId}`,
-      timestamp: new Date().toISOString(),
-      publisherId: publisherId
-    };
-    
-    // Add additional metadata for state tracking
-    data.publisherId = publisherId;
-    data.success = true;
-    data.messageId = data.MessageId || data.Id || new Date().getTime().toString(); // Use API-provided ID or generate one
-    data.message = `Message sent successfully to publisher ${publisherId}`;
-    
-    // Store the publisher ID and message content for future reference
-    data.sentMessage = {
-      publisherId: publisherId,
-      content: endpoint?.payload?.Content,
-      subject: endpoint?.payload?.Subject,
-      sentAt: new Date().toISOString()
-    };
+    if (campaignData) {
+      console.log(`Got campaign: ${campaignData.CampaignName || 'Unknown campaign'}`);
+    }
   }
+  
+  // For publisher endpoints
+  else if ((endpoint.route === '/publishers' || 
+           endpoint.route.match(/\/lists\/\d+\/publishers$/) ||
+           endpoint.route.match(/\/campaigns\/\d+\/publishers$/)) && 
+           responseData) {
+    
+    let publisherCount = 0;
+    
+    if (responseData.PublisherCollection) {
+      publisherCount = responseData.PublisherCollection.length;
+    } else if (responseData.PublishersCollection) {
+      publisherCount = responseData.PublishersCollection.length;
+    }
+    
+    if (publisherCount > 0) {
+      console.log(`Processing ${publisherCount} publishers`);
+      
+      // Add information about source context if available
+      if (endpoint.route.match(/\/lists\/(\d+)\/publishers$/)) {
+        const listId = endpoint.route.match(/\/lists\/(\d+)\/publishers$/)[1];
+        responseData.listId = listId;
+        console.log(`Publishers are from list ID: ${listId}`);
+      } 
+      else if (endpoint.route.match(/\/campaigns\/(\d+)\/publishers$/)) {
+        const campaignId = endpoint.route.match(/\/campaigns\/(\d+)\/publishers$/)[1];
+        responseData.campaignId = campaignId;
+        console.log(`Publishers are from campaign ID: ${campaignId}`);
+      }
+    }
+  }
+  
+  // For operation responses (add publisher to list/campaign, etc.)
+  else if (responseData.operation) {
+    console.log(`Operation ${responseData.operation.type || 'Unknown'}: ${responseData.operation.successful ? 'Successful' : 'Failed'}`);
+  }
+  
+  // No specific processing needed/available
+  return responseData;
 }

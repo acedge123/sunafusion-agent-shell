@@ -80,3 +80,43 @@ export function buildSearchParams(params: any, baseParams: any = { limit: 50 }):
   
   return searchParams;
 }
+
+/**
+ * Process and handle deeply nested API responses
+ * This helps extract data from nested structures like in the example
+ */
+export function processNestedResponse(response: any): any {
+  if (!response) return null;
+  
+  // Check for deeply nested list data
+  if (response.type === 'List' && response.List && response.List.List) {
+    return response.List.List;
+  }
+  
+  // Check for deeply nested publisher data
+  if (response.type === 'Publisher' && response.Publisher && response.Publisher.Publisher) {
+    return response.Publisher.Publisher;
+  }
+  
+  // Check for deeply nested campaign data
+  if (response.type === 'Campaign' && response.Campaign && response.Campaign.Campaign) {
+    return response.Campaign.Campaign;
+  }
+  
+  // For standard list data
+  if (response.List) {
+    return response.List;
+  }
+  
+  // For standard publisher data
+  if (response.Publisher) {
+    return response.Publisher;
+  }
+  
+  // For standard campaign data
+  if (response.Campaign) {
+    return response.Campaign;
+  }
+  
+  return response;
+}

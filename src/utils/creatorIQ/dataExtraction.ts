@@ -256,3 +256,94 @@ export function extractCreatedList(data: any): any | null {
     return null;
   }
 }
+
+/**
+ * Recursively navigate and normalize a deeply nested response structure
+ * to extract data from nested objects like the one shown in the example
+ */
+export function normalizeNestedData(data: any): any {
+  if (!data) return null;
+  
+  // Handle case where data is nested inside another object with same key
+  if (data.List && data.List.List) {
+    return normalizeNestedData(data.List);
+  }
+  
+  // Handle Publisher nested data
+  if (data.Publisher && data.Publisher.Publisher) {
+    return normalizeNestedData(data.Publisher);
+  }
+  
+  // Handle Campaign nested data
+  if (data.Campaign && data.Campaign.Campaign) {
+    return normalizeNestedData(data.Campaign);
+  }
+  
+  // Extract publishers array if it exists
+  if (data.List && Array.isArray(data.List.Publishers)) {
+    return {
+      ...data.List,
+      PublisherIds: data.List.Publishers // Keep the publisher IDs accessible
+    };
+  }
+  
+  // If the object has a List property, return that
+  if (data.List) {
+    return data.List;
+  }
+  
+  // If the object has a Publisher property, return that
+  if (data.Publisher) {
+    return data.Publisher;
+  }
+  
+  // If the object has a Campaign property, return that
+  if (data.Campaign) {
+    return data.Campaign;
+  }
+  
+  // Otherwise return the original data
+  return data;
+}
+
+/**
+ * Extract publisher IDs from a response that may have nested data
+ */
+export function extractPublisherIds(data: any): number[] {
+  try {
+    // Normalize nested data structure first
+    const normalizedData = normalizeNestedData(data);
+    
+    // Check if we have a Publishers array directly
+    if (Array.isArray(normalizedData.Publishers)) {
+      return normalizedData.Publishers.map((id: any) => 
+        typeof id === 'object' ? (id.Id || id.id) : id
+      ).filter(Boolean);
+    }
+    
+    // Check if we have PublisherCollection
+    if (normalizedData.PublisherCollection) {
+      return normalizedData.PublisherCollection
+        .map((pub: any) => {
+          const publisher = pub.Publisher || pub;
+          return publisher.Id || publisher.id;
+        })
+        .filter(Boolean);
+    }
+    
+    // Check if we have PublishersCollection
+    if (normalizedData.PublishersCollection) {
+      return normalizedData.PublishersCollection
+        .map((pub: any) => {
+          const publisher = pub.Publisher || pub;
+          return publisher.Id || publisher.id;
+        })
+        .filter(Boolean);
+    }
+    
+    return [];
+  } catch (error) {
+    console.error("Error extracting publisher IDs:", error);
+    return [];
+  }
+}

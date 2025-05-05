@@ -3,6 +3,7 @@
 import { processResponseMetadata } from '../responseProcessor.ts';
 import { createErrorResponse, extractPaginationInfo } from './utils.ts';
 import { QueryResult, QueryOptions } from './types.ts';
+import { processNestedResponse } from './index.ts';
 
 /**
  * Fetch a single page of results
@@ -55,6 +56,35 @@ function debugListItems(allItems: any[]): void {
   } else {
     console.log(`TestList not found in combined data of ${listNames.length} lists`);
   }
+}
+
+/**
+ * Process nested data structure in returned items
+ * This normalizes items with multi-level nesting like List.List or Publisher.Publisher
+ */
+function normalizeNestedItems(items: any[], collectionField: string): any[] {
+  return items.map(item => {
+    // For lists with nested structure
+    if (collectionField === 'ListsCollection' && item.List && item.List.List) {
+      // Replace the doubly nested structure with the inner object
+      item.List = item.List.List;
+    }
+    
+    // For publishers with nested structure
+    if ((collectionField === 'PublisherCollection' || collectionField === 'PublishersCollection') && 
+        item.Publisher && item.Publisher.Publisher) {
+      // Replace the doubly nested structure with the inner object
+      item.Publisher = item.Publisher.Publisher;
+    }
+    
+    // For campaigns with nested structure
+    if (collectionField === 'CampaignCollection' && item.Campaign && item.Campaign.Campaign) {
+      // Replace the doubly nested structure with the inner object
+      item.Campaign = item.Campaign.Campaign;
+    }
+    
+    return item;
+  });
 }
 
 /**
@@ -131,6 +161,9 @@ export async function handleGetRequest(
         // Store all items from all pages in this array
         const allItems = [...initialData[collectionField]];
         
+        // Normalize the nested structures in the initial items
+        normalizeNestedItems(allItems, collectionField);
+        
         // Fetch the remaining pages (starting from page 2)
         const pagePromises = [];
         for (let page = 2; page <= totalPages; page++) {
@@ -160,7 +193,9 @@ export async function handleGetRequest(
           if (pageResult.status === 'fulfilled') {
             const pageData = pageResult.value;
             if (pageData[collectionField] && Array.isArray(pageData[collectionField])) {
-              allItems.push(...pageData[collectionField]);
+              // Normalize nested structures in page items
+              const pageItems = normalizeNestedItems(pageData[collectionField], collectionField);
+              allItems.push(...pageItems);
               successCount++;
             } else {
               console.warn(`Missing ${collectionField} in page response:`, pageData);
@@ -195,11 +230,14 @@ export async function handleGetRequest(
     // Process results based on endpoint type
     processResponseMetadata(initialData, endpoint);
     
+    // Process and normalize any nested structures in the response
+    const processedData = processNestedResponse(initialData);
+    
     return {
       endpoint: endpoint.route,
       method: endpoint.method,
       name: endpoint.name,
-      data: initialData
+      data: processedData
     };
   } catch (error) {
     console.error(`Error during paginated request to ${endpoint.route}:`, error);
