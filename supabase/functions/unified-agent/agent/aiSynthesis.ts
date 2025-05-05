@@ -15,11 +15,23 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
     // Prepare context from results
     const context = buildContextFromResults(results, previous_state);
     
+    // Check if we have list-related operations in the query
+    const isListQuery = query.toLowerCase().includes('list') || 
+                       (previous_state && previous_state.lists && previous_state.lists.length > 0);
+    
+    // Prepare system message with enhanced instructions for list operations
+    let systemMessage = 'You are a helpful assistant that can search the web, access Google Drive files, and query corporate data APIs like Creator IQ. Answer the user\'s question based on the context provided. If you cannot find the answer, say so clearly and provide your best suggestion.';
+    
+    // Add list-specific guidance if this appears to be a list-related query
+    if (isListQuery) {
+      systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs. If a user asks to move publishers between lists or work with specific lists, ensure these lists exist in the provided context. If you find lists with names that closely match what the user is asking for, work with those. If you cannot find an exact match for a list name but find something similar, suggest using that instead.';
+    }
+    
     // Prepare messages for OpenAI API
     const messages = [
       {
         role: 'system',
-        content: 'You are a helpful assistant that can search the web, access Google Drive files, and query corporate data APIs like Creator IQ. Answer the user\'s question based on the context provided. If you cannot find the answer, say so clearly and provide your best suggestion.'
+        content: systemMessage
       }
     ];
     
@@ -39,7 +51,7 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
       content: `${query}\n\nContext information:\n${context}`
     });
     
-    console.log(`Sending ${messages.length} messages to OpenAI`);
+    console.log(`Sending ${messages.length} messages to OpenAI with enhanced context for lists`);
     
     // Make the API request
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -49,7 +61,7 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o-mini', // Use a more powerful model
         messages,
         temperature: 0.5
       })

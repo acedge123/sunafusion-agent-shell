@@ -1,4 +1,3 @@
-
 // Helper function to build context from results
 export function buildContextFromResults(results, previousState = null) {
   try {
@@ -36,12 +35,30 @@ export function buildContextFromResults(results, previousState = null) {
       if (previousState.publishers && previousState.publishers.length > 0) {
         context += "Previously identified publishers:\n";
         context += `Total: ${previousState.publishers.length} publishers\n\n`;
+        
+        // Add some sample publisher information
+        const samplePublishers = previousState.publishers.slice(0, 5);
+        samplePublishers.forEach((publisher, idx) => {
+          context += `  Publisher ${idx + 1}: ${publisher.name || 'Unnamed'} (ID: ${publisher.id})\n`;
+        });
+        
+        if (previousState.publishers.length > 5) {
+          context += `  ... and ${previousState.publishers.length - 5} more publishers\n`;
+        }
+        context += "\n";
       }
       
-      // Add list information if available
+      // Add list information if available with more details
       if (previousState.lists && previousState.lists.length > 0) {
         context += "Previously identified lists:\n";
-        context += `Total: ${previousState.lists.length} lists\n\n`;
+        previousState.lists.forEach((list, idx) => {
+          context += `[${idx + 1}] List: "${list.name}" (ID: ${list.id})`;
+          if (list.publisherCount !== undefined) {
+            context += ` with ${list.publisherCount} publishers`;
+          }
+          context += "\n";
+        });
+        context += "\n";
       }
       
       // Add operation results if available
@@ -156,7 +173,7 @@ export function buildContextFromResults(results, previousState = null) {
           context += "\n";
         }
         
-        // Handle lists data with pagination information
+        // Handle lists data with pagination information and more detail
         if (result.data && result.data.ListsCollection) {
           const totalLists = result.data.total || result.data.ListsCollection.length;
           const currentPage = result.data.page || 1;
@@ -167,18 +184,28 @@ export function buildContextFromResults(results, previousState = null) {
           if (result.data.ListsCollection.length === 0) {
             context += "No lists found on this page. You can create a new list using the create list operation.\n";
           } else {
-            // Add list details
-            result.data.ListsCollection.slice(0, 5).forEach((list, lIdx) => {
+            // Add list details with publisher information
+            result.data.ListsCollection.forEach((list, lIdx) => {
               if (list.List) {
                 const l = list.List;
-                context += `  List ${lIdx + 1}: ${l.Name || 'Unnamed'} (ID: ${l.Id})\n`;
+                context += `  List ${lIdx + 1}: "${l.Name || 'Unnamed'}" (ID: ${l.Id})\n`;
                 if (l.Description) context += `    Description: ${l.Description}\n`;
-                if (l.Publishers) context += `    Publishers: ${l.Publishers.length}\n`;
+                
+                // Enhanced publisher information
+                if (l.Publishers) {
+                  context += `    Publishers: ${l.Publishers.length}\n`;
+                  
+                  // Add publisher IDs if available
+                  if (l.Publishers.length > 0) {
+                    context += `    Publisher IDs: ${l.Publishers.slice(0, 10).map(p => p.Id || p.id).join(", ")}`;
+                    if (l.Publishers.length > 10) {
+                      context += ` and ${l.Publishers.length - 10} more`;
+                    }
+                    context += "\n";
+                  }
+                }
               }
             });
-            if (result.data.ListsCollection.length > 5) {
-              context += `  ... and ${result.data.ListsCollection.length - 5} more lists on this page\n`;
-            }
             
             // Add pagination guidance
             if (totalPages > 1) {
@@ -196,8 +223,8 @@ export function buildContextFromResults(results, previousState = null) {
           context += `  Status: ${op.successful ? 'SUCCESS' : 'FAILED'}\n`;
           context += `  Details: ${op.details || 'No details provided'}\n`;
           if (result.data.List) {
-            context += `  Created list ID: ${result.data.List.Id}\n`;
-            context += `  Created list name: ${result.data.List.Name}\n`;
+            context += `  Created/Modified list ID: ${result.data.List.Id}\n`;
+            context += `  Created/Modified list name: ${result.data.List.Name}\n`;
           }
           context += "\n";
         }

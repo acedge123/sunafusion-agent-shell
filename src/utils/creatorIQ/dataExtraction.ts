@@ -1,4 +1,3 @@
-
 // Extract structured data from API responses
 
 /**
@@ -70,34 +69,63 @@ export function extractPublisherData(data: any): any[] {
 }
 
 /**
- * Extract list data from API response
+ * Extract detailed list data from API response
  */
-export function extractListData(data: any): any[] {
+export function extractListData(responseData: any): any[] {
   try {
-    if (!data || !data.ListsCollection) return [];
-    
-    const lists = data.ListsCollection
-      .filter((list: any) => list && list.List && list.List.Id)
-      .map((list: any) => ({
-        id: list.List.Id,
-        name: list.List.Name || 'Unnamed List',
-        description: list.List.Description || '',
-        publishersCount: list.List.Publishers || 0,
-        href: list.href,
-        // Add pagination information
-        page: data.page || 1,
-        totalPages: data.total_pages || 1
-      }));
-    
-    // Add pagination metadata
-    if (data.total !== undefined) {
-      console.log(`Extracted ${lists.length} lists (page ${data.page || 1} of ${data.total_pages || 1}, total: ${data.total})`);
+    if (!responseData.ListsCollection || !Array.isArray(responseData.ListsCollection)) {
+      console.warn("No lists collection found in response data");
+      return [];
     }
     
-    return lists;
+    // Map the lists to a standardized format with more details
+    return responseData.ListsCollection.map((listItem: any) => {
+      const list = listItem.List || {};
+      
+      // Extract publisher data if available
+      let publisherCount = 0;
+      let publisherIds: any[] = [];
+      
+      if (list.Publishers && Array.isArray(list.Publishers)) {
+        publisherCount = list.Publishers.length;
+        publisherIds = list.Publishers.map((p: any) => p.Id || p.id).filter(Boolean);
+      }
+      
+      return {
+        id: list.Id || list.id || null,
+        name: list.Name || list.name || "Unnamed List",
+        description: list.Description || list.description || null,
+        publisherCount, 
+        publisherIds,
+        rawData: list // Keep the raw data for reference
+      };
+    }).filter((list: any) => list.id); // Filter out any lists without IDs
   } catch (error) {
     console.error("Error extracting list data:", error);
     return [];
+  }
+}
+
+/**
+ * Extract pagination metadata from API response
+ */
+export function extractPaginationMetadata(responseData: any): any {
+  try {
+    const totalItems = responseData.total || 0;
+    const currentPage = responseData.page || 1;
+    const totalPages = responseData.total_pages || 1;
+    const itemsPerPage = responseData.limit || 50;
+    
+    return {
+      total: totalItems,
+      currentPage, 
+      totalPages,
+      itemsPerPage,
+      hasMore: currentPage < totalPages
+    };
+  } catch (error) {
+    console.error("Error extracting pagination metadata:", error);
+    return null;
   }
 }
 
@@ -225,27 +253,6 @@ export function extractCreatedList(data: any): any | null {
     };
   } catch (error) {
     console.error("Error extracting created list:", error);
-    return null;
-  }
-}
-
-/**
- * Extract pagination metadata from API response
- */
-export function extractPaginationMetadata(data: any): any {
-  try {
-    if (!data) return null;
-    
-    return {
-      total: data.total,
-      currentPage: data.page || 1,
-      totalPages: data.total_pages || 1,
-      hasNextPage: data.page < data.total_pages,
-      hasPreviousPage: data.page > 1,
-      limit: data.limit || 50
-    };
-  } catch (error) {
-    console.error("Error extracting pagination metadata:", error);
     return null;
   }
 }
