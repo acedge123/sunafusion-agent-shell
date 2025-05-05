@@ -9,7 +9,7 @@ export {
   fetchPublishersByPage,
   searchPublishersByName,
   searchListsByName 
-} from './creatorIQService';
+} from './creatorIQ';
 export { getProviderToken, storeProviderToken } from './tokenService';
 export { buildCreatorIQParams } from './paramBuilder';
 export { prepareCreatorIQState, extractSearchTerms } from './messageHelpers';
