@@ -91,13 +91,13 @@ export async function fetchListsByPage(page = 1, searchTerm = '', limit = 1000) 
     const params = {
       list_search_term: searchTerm || undefined,
       page: page,
-      limit: limit,
-      _fullSearch: Boolean(searchTerm),  // Enable full search when searching for specific lists
+      limit: limit || 1000, // Ensure a large limit is used
+      _fullSearch: Boolean(searchTerm) || true,  // Always enable full search for complete data
       all_pages: true,                  // Always request all pages
-      max_pages: 50                     // Increase max pages to fetch
+      max_pages: 100                    // Increase max pages to fetch more data
     };
     
-    console.log('Requesting with params:', params);
+    console.log('Requesting lists with params:', JSON.stringify(params));
     
     const { data, error } = await supabase.functions.invoke('unified-agent', {
       body: {
@@ -111,6 +111,24 @@ export async function fetchListsByPage(page = 1, searchTerm = '', limit = 1000) 
     });
     
     if (error) throw new Error(error.message);
+    console.log(`Retrieved data with ${data?.sources?.length || 0} sources`);
+    
+    // Debug logging to see what's in the response
+    const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
+    const listsEndpoint = creatorIQSource?.results?.find(
+      result => result.name === 'Get Lists' || result.endpoint === '/lists'
+    );
+    
+    if (listsEndpoint) {
+      const listCount = listsEndpoint.data?.ListsCollection?.length || 0;
+      const listNames = listsEndpoint.data?.ListsCollection?.map(item => item.List?.Name).filter(Boolean);
+      console.log(`Retrieved ${listCount} lists. Names sample:`, listNames?.slice(0, 5));
+      
+      // Check if TestList is in the data
+      const hasTestList = listNames?.some(name => name.toLowerCase() === 'testlist');
+      console.log(`TestList found in data: ${hasTestList}`);
+    }
+    
     return data;
   } catch (error) {
     console.error('Error fetching lists by page:', error);
@@ -135,9 +153,10 @@ export async function fetchPublishersByPage(page = 1, searchTerm = '', limit = 1
         creator_iq_params: {
           publisher_search_term: searchTerm || undefined,
           page: page,
-          limit: limit,
+          limit: limit || 1000,
           all_pages: true,  // Always request all pages
-          max_pages: 50     // Increase max pages to fetch
+          max_pages: 50,    // Increase max pages to fetch
+          _fullSearch: true // Enable full search
         },
         task_mode: false
       }
@@ -167,7 +186,7 @@ export async function searchPublishersByName(name, limit = 1000) {
         query: `Find publishers with name containing "${name}"`,
         creator_iq_params: {
           publisher_search_term: name,
-          limit: limit,
+          limit: limit || 1000,
           all_pages: true,   // Always request all pages
           _fullSearch: true,  // Enable full search
           max_pages: 50      // Increase max pages to fetch
@@ -203,15 +222,33 @@ export async function searchListsByName(name, limit = 1000) {
           list_search_term: name,
           _fullSearch: true,   // Enable full search across all pages
           all_pages: true,     // Always request all pages
-          limit: limit,
-          max_pages: 50        // Increase max pages to fetch
+          limit: limit || 1000,
+          max_pages: 100       // Increase max pages to fetch more lists
         },
         task_mode: false
       }
     });
     
     if (error) throw new Error(error.message);
-    console.log('Search results:', data);
+    
+    // Debug the search results
+    const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
+    const listsEndpoint = creatorIQSource?.results?.find(
+      result => result.name === 'Get Lists' || result.endpoint === '/lists'
+    );
+    
+    if (listsEndpoint) {
+      const listCount = listsEndpoint.data?.ListsCollection?.length || 0;
+      const listNames = listsEndpoint.data?.ListsCollection?.map(item => item.List?.Name).filter(Boolean);
+      console.log(`Search returned ${listCount} lists. Names sample:`, listNames?.slice(0, 5));
+      
+      // Check if TestList is in the data
+      const hasTestList = listNames?.some(n => n.toLowerCase().includes(name.toLowerCase()));
+      console.log(`List containing "${name}" found in search results: ${hasTestList}`);
+    } else {
+      console.log('No lists endpoint found in search results');
+    }
+    
     return data;
   } catch (error) {
     console.error('Error searching lists by name:', error);

@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { fetchListsByPage, searchListsByName } from '../services/api';
 import { toast } from 'sonner';
 
@@ -9,6 +9,25 @@ export function useCreatorIQLists() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [showingAllLists, setShowingAllLists] = useState(false);
+  const [listNames, setListNames] = useState<string[]>([]);
+  
+  // Debug effect to log list names when data changes
+  useEffect(() => {
+    if (listsData?.data?.ListsCollection) {
+      const names = listsData.data.ListsCollection
+        .map((item: any) => item.List?.Name)
+        .filter(Boolean);
+      
+      setListNames(names);
+      console.log(`Current lists in state (${names.length}):`, names.slice(0, 10));
+      
+      // Check for TestList specifically
+      const hasTestList = names.some((name: string) => 
+        name.toLowerCase().includes('testlist')
+      );
+      console.log(`TestList found in state data: ${hasTestList}`);
+    }
+  }, [listsData]);
   
   // Fetch lists by page with option to specify a large limit for "show all"
   const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000, fetchAll = false) => {
@@ -26,13 +45,27 @@ export function useCreatorIQLists() {
         );
         
         if (listsEndpoint) {
-          console.log(`Retrieved lists endpoint with ${listsEndpoint.data?.ListsCollection?.length || 0} items`);
+          const listCount = listsEndpoint.data?.ListsCollection?.length || 0;
+          console.log(`Retrieved lists endpoint with ${listCount} items`);
           console.log(`Lists metadata:`, {
             total: listsEndpoint.data?.total,
             page: listsEndpoint.data?.page,
             total_pages: listsEndpoint.data?.total_pages,
             limit: listsEndpoint.data?.limit
           });
+          
+          // Check for TestList specifically in the raw data
+          if (listsEndpoint.data?.ListsCollection) {
+            const listNames = listsEndpoint.data.ListsCollection
+              .map((item: any) => item.List?.Name)
+              .filter(Boolean);
+            
+            const hasTestList = listNames.some((name: string) => 
+              name.toLowerCase().includes('testlist')
+            );
+            
+            console.log(`TestList found in raw API data: ${hasTestList}`);
+          }
           
           setListsData(listsEndpoint);
           setCurrentPage(page);
@@ -72,7 +105,22 @@ export function useCreatorIQLists() {
         );
         
         if (listsEndpoint) {
-          console.log(`Retrieved search results with ${listsEndpoint.data?.ListsCollection?.length || 0} items`);
+          const listCount = listsEndpoint.data?.ListsCollection?.length || 0;
+          console.log(`Retrieved search results with ${listCount} items`);
+          
+          // Check if the search found our test list
+          if (listsEndpoint.data?.ListsCollection) {
+            const listNames = listsEndpoint.data.ListsCollection
+              .map((item: any) => item.List?.Name)
+              .filter(Boolean);
+            
+            const hasTestList = listNames.some((name: string) => 
+              name.toLowerCase().includes(term.toLowerCase())
+            );
+            
+            console.log(`List containing "${term}" found in search results: ${hasTestList}`);
+          }
+          
           setListsData(listsEndpoint);
           setCurrentPage(1);
           return listsEndpoint;
@@ -94,12 +142,18 @@ export function useCreatorIQLists() {
     return await fetchLists(page, searchTerm, limit, fetchAll);
   }, [fetchLists, searchTerm]);
   
+  // Load all lists on component mount
+  useEffect(() => {
+    fetchLists(1, '', 1000, true);
+  }, [fetchLists]);
+  
   return {
     isLoading,
     listsData,
     currentPage,
     searchTerm,
     showingAllLists,
+    listNames,
     fetchLists,
     searchLists,
     changePage

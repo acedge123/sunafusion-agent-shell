@@ -850,7 +850,7 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
         
         // Add all parameters from payload
         for (const [key, value] of Object.entries(queryPayload)) {
-          if (key !== 'page' && key !== 'limit') { // Don't override our pagination params
+          if (key !== 'page' && key !== 'limit' && key !== 'all_pages' && key !== 'max_pages') { // Don't override our pagination params or internal params
             queryParams.append(key, String(value));
           }
         }
@@ -865,6 +865,8 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
         const response = await fetch(fullUrl, { headers });
         
         if (!response.ok) {
+          const responseText = await response.text();
+          console.error(`API error: ${response.status} ${response.statusText} - ${responseText}`);
           throw new Error(`API error: ${response.status} ${response.statusText}`);
         }
         
@@ -901,7 +903,7 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
       
       // If we have multiple pages and should paginate, fetch all pages and combine results
       if (shouldPaginate && initialData.total_pages && initialData.total_pages > 1) {
-        const totalPages = initialData.total_pages;
+        const totalPages = Math.min(initialData.total_pages, payload.max_pages || 100); // Respect max_pages limit
         const totalItems = initialData.total || 0;
         console.log(`Found ${totalPages} pages with ${totalItems} total items. Starting pagination...`);
         
@@ -918,22 +920,50 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
           // Fetch the remaining pages (starting from page 2)
           const pagePromises = [];
           for (let page = 2; page <= totalPages; page++) {
-            pagePromises.push(fetchPage(page));
+            pagePromises.push(fetchPage(page, queryPayload.limit || 1000));
           }
           
           console.log(`Fetching ${pagePromises.length} additional pages in parallel...`);
-          const pageResults = await Promise.all(pagePromises);
+          const pageResults = await Promise.allSettled(pagePromises);
           
-          // Combine all results
-          for (const pageData of pageResults) {
-            if (pageData[collectionField] && Array.isArray(pageData[collectionField])) {
-              allItems.push(...pageData[collectionField]);
+          // Process results, including those that failed
+          let successCount = 0;
+          let failCount = 0;
+          
+          for (const pageResult of pageResults) {
+            if (pageResult.status === 'fulfilled') {
+              const pageData = pageResult.value;
+              if (pageData[collectionField] && Array.isArray(pageData[collectionField])) {
+                allItems.push(...pageData[collectionField]);
+                successCount++;
+              } else {
+                console.warn(`Missing ${collectionField} in page response:`, pageData);
+                failCount++;
+              }
             } else {
-              console.warn(`Missing ${collectionField} in page response:`, pageData);
+              console.error(`Page fetch failed:`, pageResult.reason);
+              failCount++;
             }
           }
           
-          console.log(`Combined ${allItems.length} items from ${totalPages} pages`);
+          console.log(`Combined ${allItems.length} items from ${successCount} successful pages (${failCount} failed)`);
+          
+          if (collectionField === 'ListsCollection') {
+            // Debug for lists: Check for TestList
+            const listNames = allItems
+              .map(item => item.List?.Name)
+              .filter(Boolean);
+            
+            const testListItems = listNames.filter(
+              name => name.toLowerCase().includes('testlist')
+            );
+            
+            if (testListItems.length > 0) {
+              console.log(`Found TestList items in combined data:`, testListItems);
+            } else {
+              console.log(`TestList not found in combined data of ${listNames.length} lists`);
+            }
+          }
           
           // Replace the collection in the initial data with the combined collection
           initialData[collectionField] = allItems;
@@ -942,6 +972,8 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
           initialData.page = 1;
           initialData.pages_count = 1;
           initialData.is_paginated = false;
+          initialData._all_pages_fetched = true;
+          initialData._total_items_fetched = allItems.length;
         } else {
           console.warn(`Unable to determine collection field for endpoint ${endpoint.route}`);
         }

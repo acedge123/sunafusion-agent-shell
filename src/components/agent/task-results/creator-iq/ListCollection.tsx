@@ -18,7 +18,7 @@ interface ListCollectionProps {
 
 export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(true); // Default to showing all lists
   
   // Get the complete list collection
   const lists = endpoint.data.ListsCollection || [];
@@ -33,6 +33,28 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   const actualItemCount = lists.length;
   console.log(`Rendering ${actualItemCount} lists out of ${totalLists} total items`);
   console.log(`Page metadata: page ${currentPage} of ${totalPages} with limit ${endpoint.data.limit || 'unknown'}`);
+  
+  // Check for specific list names in the data for debugging
+  useEffect(() => {
+    if (lists && lists.length > 0) {
+      const listNames = lists.map(listItem => listItem.List?.Name).filter(Boolean);
+      console.log(`List names sample in component (${listNames.length}):`, listNames.slice(0, 10));
+      
+      // Check for TestList specifically
+      const testListEntries = listNames.filter(name => 
+        name.toLowerCase().includes('testlist')
+      );
+      if (testListEntries.length > 0) {
+        console.log(`Found TestList entries:`, testListEntries);
+      } else {
+        console.log('TestList not found in current data');
+      }
+      
+      // Check list IDs too
+      const listIds = lists.map(listItem => listItem.List?.Id).filter(Boolean);
+      console.log(`List IDs sample (${listIds.length}):`, listIds.slice(0, 5));
+    }
+  }, [lists]);
   
   const handlePageChange = async (page: number) => {
     if (onPageChange) {
