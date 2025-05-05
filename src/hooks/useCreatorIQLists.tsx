@@ -23,6 +23,14 @@ export function useCreatorIQLists() {
         );
         
         if (listsEndpoint) {
+          console.log(`Retrieved lists endpoint with ${listsEndpoint.data?.ListsCollection?.length || 0} items`);
+          console.log(`Lists metadata:`, {
+            total: listsEndpoint.data?.total,
+            page: listsEndpoint.data?.page,
+            total_pages: listsEndpoint.data?.total_pages,
+            limit: listsEndpoint.data?.limit
+          });
+          
           setListsData(listsEndpoint);
           setCurrentPage(page);
           return listsEndpoint;
@@ -60,6 +68,7 @@ export function useCreatorIQLists() {
         );
         
         if (listsEndpoint) {
+          console.log(`Retrieved search results with ${listsEndpoint.data?.ListsCollection?.length || 0} items`);
           setListsData(listsEndpoint);
           setCurrentPage(1);
           return listsEndpoint;

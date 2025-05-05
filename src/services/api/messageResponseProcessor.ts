@@ -79,6 +79,34 @@ export async function processAgentResponse(
             if (result.data.total_pages && result.data.total_pages > 1) {
               console.log(`Multiple pages detected: ${result.data.page || 1} of ${result.data.total_pages}`);
             }
+            
+            // Add detailed debug info
+            console.log('Complete lists metadata:', {
+              totalItems: result.data.total,
+              itemsReturned: result.data.ListsCollection.length,
+              currentPage: result.data.page,
+              totalPages: result.data.total_pages,
+              limit: result.data.limit,
+              isPaginated: result.data.is_paginated
+            });
+          }
+        });
+      }
+      
+      // Log information about publishers paginated results
+      const publisherResults = creatorIQSource.results
+        .filter((result: any) => result.name && 
+               (result.name.includes("List Publishers") || 
+                result.name.includes("Get Publishers")));
+        
+      if (publisherResults.length > 0) {
+        publisherResults.forEach((result: any) => {
+          if (result.data && result.data.PublisherCollection) {
+            console.log(`Publishers result contains ${result.data.PublisherCollection.length} items out of ${result.data.total || 'unknown'} total`);
+            
+            if (result.data.total_pages && result.data.total_pages > 1) {
+              console.log(`Multiple pages detected: ${result.data.page || 1} of ${result.data.total_pages}`);
+            }
           }
         });
       }

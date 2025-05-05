@@ -31,7 +31,8 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   
   // For debugging purposes - this helps track how many items we're actually showing
   const actualItemCount = lists.length;
-  // console.log(`Rendering ${actualItemCount} lists out of ${totalLists} total items`);
+  console.log(`Rendering ${actualItemCount} lists out of ${totalLists} total items`);
+  console.log(`Page metadata: page ${currentPage} of ${totalPages} with limit ${endpoint.data.limit || 'unknown'}`);
   
   const handlePageChange = async (page: number) => {
     if (onPageChange) {
@@ -73,7 +74,7 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
           {totalLists} lists found 
           {hasMultiplePages && !showAll ? ` (page ${currentPage} of ${totalPages})` : ''}
           
-          {/* Debug info */}
+          {/* Display item count information if needed */}
           {actualItemCount !== totalLists && (
             <span className="ml-2 text-xs text-blue-500">
               (showing {actualItemCount} items)

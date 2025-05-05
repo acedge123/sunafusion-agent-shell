@@ -29,7 +29,8 @@ export async function getCampaignPublishers(campaignId, campaignName) {
         creator_iq_params: {
           campaign_id: campaignId,
           campaign_name: campaignName,
-          all_pages: true  // Request all pages
+          all_pages: true,  // Request all pages
+          limit: 1000       // Request a large limit
         },
         task_mode: false
       }
@@ -60,7 +61,8 @@ export async function getListPublishers(listId, listName) {
         creator_iq_params: {
           list_id: listId,
           list_name: listName,
-          all_pages: true  // Request all pages
+          all_pages: true,  // Request all pages
+          limit: 1000       // Request a large limit
         },
         task_mode: false
       }
