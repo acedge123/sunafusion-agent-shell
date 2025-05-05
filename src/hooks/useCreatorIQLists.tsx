@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { fetchListsByPage, searchListsByName } from '../services/api';
 import { toast } from 'sonner';
@@ -45,7 +44,7 @@ export function useCreatorIQLists() {
   }, [listsData, attemptedFullLoad]);
   
   // Fetch lists by page with option to specify a large limit for "show all"
-  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 2000, fetchAll = true) => {
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 20, fetchAll = true) => {
     setIsLoading(true);
     setShowingAllLists(fetchAll);
     
@@ -77,6 +76,8 @@ export function useCreatorIQLists() {
               fetchAll && 
               !listsEndpoint.data?._all_pages_fetched) {
             console.warn("Warning: Expected all pages to be fetched but the metadata indicates otherwise");
+            // Retry with a larger limit
+            return fetchLists(1, search, 20, true);
           }
           
           setListsData(listsEndpoint);
