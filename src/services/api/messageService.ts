@@ -110,7 +110,14 @@ export async function sendMessage(content: string): Promise<Message> {
       throw new Error(response.error.message || "Failed to get AI response");
     }
     
-    return await processAgentResponse(response.data, stateKey, userId, providerToken, sessionData);
+    // Pass all required parameters to processAgentResponse
+    return await processAgentResponse(
+      response.data,
+      stateKey,
+      userId,
+      providerToken,
+      sessionData
+    );
   } catch (error) {
     console.error("Error in sendMessage:", error);
     throw error;
