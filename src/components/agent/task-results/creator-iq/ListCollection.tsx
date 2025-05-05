@@ -1,6 +1,7 @@
 
+import { useState } from "react";
 import { PaginationDisplay } from "./PaginationDisplay";
-import { Fragment } from "react";
+import { toast } from "sonner";
 
 interface ListCollectionProps {
   endpoint: {
@@ -11,20 +12,41 @@ interface ListCollectionProps {
       total_pages?: number | string;
     };
   };
+  onPageChange?: (page: number) => void;
 }
 
-export const ListCollection = ({ endpoint }: ListCollectionProps) => {
+export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const handlePageChange = async (page: number) => {
+    if (onPageChange) {
+      setIsLoading(true);
+      try {
+        await onPageChange(page);
+        toast.success(`Loaded page ${page}`);
+      } catch (error) {
+        toast.error(`Failed to load page ${page}`);
+        console.error("Error changing page:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+  
   return (
-    <Fragment>
+    <>
       <div className="text-sm text-muted-foreground">
         {endpoint.data.total || endpoint.data.ListsCollection.length} lists found 
         (page {endpoint.data.page || 1} of {endpoint.data.total_pages || 1})
       </div>
       
       {/* Add pagination for lists */}
-      <PaginationDisplay data={endpoint.data} />
+      <PaginationDisplay 
+        data={endpoint.data} 
+        onPageChange={handlePageChange} 
+      />
       
-      <div className="space-y-2 mt-3">
+      <div className={`space-y-2 mt-3 ${isLoading ? 'opacity-60' : ''}`}>
         {endpoint.data.ListsCollection.length > 0 ? (
           endpoint.data.ListsCollection.map((listItem: any, lIdx: number) => {
             // Make sure we're accessing the nested list data correctly
@@ -49,10 +71,10 @@ export const ListCollection = ({ endpoint }: ListCollectionProps) => {
           })
         ) : (
           <div className="text-sm text-muted-foreground p-3 bg-muted/30 rounded border">
-            No lists found
+            {isLoading ? "Loading..." : "No lists found"}
           </div>
         )}
       </div>
-    </Fragment>
+    </>
   );
 };

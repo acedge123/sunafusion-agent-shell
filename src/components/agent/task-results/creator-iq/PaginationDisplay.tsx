@@ -12,10 +12,11 @@ interface PaginationDisplayProps {
   data: {
     page?: string | number;
     total_pages?: string | number;
-  }
+  };
+  onPageChange?: (page: number) => void;
 }
 
-export const PaginationDisplay = ({ data }: PaginationDisplayProps) => {
+export const PaginationDisplay = ({ data, onPageChange }: PaginationDisplayProps) => {
   if (!data || !data.page || !data.total_pages) return null;
   
   const currentPage = parseInt(String(data.page));
@@ -43,12 +44,26 @@ export const PaginationDisplay = ({ data }: PaginationDisplayProps) => {
     pages.push(totalPages);
   }
   
+  // Handle page changes
+  const handlePageClick = (page: number) => {
+    if (onPageChange && page !== currentPage) {
+      console.log(`Changing to page ${page}`);
+      onPageChange(page);
+    }
+  };
+  
   return (
     <Pagination className="mt-2">
       <PaginationContent>
         {currentPage > 1 && (
           <PaginationItem>
-            <PaginationPrevious href="#" />
+            <PaginationPrevious 
+              href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                handlePageClick(currentPage - 1);
+              }} 
+            />
           </PaginationItem>
         )}
         
@@ -57,7 +72,16 @@ export const PaginationDisplay = ({ data }: PaginationDisplayProps) => {
             {page === '...' ? (
               <span className="px-2">...</span>
             ) : (
-              <PaginationLink href="#" isActive={page === currentPage}>
+              <PaginationLink 
+                href="#" 
+                isActive={page === currentPage}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (typeof page === 'number') {
+                    handlePageClick(page);
+                  }
+                }}
+              >
                 {page}
               </PaginationLink>
             )}
@@ -66,7 +90,13 @@ export const PaginationDisplay = ({ data }: PaginationDisplayProps) => {
         
         {currentPage < totalPages && (
           <PaginationItem>
-            <PaginationNext href="#" />
+            <PaginationNext 
+              href="#" 
+              onClick={(e) => {
+                e.preventDefault();
+                handlePageClick(currentPage + 1);
+              }} 
+            />
           </PaginationItem>
         )}
       </PaginationContent>
