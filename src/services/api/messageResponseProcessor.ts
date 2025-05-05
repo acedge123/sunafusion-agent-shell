@@ -9,10 +9,10 @@ import { processCreatorIQResponse } from "./creatorIQService";
  */
 export async function processAgentResponse(
   responseData: any,
-  stateKey: string | null,
-  userId: string | undefined,
-  providerToken: string | null | undefined,
-  sessionData: any
+  stateKey: string | null = null,
+  userId: string | undefined = undefined,
+  providerToken: string | null | undefined = null,
+  sessionData: any = null
 ): Promise<Message> {
   try {
     // Log the response structure to help with debugging
@@ -69,7 +69,7 @@ export async function processAgentResponse(
     }
     
     // Store provider token if available
-    if (providerToken && userId) {
+    if (providerToken && userId && sessionData) {
       await storeProviderToken(sessionData, providerToken);
     }
     
