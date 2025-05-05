@@ -1,6 +1,5 @@
 
 import { Search } from "lucide-react";
-import { PaginationDisplay } from "./PaginationDisplay";
 import { Fragment } from "react";
 import { DataStatus } from "@/components/ui/data-status";
 
@@ -51,6 +50,8 @@ export const CampaignList = ({ endpoint }: CampaignListProps) => {
     );
   };
   
+  const totalCampaigns = endpoint.data.total || endpoint.data.CampaignCollection.length;
+  
   return (
     <Fragment>
       <div className="text-sm text-muted-foreground flex items-center">
@@ -59,13 +60,9 @@ export const CampaignList = ({ endpoint }: CampaignListProps) => {
           <span>Found {endpoint.data.CampaignCollection.length} campaigns matching "{endpoint.data.filtered_by}" 
             (from {endpoint.data.total || 'unknown'} total)</span>
         ) : (
-          <span>{endpoint.data.total || endpoint.data.CampaignCollection.length} campaigns found 
-            (page {endpoint.data.page || 1} of {endpoint.data.total_pages || 1})</span>
+          <span>{totalCampaigns} campaigns found</span>
         )}
       </div>
-      
-      {/* Add pagination for campaigns */}
-      <PaginationDisplay data={endpoint.data} />
       
       <div className="space-y-2 mt-3">
         {endpoint.data.CampaignCollection.length > 0 ? (

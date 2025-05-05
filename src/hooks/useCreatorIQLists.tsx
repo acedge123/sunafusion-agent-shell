@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { fetchListsByPage, searchListsByName } from '../services/api';
 import { toast } from 'sonner';
@@ -5,9 +6,7 @@ import { toast } from 'sonner';
 export function useCreatorIQLists() {
   const [isLoading, setIsLoading] = useState(false);
   const [listsData, setListsData] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showingAllLists, setShowingAllLists] = useState(true); // Default to showing all lists
   const [listNames, setListNames] = useState<string[]>([]);
   const [attemptedFullLoad, setAttemptedFullLoad] = useState(false);
   
@@ -43,14 +42,13 @@ export function useCreatorIQLists() {
     }
   }, [listsData, attemptedFullLoad]);
   
-  // Fetch lists by page with option to specify a large limit for "show all"
-  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 20, fetchAll = true) => {
+  // Fetch lists - always fetch all lists with a large limit
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 2000) => {
     setIsLoading(true);
-    setShowingAllLists(fetchAll);
     
     try {
-      console.log(`Fetching lists page ${page}${search ? ` with search "${search}"` : ''} with limit ${limit}${fetchAll ? ' (fetching all)' : ''}`);
-      const data = await fetchListsByPage(page, search, limit, fetchAll);
+      console.log(`Fetching all lists${search ? ` with search "${search}"` : ''} with limit ${limit}`);
+      const data = await fetchListsByPage(page, search, limit, true);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -73,15 +71,13 @@ export function useCreatorIQLists() {
           // but we should have fetched them all, log a warning
           if (listCount > 0 && 
               listsEndpoint.data?.total_pages > 1 && 
-              fetchAll && 
               !listsEndpoint.data?._all_pages_fetched) {
             console.warn("Warning: Expected all pages to be fetched but the metadata indicates otherwise");
             // Retry with a larger limit
-            return fetchLists(1, search, 20, true);
+            return fetchLists(1, search, 5000);
           }
           
           setListsData(listsEndpoint);
-          setCurrentPage(page);
           return listsEndpoint;
         }
       }
@@ -101,24 +97,23 @@ export function useCreatorIQLists() {
     if (attemptedFullLoad && !isLoading) {
       console.log("Attempting to reload all data with more aggressive parameters");
       // Using a very large limit and ensuring we get all pages
-      fetchLists(1, '', 2000, true);
+      fetchLists(1, '', 5000);
     }
   }, [attemptedFullLoad, isLoading, fetchLists]);
   
-  // Search lists with enhanced error handling
-  const searchLists = useCallback(async (term: string, limit = 2000, fetchAll = true) => {
+  // Search lists with enhanced error handling - always fetch all results
+  const searchLists = useCallback(async (term: string, limit = 5000) => {
     if (!term.trim()) {
       setSearchTerm('');
-      return fetchLists(1, '', limit, fetchAll);
+      return fetchLists(1, '', limit);
     }
     
     setIsLoading(true);
     setSearchTerm(term);
-    setShowingAllLists(fetchAll);
     
     try {
-      console.log(`Searching lists with term: ${term} and limit: ${limit}${fetchAll ? ' (fetching all)' : ''}`);
-      const data = await searchListsByName(term, limit, fetchAll);
+      console.log(`Searching all lists with term: ${term} and limit: ${limit}`);
+      const data = await searchListsByName(term, limit, true);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -131,7 +126,6 @@ export function useCreatorIQLists() {
           console.log(`Retrieved search results with ${listCount} items`);
           
           setListsData(listsEndpoint);
-          setCurrentPage(1);
           return listsEndpoint;
         }
       }
@@ -146,25 +140,17 @@ export function useCreatorIQLists() {
     }
   }, [fetchLists]);
   
-  // Handle page change - ensure this always returns a Promise
-  const changePage = useCallback(async (page: number, limit = 2000, fetchAll = true) => {
-    return await fetchLists(page, searchTerm, limit, fetchAll);
-  }, [fetchLists, searchTerm]);
-  
   // Load all lists on component mount with aggressive parameters
   useEffect(() => {
-    fetchLists(1, '', 2000, true);
+    fetchLists(1, '', 5000);
   }, [fetchLists]);
   
   return {
     isLoading,
     listsData,
-    currentPage,
     searchTerm,
-    showingAllLists,
     listNames,
     fetchLists,
-    searchLists,
-    changePage
+    searchLists
   };
 }

@@ -1,5 +1,4 @@
 
-import { PaginationDisplay } from "./PaginationDisplay";
 import { Fragment } from "react";
 import { DataStatus } from "@/components/ui/data-status";
 
@@ -41,6 +40,8 @@ export const PublisherList = ({ endpoint }: PublisherListProps) => {
     );
   };
   
+  const totalPublishers = endpoint.data.total || endpoint.data.PublisherCollection.length;
+  
   return (
     <Fragment>
       <div className="text-sm text-muted-foreground">
@@ -49,12 +50,8 @@ export const PublisherList = ({ endpoint }: PublisherListProps) => {
             <span className="font-medium">Campaign:</span> {endpoint.data.campaignName}
           </div>
         )}
-        {endpoint.data.total || endpoint.data.PublisherCollection.length} publishers found
-        (page {endpoint.data.page || 1} of {endpoint.data.total_pages || 1})
+        {totalPublishers} publishers found
       </div>
-      
-      {/* Add pagination for publishers */}
-      <PaginationDisplay data={endpoint.data} />
       
       <div className="space-y-2 mt-3">
         {endpoint.data.PublisherCollection.length > 0 ? (

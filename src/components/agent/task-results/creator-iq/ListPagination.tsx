@@ -11,16 +11,11 @@ export const ListPagination = () => {
     isLoading,
     listsData,
     fetchLists,
-    searchLists,
-    changePage
+    searchLists
   } = useCreatorIQLists();
   const [searchInput, setSearchInput] = useState("");
   
-  // Initial fetch on component mount
-  useState(() => {
-    fetchLists(1);
-  });
-  
+  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     searchLists(searchInput);
@@ -54,7 +49,7 @@ export const ListPagination = () => {
       {listsData && (
         <ListCollection 
           endpoint={listsData} 
-          onPageChange={changePage} 
+          onPageChange={fetchLists} 
         />
       )}
     </div>

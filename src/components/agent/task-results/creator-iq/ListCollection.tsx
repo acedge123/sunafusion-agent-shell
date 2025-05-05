@@ -1,6 +1,5 @@
 
 import { useState, useEffect } from "react";
-import { PaginationDisplay } from "./PaginationDisplay";
 import { toast } from "sonner";
 
 // Define the interface for list data structure
@@ -22,27 +21,22 @@ interface ListCollectionProps {
       _all_pages_fetched?: boolean;
     };
   };
-  onPageChange?: (page: number, limit?: number, fetchAll?: boolean) => Promise<any> | void;
+  onPageChange?: (page?: number, limit?: number, fetchAll?: boolean) => Promise<any> | void;
 }
 
 export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [showAll, setShowAll] = useState(true); // Default to showing all lists
   
   // Get the complete list collection
   const lists = endpoint.data.ListsCollection || [];
   
-  // Determine if we need to show pagination controls
+  // Information about total data
   const totalLists = endpoint.data.total || lists.length;
-  const currentPage = parseInt(String(endpoint.data.page || 1));
-  const totalPages = parseInt(String(endpoint.data.total_pages || 1));
-  const hasMultiplePages = totalPages > 1;
   const allPagesFetched = endpoint.data._all_pages_fetched === true;
   
   // For debugging purposes - this helps track how many items we're actually showing
   const actualItemCount = lists.length;
   console.log(`Rendering ${actualItemCount} lists out of ${totalLists} total items`);
-  console.log(`Page metadata: page ${currentPage} of ${totalPages} with limit ${endpoint.data.limit || 'unknown'}`);
   console.log(`All pages fetched: ${allPagesFetched ? 'Yes' : 'No'}`);
   
   // Check for specific list names in the data for debugging
@@ -73,68 +67,25 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
     }
   }, [lists]);
   
-  const handlePageChange = async (page: number) => {
-    if (onPageChange) {
-      setIsLoading(true);
-      try {
-        // When changing pages, we want to get all items for that page
-        // but with a reasonable limit
-        await onPageChange(page, 100, true);
-        toast.success(`Loaded page ${page}`);
-      } catch (error) {
-        toast.error(`Failed to load page ${page}`);
-        console.error("Error changing page:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-  
-  const handleShowAllToggle = () => {
-    setShowAll(prev => !prev);
-    if (!showAll && onPageChange) {
-      // Load all possible data when toggling "show all"
-      setIsLoading(true);
-      
-      // Handle promise or void return properly
-      const loadAllLists = async () => {
-        try {
-          const result = onPageChange(1, 2000, true);
-          // Handle the case where the function returns a Promise
-          if (result instanceof Promise) {
-            await result;
-          }
-          toast.success("Loading all lists");
-        } catch (error) {
-          toast.error("Failed to load all lists");
-          console.error("Error loading all lists:", error);
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      loadAllLists();
-    }
-  };
-  
   // Effect to check if we need to load all lists when first mounted
   useEffect(() => {
-    // If the data shows we have multiple pages but are only showing a subset of data
-    // and all pages weren't fetched yet
-    if (hasMultiplePages && actualItemCount < totalLists && !allPagesFetched && onPageChange) {
+    // If all pages weren't fetched yet and we have an onPageChange function
+    if (!allPagesFetched && actualItemCount < totalLists && onPageChange) {
       console.log("Lists data is incomplete, attempting to load all lists...");
       setIsLoading(true);
       
       // Handle the Promise properly
       const loadData = async () => {
         try {
-          const result = onPageChange(1, 2000, true);
+          const result = onPageChange(1, 5000, true);
           // Check if result is a Promise before awaiting
           if (result instanceof Promise) {
             await result;
+            toast.success("All lists loaded");
           }
         } catch (error) {
           console.error("Error loading all lists:", error);
+          toast.error("Error loading all lists");
         } finally {
           setIsLoading(false);
         }
@@ -142,40 +93,20 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       
       loadData();
     }
-  }, [hasMultiplePages, actualItemCount, totalLists, allPagesFetched, onPageChange]);
+  }, [allPagesFetched, actualItemCount, totalLists, onPageChange]);
   
   return (
     <>
-      <div className="flex justify-between items-center">
-        <div className="text-sm text-muted-foreground">
-          {totalLists} lists found 
-          {hasMultiplePages && !showAll ? ` (page ${currentPage} of ${totalPages})` : ''}
-          
-          {/* Display item count information if needed */}
-          {actualItemCount !== totalLists && (
-            <span className="ml-2 text-xs text-blue-500">
-              (showing {actualItemCount} items)
-            </span>
-          )}
-        </div>
+      <div className="text-sm text-muted-foreground">
+        {totalLists} lists found 
         
-        {hasMultiplePages && (
-          <button 
-            onClick={handleShowAllToggle}
-            className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-          >
-            {showAll ? "Show paged view" : "Show all lists"}
-          </button>
+        {/* Display item count information if needed */}
+        {actualItemCount !== totalLists && (
+          <span className="ml-2 text-xs text-blue-500">
+            (showing {actualItemCount} items)
+          </span>
         )}
       </div>
-      
-      {/* Show pagination only if we have multiple pages and not in "show all" mode */}
-      {hasMultiplePages && !showAll && (
-        <PaginationDisplay 
-          data={endpoint.data} 
-          onPageChange={handlePageChange}
-        />
-      )}
       
       <div className={`space-y-2 mt-3 ${isLoading ? 'opacity-60' : ''}`}>
         {lists.length > 0 ? (
