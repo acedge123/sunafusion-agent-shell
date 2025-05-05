@@ -21,6 +21,11 @@ export const ListPagination = () => {
     searchLists(searchInput);
   };
   
+  // Adapter function to make fetchLists compatible with ListCollection's onPageChange
+  const handlePageChange = (page?: number, limit?: number, fetchAll?: boolean) => {
+    return fetchLists(page || 1, searchInput, limit || 5000);
+  };
+  
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Lists</h3>
@@ -49,7 +54,7 @@ export const ListPagination = () => {
       {listsData && (
         <ListCollection 
           endpoint={listsData} 
-          onPageChange={fetchLists} 
+          onPageChange={handlePageChange}
         />
       )}
     </div>
