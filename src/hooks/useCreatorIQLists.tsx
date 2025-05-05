@@ -8,8 +8,9 @@ export function useCreatorIQLists() {
   const [listsData, setListsData] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showingAllLists, setShowingAllLists] = useState(false);
+  const [showingAllLists, setShowingAllLists] = useState(true); // Default to showing all lists
   const [listNames, setListNames] = useState<string[]>([]);
+  const [attemptedFullLoad, setAttemptedFullLoad] = useState(false);
   
   // Debug effect to log list names when data changes
   useEffect(() => {
@@ -21,16 +22,28 @@ export function useCreatorIQLists() {
       setListNames(names);
       console.log(`Current lists in state (${names.length}):`, names.slice(0, 10));
       
+      // Enhanced debug logging
+      console.log(`Total lists claimed by API: ${listsData.data.total || 'unknown'}`);
+      console.log(`Lists actually in collection: ${listsData.data.ListsCollection.length}`);
+      
       // Check for TestList specifically
       const hasTestList = names.some((name: string) => 
-        name.toLowerCase().includes('testlist')
+        name.toLowerCase().includes('test')
       );
-      console.log(`TestList found in state data: ${hasTestList}`);
+      console.log(`Test-related lists found in state data: ${hasTestList ? 'Yes' : 'No'}`);
+      
+      // Check if we might be missing data
+      const totalLists = listsData.data.total || 0;
+      if (totalLists > names.length && !attemptedFullLoad) {
+        console.warn(`Data discrepancy: API reports ${totalLists} total lists but we only have ${names.length} in our collection`);
+        // This will trigger a retry with more aggressive parameters if we detect missing data
+        setAttemptedFullLoad(true);
+      }
     }
-  }, [listsData]);
+  }, [listsData, attemptedFullLoad]);
   
   // Fetch lists by page with option to specify a large limit for "show all"
-  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000, fetchAll = false) => {
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000, fetchAll = true) => {
     setIsLoading(true);
     setShowingAllLists(fetchAll);
     
@@ -51,7 +64,8 @@ export function useCreatorIQLists() {
             total: listsEndpoint.data?.total,
             page: listsEndpoint.data?.page,
             total_pages: listsEndpoint.data?.total_pages,
-            limit: listsEndpoint.data?.limit
+            limit: listsEndpoint.data?.limit,
+            all_pages_fetched: listsEndpoint.data?._all_pages_fetched
           });
           
           // Check for TestList specifically in the raw data
@@ -60,11 +74,15 @@ export function useCreatorIQLists() {
               .map((item: any) => item.List?.Name)
               .filter(Boolean);
             
-            const hasTestList = listNames.some((name: string) => 
-              name.toLowerCase().includes('testlist')
+            const testLists = listNames.filter((name: string) => 
+              name.toLowerCase().includes('test')
             );
             
-            console.log(`TestList found in raw API data: ${hasTestList}`);
+            if (testLists.length > 0) {
+              console.log(`Test-related lists found in raw API data:`, testLists);
+            } else {
+              console.log(`No test-related lists found in raw API data`);
+            }
           }
           
           setListsData(listsEndpoint);
@@ -83,8 +101,17 @@ export function useCreatorIQLists() {
     }
   }, [searchTerm]);
   
-  // Search lists
-  const searchLists = useCallback(async (term: string, limit = 1000, fetchAll = false) => {
+  // If we detect missing data, retry with even more aggressive parameters
+  useEffect(() => {
+    if (attemptedFullLoad && !isLoading) {
+      console.log("Attempting to reload all data with more aggressive parameters");
+      // Using a very large limit and ensuring we get all pages
+      fetchLists(1, '', 2000, true);
+    }
+  }, [attemptedFullLoad, isLoading, fetchLists]);
+  
+  // Search lists with enhanced error handling
+  const searchLists = useCallback(async (term: string, limit = 1000, fetchAll = true) => {
     if (!term.trim()) {
       setSearchTerm('');
       return fetchLists(1, '', limit, fetchAll);
@@ -114,11 +141,11 @@ export function useCreatorIQLists() {
               .map((item: any) => item.List?.Name)
               .filter(Boolean);
             
-            const hasTestList = listNames.some((name: string) => 
+            const matchingLists = listNames.filter((name: string) => 
               name.toLowerCase().includes(term.toLowerCase())
             );
             
-            console.log(`List containing "${term}" found in search results: ${hasTestList}`);
+            console.log(`Lists matching "${term}" in search results:`, matchingLists.length > 0 ? matchingLists : 'None found');
           }
           
           setListsData(listsEndpoint);
@@ -138,13 +165,13 @@ export function useCreatorIQLists() {
   }, [fetchLists]);
   
   // Handle page change
-  const changePage = useCallback(async (page: number, limit = 1000, fetchAll = false) => {
+  const changePage = useCallback(async (page: number, limit = 1000, fetchAll = true) => {
     return await fetchLists(page, searchTerm, limit, fetchAll);
   }, [fetchLists, searchTerm]);
   
-  // Load all lists on component mount
+  // Load all lists on component mount with aggressive parameters
   useEffect(() => {
-    fetchLists(1, '', 1000, true);
+    fetchLists(1, '', 2000, true);
   }, [fetchLists]);
   
   return {

@@ -11,6 +11,7 @@ interface ListCollectionProps {
       page?: number | string;
       total_pages?: number | string;
       limit?: number;
+      _all_pages_fetched?: boolean;
     };
   };
   onPageChange?: (page: number, limit?: number, fetchAll?: boolean) => void;
@@ -28,11 +29,13 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   const currentPage = parseInt(String(endpoint.data.page || 1));
   const totalPages = parseInt(String(endpoint.data.total_pages || 1));
   const hasMultiplePages = totalPages > 1;
+  const allPagesFetched = endpoint.data._all_pages_fetched === true;
   
   // For debugging purposes - this helps track how many items we're actually showing
   const actualItemCount = lists.length;
   console.log(`Rendering ${actualItemCount} lists out of ${totalLists} total items`);
   console.log(`Page metadata: page ${currentPage} of ${totalPages} with limit ${endpoint.data.limit || 'unknown'}`);
+  console.log(`All pages fetched: ${allPagesFetched ? 'Yes' : 'No'}`);
   
   // Check for specific list names in the data for debugging
   useEffect(() => {
@@ -42,12 +45,15 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       
       // Check for TestList specifically
       const testListEntries = listNames.filter(name => 
-        name.toLowerCase().includes('testlist')
+        name && typeof name === 'string' && name.toLowerCase().includes('test')
       );
+      
       if (testListEntries.length > 0) {
-        console.log(`Found TestList entries:`, testListEntries);
+        console.log(`Found Test-related list entries:`, testListEntries);
       } else {
-        console.log('TestList not found in current data');
+        console.log('No Test-related lists found in current data');
+        // Log all list names for debugging purposes
+        console.log('All list names:', listNames);
       }
       
       // Check list IDs too
@@ -60,7 +66,7 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
     if (onPageChange) {
       setIsLoading(true);
       try {
-        await onPageChange(page, 1000, false);
+        await onPageChange(page, 2000, true); // Always try to fetch all with a large limit
         toast.success(`Loaded page ${page}`);
       } catch (error) {
         toast.error(`Failed to load page ${page}`);
@@ -78,7 +84,7 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       setIsLoading(true);
       try {
         // Request a very large limit to ensure all data is fetched
-        onPageChange(1, 1000, true);
+        onPageChange(1, 2000, true);
         toast.success("Loading all lists");
       } catch (error) {
         toast.error("Failed to load all lists");
@@ -92,12 +98,11 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   // Effect to check if we need to load all lists when first mounted
   useEffect(() => {
     // If the data shows we have multiple pages but are only showing a subset of data
-    if (hasMultiplePages && actualItemCount < totalLists && !showAll && onPageChange) {
+    if (hasMultiplePages && actualItemCount < totalLists && !allPagesFetched && onPageChange) {
       console.log("Lists data is incomplete, attempting to load all lists...");
-      setShowAll(true);
-      onPageChange(1, 1000, true);
+      onPageChange(1, 2000, true);
     }
-  }, [hasMultiplePages, actualItemCount, totalLists, showAll, onPageChange]);
+  }, [hasMultiplePages, actualItemCount, totalLists, allPagesFetched, onPageChange]);
   
   return (
     <>
