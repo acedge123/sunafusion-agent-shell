@@ -6,6 +6,7 @@ import { processCreatorIQResponse } from "./creatorIQService";
 import { getProviderToken, storeProviderToken } from "./tokenService";
 import { buildCreatorIQParams } from "./paramBuilder";
 import { findStateByQuery, generateStateKey } from "@/utils/creatorIQ";
+import { extractSearchTerms, prepareCreatorIQState } from "./messageHelpers";
 
 export async function sendMessage(content: string): Promise<Message> {
   try {
@@ -108,151 +109,13 @@ export async function sendMessage(content: string): Promise<Message> {
       throw new Error(response.error.message || "Failed to get AI response");
     }
     
-    // Log the response structure to help with debugging
-    console.log("AI response structure:", Object.keys(response.data));
-    console.log("Sources available:", response.data.sources?.map(s => s.source));
-    
-    // Check for Creator IQ errors in the response
-    const creatorIQSource = response.data.sources?.find(s => s.source === "creator_iq");
-    if (creatorIQSource && creatorIQSource.error) {
-      console.error("Creator IQ error in response:", creatorIQSource.error);
-    }
-    
-    // Also check for operation-specific errors
-    if (creatorIQSource && creatorIQSource.results) {
-      const operationErrors = creatorIQSource.results
-        .filter(result => result.error || (result.data && result.data.operation && result.data.operation.successful === false))
-        .map(result => ({
-          endpoint: result.endpoint,
-          error: result.error || (result.data?.operation?.details || "Unknown error"),
-          name: result.name
-        }));
-      
-      if (operationErrors.length > 0) {
-        console.warn("Creator IQ operation errors:", operationErrors);
-      }
-      
-      // Extract successful operations and log them
-      const successfulOperations = creatorIQSource.results
-        .filter(result => !result.error && result.data && result.data.operation && result.data.operation.successful === true)
-        .map(result => ({
-          endpoint: result.endpoint,
-          operation: result.data.operation,
-          name: result.name
-        }));
-      
-      if (successfulOperations.length > 0) {
-        console.info("Creator IQ successful operations:", successfulOperations);
-      }
-      
-      // Extract and log message sending results specifically
-      const messageResults = creatorIQSource.results
-        .filter(result => result.name && result.name.includes("Send Message"));
-      
-      if (messageResults.length > 0) {
-        console.info("Message sending results:", messageResults);
-        
-        // Check for publisher IDs to store in previous state
-        messageResults.forEach(result => {
-          if (result.data && result.data.publisherId) {
-            console.log(`Message sent to publisher ID: ${result.data.publisherId}`);
-          }
-        });
-      }
-    }
-    
-    // Store provider token if available
-    if (providerToken && userId) {
-      await storeProviderToken(sessionData, providerToken);
-    }
-    
-    // Process and store any Creator IQ data for future reference
-    if (stateKey && userId && response.data.sources) {
-      await processCreatorIQResponse(stateKey, userId, response.data.sources);
-    }
-
-    return {
-      id: uuidv4(),
-      content: response.data.answer,
-      role: "assistant",
-      timestamp: new Date()
-    };
+    return await processAgentResponse(response.data, stateKey, userId, providerToken, sessionData);
   } catch (error) {
     console.error("Error in sendMessage:", error);
     throw error;
   }
 }
 
-// Helper function to prepare Creator IQ state for the current query
-async function prepareCreatorIQState(userId: string | undefined, content: string) {
-  let previousState = null;
-  let stateKey = null;
-  
-  if (userId && (content.toLowerCase().includes('creator') || 
-      content.toLowerCase().includes('campaign') || 
-      content.toLowerCase().includes('publisher') || 
-      content.toLowerCase().includes('list') ||
-      content.toLowerCase().includes('ready rocker') ||
-      content.toLowerCase().includes('message'))) {
-    
-    // Try to find relevant previous state based on query content
-    const queryTerms = [
-      'campaign', 'publisher', 'influencer', 'creator iq', 'ready rocker', 'list', 'message'
-    ].filter(term => content.toLowerCase().includes(term));
-    
-    if (queryTerms.length > 0) {
-      console.log("Looking for previous state with terms:", queryTerms);
-      previousState = await findStateByQuery(userId, queryTerms);
-      
-      if (previousState) {
-        console.log("Found previous Creator IQ state:", previousState);
-        
-        // Extract publisher IDs from previous state for potential message sending
-        if (previousState.publishers && previousState.publishers.length > 0) {
-          console.log(`Found ${previousState.publishers.length} publishers in previous state`);
-          
-          // Log first few publisher IDs for debugging
-          const samplePublishers = previousState.publishers.slice(0, 3);
-          console.log("Sample publishers from previous state:", samplePublishers.map(p => p.id));
-        }
-      }
-    }
-    
-    // Generate a new state key for this query
-    stateKey = generateStateKey(userId, content);
-  }
-  
-  return { stateKey, previousState };
-}
+// Import the extracted functions
+export { processAgentResponse } from './messageResponseProcessor';
 
-// Helper function to extract search terms from content
-function extractSearchTerms(content: string, contextKeywords: string[]): string[] {
-  const contentLower = content.toLowerCase();
-  const terms: string[] = [];
-  
-  // First look for terms after contextKeywords with quotes
-  for (const keyword of contextKeywords) {
-    const quotedRegex = new RegExp(`${keyword}\\s+["']([^"']+)["']`, 'i');
-    const quotedMatch = contentLower.match(quotedRegex);
-    
-    if (quotedMatch && quotedMatch[1]) {
-      terms.push(quotedMatch[1].trim());
-      continue;
-    }
-    
-    // Then look for terms after contextKeywords without quotes
-    const pattern = `${keyword}\\s+([^\\s,\\.\\?!]{3,}[\\s\\w]+)`;
-    const regex = new RegExp(pattern, 'i');
-    const match = contentLower.match(regex);
-    
-    if (match && match[1]) {
-      // Extract up to the next punctuation
-      const term = match[1].replace(/[,.!?].*$/, '').trim();
-      if (term && term.length >= 3 && !terms.includes(term)) {
-        terms.push(term);
-      }
-    }
-  }
-  
-  return terms;
-}

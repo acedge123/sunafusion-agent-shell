@@ -1,3 +1,15 @@
 
-// Export the main API functions for backward compatibility
+// Export the main API functions
 export { sendMessage } from './messageService';
+export { 
+  processCreatorIQResponse, 
+  getCampaignPublishers,
+  getListPublishers,
+  fetchListsByPage,
+  fetchPublishersByPage,
+  searchPublishersByName,
+  searchListsByName 
+} from './creatorIQService';
+export { getProviderToken, storeProviderToken } from './tokenService';
+export { buildCreatorIQParams } from './paramBuilder';
+export { prepareCreatorIQState, extractSearchTerms } from './messageHelpers';

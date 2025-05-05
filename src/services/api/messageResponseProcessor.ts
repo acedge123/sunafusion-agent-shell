@@ -1,0 +1,91 @@
+
+import { Message } from "@/components/chat/ChatContainer";
+import { v4 as uuidv4 } from "uuid";
+import { storeProviderToken } from "./tokenService";
+import { processCreatorIQResponse } from "./creatorIQService";
+
+/**
+ * Process the agent response data and create a response message
+ */
+export async function processAgentResponse(
+  responseData: any,
+  stateKey: string | null,
+  userId: string | undefined,
+  providerToken: string | null | undefined,
+  sessionData: any
+): Promise<Message> {
+  try {
+    // Log the response structure to help with debugging
+    console.log("AI response structure:", Object.keys(responseData));
+    console.log("Sources available:", responseData.sources?.map((s: any) => s.source));
+    
+    // Check for Creator IQ errors in the response
+    const creatorIQSource = responseData.sources?.find((s: any) => s.source === "creator_iq");
+    if (creatorIQSource && creatorIQSource.error) {
+      console.error("Creator IQ error in response:", creatorIQSource.error);
+    }
+    
+    // Also check for operation-specific errors
+    if (creatorIQSource && creatorIQSource.results) {
+      const operationErrors = creatorIQSource.results
+        .filter((result: any) => result.error || (result.data && result.data.operation && result.data.operation.successful === false))
+        .map((result: any) => ({
+          endpoint: result.endpoint,
+          error: result.error || (result.data?.operation?.details || "Unknown error"),
+          name: result.name
+        }));
+      
+      if (operationErrors.length > 0) {
+        console.warn("Creator IQ operation errors:", operationErrors);
+      }
+      
+      // Extract successful operations and log them
+      const successfulOperations = creatorIQSource.results
+        .filter((result: any) => !result.error && result.data && result.data.operation && result.data.operation.successful === true)
+        .map((result: any) => ({
+          endpoint: result.endpoint,
+          operation: result.data.operation,
+          name: result.name
+        }));
+      
+      if (successfulOperations.length > 0) {
+        console.info("Creator IQ successful operations:", successfulOperations);
+      }
+      
+      // Extract and log message sending results specifically
+      const messageResults = creatorIQSource.results
+        .filter((result: any) => result.name && result.name.includes("Send Message"));
+      
+      if (messageResults.length > 0) {
+        console.info("Message sending results:", messageResults);
+        
+        // Check for publisher IDs to store in previous state
+        messageResults.forEach((result: any) => {
+          if (result.data && result.data.publisherId) {
+            console.log(`Message sent to publisher ID: ${result.data.publisherId}`);
+          }
+        });
+      }
+    }
+    
+    // Store provider token if available
+    if (providerToken && userId) {
+      await storeProviderToken(sessionData, providerToken);
+    }
+    
+    // Process and store any Creator IQ data for future reference
+    if (stateKey && userId && responseData.sources) {
+      await processCreatorIQResponse(stateKey, userId, responseData.sources);
+    }
+
+    return {
+      id: uuidv4(),
+      content: responseData.answer,
+      role: "assistant",
+      timestamp: new Date()
+    };
+  } catch (error) {
+    console.error("Error processing agent response:", error);
+    throw error;
+  }
+}
