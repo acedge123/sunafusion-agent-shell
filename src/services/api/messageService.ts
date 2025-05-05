@@ -65,6 +65,28 @@ export async function sendMessage(content: string): Promise<Message> {
     
     // Log the response structure to help with debugging
     console.log("AI response structure:", Object.keys(response.data));
+    console.log("Sources available:", response.data.sources?.map(s => s.source));
+    
+    // Check for Creator IQ errors in the response
+    const creatorIQSource = response.data.sources?.find(s => s.source === "creator_iq");
+    if (creatorIQSource && creatorIQSource.error) {
+      console.error("Creator IQ error in response:", creatorIQSource.error);
+    }
+    
+    // Also check for operation-specific errors
+    if (creatorIQSource && creatorIQSource.results) {
+      const operationErrors = creatorIQSource.results
+        .filter(result => result.error || (result.data && result.data.operation && result.data.operation.successful === false))
+        .map(result => ({
+          endpoint: result.endpoint,
+          error: result.error || (result.data?.operation?.details || "Unknown error"),
+          name: result.name
+        }));
+      
+      if (operationErrors.length > 0) {
+        console.warn("Creator IQ operation errors:", operationErrors);
+      }
+    }
     
     // Store provider token if available
     if (providerToken && userId) {
@@ -97,11 +119,12 @@ async function prepareCreatorIQState(userId: string | undefined, content: string
       content.toLowerCase().includes('campaign') || 
       content.toLowerCase().includes('publisher') || 
       content.toLowerCase().includes('list') ||
-      content.toLowerCase().includes('ready rocker'))) {
+      content.toLowerCase().includes('ready rocker') ||
+      content.toLowerCase().includes('message'))) {
     
     // Try to find relevant previous state based on query content
     const queryTerms = [
-      'campaign', 'publisher', 'influencer', 'creator iq', 'ready rocker', 'list'
+      'campaign', 'publisher', 'influencer', 'creator iq', 'ready rocker', 'list', 'message'
     ].filter(term => content.toLowerCase().includes(term));
     
     if (queryTerms.length > 0) {

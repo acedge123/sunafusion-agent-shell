@@ -288,6 +288,24 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
     else if (lowerContent.includes('send message') || lowerContent.includes('message publisher')) {
       params.send_message = true;
       
+      // Extract the publisher ID if directly specified in the query
+      const publisherIdMatch = content.match(/publisher\s+(?:id\s+)?(\d+)/i) || 
+                              content.match(/(?:send|message)(?:\s+to)?\s+publisher\s+(?:id\s+)?(\d+)/i) ||
+                              content.match(/publisher\s+(?:with\s+id\s+)?(\d+)/i);
+      
+      if (publisherIdMatch && publisherIdMatch[1]) {
+        params.publisher_id = publisherIdMatch[1].trim();
+        console.log(`Extracted explicit publisher ID: "${params.publisher_id}"`);
+      }
+      
+      // If no explicit publisher ID in query, try to get from previous state
+      else if (previousState && previousState.publishers && previousState.publishers.length > 0) {
+        // Use the first publisher from previous state
+        params.publisher_id = previousState.publishers[0].id;
+        params.publisher_name = previousState.publishers[0].name;
+        console.log(`Using publisher ID from previous state: ${params.publisher_id} (${params.publisher_name})`);
+      }
+      
       // Extract message content
       const messageMatch = content.match(/message\s+(?:saying\s+|content\s+)?["']([^"']+)["']/i);
       if (messageMatch && messageMatch[1]) {
