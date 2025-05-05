@@ -90,3 +90,11 @@ export interface PaginatedResult<T> {
     timestamp?: number;
   };
 }
+
+// Add new type for cache data
+export interface CachedData<T> {
+  data: T;
+  timestamp: number;
+  source: 'cache' | 'db';
+  isFresh: boolean;
+}

@@ -2,7 +2,7 @@
 import { Message } from "@/components/chat/ChatContainer";
 import { v4 as uuidv4 } from "uuid";
 import { supabase } from "@/integrations/supabase/client";
-import { processCreatorIQResponse } from "./creatorIQService";
+import { processCreatorIQResponse } from "./creatorIQ";
 import { getProviderToken, storeProviderToken } from "./tokenService";
 import { buildCreatorIQParams } from "./paramBuilder";
 import { findStateByQuery, generateStateKey } from "@/utils/creatorIQ";
