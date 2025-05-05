@@ -7,6 +7,7 @@ import { getProviderToken, storeProviderToken } from "./tokenService";
 import { buildCreatorIQParams } from "./paramBuilder";
 import { findStateByQuery, generateStateKey } from "@/utils/creatorIQ";
 import { extractSearchTerms, prepareCreatorIQState } from "./messageHelpers";
+import { processAgentResponse } from './messageResponseProcessor';
 
 export async function sendMessage(content: string): Promise<Message> {
   try {
@@ -116,6 +117,7 @@ export async function sendMessage(content: string): Promise<Message> {
   }
 }
 
-// Import the extracted functions
-export { processAgentResponse } from './messageResponseProcessor';
+// The issue is here - we need to import processAgentResponse from messageResponseProcessor
+// Remove this incorrect export line
+// export { processAgentResponse } from './messageResponseProcessor';
 
