@@ -60,6 +60,24 @@ export async function sendMessage(content: string): Promise<Message> {
       }
     }
 
+    // Extract list names for searching
+    const listSearchTerms = extractSearchTerms(content, ['list', 'lists']);
+    if (listSearchTerms.length > 0) {
+      console.log(`List search terms extracted: ${listSearchTerms.join(', ')}`);
+      if (!creatorIQParams.list_search) {
+        creatorIQParams.list_search = listSearchTerms[0];
+      }
+    }
+    
+    // Extract publisher/creator names for searching
+    const publisherSearchTerms = extractSearchTerms(content, ['publisher', 'creator', 'influencer']);
+    if (publisherSearchTerms.length > 0) {
+      console.log(`Publisher search terms extracted: ${publisherSearchTerms.join(', ')}`);
+      if (!creatorIQParams.publisher_search) {
+        creatorIQParams.publisher_search = publisherSearchTerms[0];
+      }
+    }
+
     // Pass the state key and previous state to the edge function
     const response = await supabase.functions.invoke('unified-agent', {
       body: {
@@ -205,4 +223,36 @@ async function prepareCreatorIQState(userId: string | undefined, content: string
   }
   
   return { stateKey, previousState };
+}
+
+// Helper function to extract search terms from content
+function extractSearchTerms(content: string, contextKeywords: string[]): string[] {
+  const contentLower = content.toLowerCase();
+  const terms: string[] = [];
+  
+  // First look for terms after contextKeywords with quotes
+  for (const keyword of contextKeywords) {
+    const quotedRegex = new RegExp(`${keyword}\\s+["']([^"']+)["']`, 'i');
+    const quotedMatch = contentLower.match(quotedRegex);
+    
+    if (quotedMatch && quotedMatch[1]) {
+      terms.push(quotedMatch[1].trim());
+      continue;
+    }
+    
+    // Then look for terms after contextKeywords without quotes
+    const pattern = `${keyword}\\s+([^\\s,\\.\\?!]{3,}[\\s\\w]+)`;
+    const regex = new RegExp(pattern, 'i');
+    const match = contentLower.match(regex);
+    
+    if (match && match[1]) {
+      // Extract up to the next punctuation
+      const term = match[1].replace(/[,.!?].*$/, '').trim();
+      if (term && term.length >= 3 && !terms.includes(term)) {
+        terms.push(term);
+      }
+    }
+  }
+  
+  return terms;
 }

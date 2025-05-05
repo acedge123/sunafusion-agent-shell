@@ -23,7 +23,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "offset": "Starting position for pagination",
                     "status": "Filter by publisher status (e.g., active, inactive)",
                     "search": "Search term to filter publishers by name or other details",
-                    "page": "Page number for pagination (starts at 1)"
+                    "page": "Page number for pagination (starts at 1)",
+                    "all_pages": "Set to 'true' to fetch all available pages"
                 }
             },
             "publisher_details": {
@@ -58,7 +59,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "status": "Filter by campaign status",
                     "brand_id": "Filter by brand ID",
                     "search": "Search term to filter campaigns by name",
-                    "page": "Page number for pagination (starts at 1)"
+                    "page": "Page number for pagination (starts at 1)",
+                    "all_pages": "Set to 'true' to fetch all available pages"
                 }
             },
             "campaign_details": {
@@ -79,7 +81,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "campaign_id": "ID of the campaign",
                     "limit": "Number of results to return (default: 10)",
                     "offset": "Starting position for pagination",
-                    "page": "Page number for pagination (starts at 1)"
+                    "page": "Page number for pagination (starts at 1)",
+                    "all_pages": "Set to 'true' to fetch all available pages"
                 }
             },
             "content": {
@@ -106,7 +109,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "offset": "Starting position for pagination",
                     "search": "Search term to filter lists by name or other details",
                     "status": "Filter by list status",
-                    "page": "Page number for pagination (starts at 1)"
+                    "page": "Page number for pagination (starts at 1)",
+                    "all_pages": "Set to 'true' to fetch all available pages"
                 }
             },
             "list_details": {
@@ -127,7 +131,8 @@ class CreatorIQProvider(RapidDataProviderBase):
                     "list_id": "ID of the list",
                     "limit": "Number of results to return (default: 10)",
                     "offset": "Starting position for pagination",
-                    "page": "Page number for pagination (starts at 1)"
+                    "page": "Page number for pagination (starts at 1)",
+                    "all_pages": "Set to 'true' to fetch all available pages"
                 }
             },
             
@@ -235,6 +240,14 @@ class CreatorIQProvider(RapidDataProviderBase):
             formatted_route = endpoint["route"]
             method = endpoint.get("method", "GET").upper()
             
+            # Check for all_pages parameter - special pagination handling
+            fetch_all_pages = False
+            if payload and payload.get("all_pages") in (True, "true"):
+                fetch_all_pages = True
+                # Remove all_pages from the payload
+                payload = {k: v for k, v in payload.items() if k != "all_pages"}
+                print(f"Will fetch all pages for {route} endpoint")
+            
             # Handle path parameters (e.g., {publisher_id} in the route)
             if payload and "{" in formatted_route:
                 for key, value in payload.items():
@@ -262,6 +275,21 @@ class CreatorIQProvider(RapidDataProviderBase):
             print(f"Method: {method}")
             print(f"Headers: {headers}")
             print(f"Payload: {payload}")
+
+            # If we need to fetch all pages, use specific methods
+            if fetch_all_pages:
+                if route == "lists":
+                    return self.get_all_lists(payload)
+                elif route == "publishers":
+                    return self.get_all_publishers(payload)
+                elif route == "campaigns":
+                    return self.get_all_campaigns(payload) 
+                elif "campaign_publishers" in route:
+                    campaign_id = formatted_route.split("/")[-2]
+                    return self.get_all_campaign_publishers(campaign_id, payload)
+                elif "list_publishers" in route:
+                    list_id = formatted_route.split("/")[-2]
+                    return self.get_all_list_publishers(list_id, payload)
 
             # Special handling for pagination in requests
             if method == "GET" and payload and "page" in payload:
@@ -420,6 +448,55 @@ class CreatorIQProvider(RapidDataProviderBase):
                                 print(f"Error getting publishers for campaign {campaign_id}: {str(e)}")
                     
                     return full_response
+                    
+                # Add handling for publisher search
+                elif route == "publishers" and payload and "search" in payload:
+                    search_term = payload["search"]
+                    print(f"Searching for publishers with term: {search_term}")
+                    
+                    # First make the request without the search parameter to get publishers
+                    search_payload = {k: v for k, v in payload.items() if k != "search"}
+                    
+                    # Increase the limit to get more potential matches
+                    if "limit" not in search_payload:
+                        search_payload["limit"] = 50
+                    
+                    response = requests.get(url, params=search_payload, headers=headers)
+                    
+                    # Check for errors
+                    response.raise_for_status()
+                    
+                    # Get the response data
+                    full_response = response.json()
+                    
+                    # Process the response to filter by publisher name
+                    if "PublisherCollection" in full_response:
+                        # Filter publishers by name containing the search term (case-insensitive)
+                        original_publishers = full_response["PublisherCollection"]
+                        print(f"Found {len(original_publishers)} publishers before filtering")
+                        
+                        filtered_publishers = []
+                        for publisher in original_publishers:
+                            if "Publisher" in publisher:
+                                publisher_name = (
+                                    publisher["Publisher"].get("PublisherName", "") or 
+                                    publisher["Publisher"].get("Username", "") or 
+                                    ""
+                                ).lower()
+                                
+                                if search_term.lower() in publisher_name:
+                                    print(f"Match found: '{publisher_name}' matches '{search_term}'")
+                                    filtered_publishers.append(publisher)
+                    
+                    # Update the response with filtered results
+                    full_response["PublisherCollection"] = filtered_publishers
+                    full_response["count"] = len(filtered_publishers)
+                    full_response["filtered_by"] = search_term
+                    full_response["total"] = len(filtered_publishers)
+                    
+                    print(f"Found {len(filtered_publishers)} publishers matching '{search_term}'")
+                    
+                    return full_response
             
             # Make the request based on the HTTP method
             if method == "GET":
@@ -508,6 +585,28 @@ class CreatorIQProvider(RapidDataProviderBase):
                     response_data["offset"] = offset
                     response_data["total"] = total_items
                     response_data["total_pages"] = total_pages
+                
+                # For publishers endpoint, ensure pagination info is included
+                elif route == "publishers" and "PublisherCollection" in response_data:
+                    # If limit is in the payload, use it, otherwise default to 50
+                    limit = int(payload.get("limit", 50)) if payload else 50
+                    offset = int(payload.get("offset", 0)) if payload else 0
+                    page = (offset // limit) + 1
+                    
+                    # Get total item count
+                    total_items = response_data.get("count") or len(response_data.get("PublisherCollection", []))
+                    
+                    # Calculate total pages
+                    total_pages = (total_items + limit - 1) // limit if total_items > 0 else 1
+                    
+                    # Add pagination metadata to response
+                    response_data["page"] = page
+                    response_data["limit"] = limit
+                    response_data["offset"] = offset
+                    response_data["total"] = total_items
+                    response_data["total_pages"] = total_pages
+                    
+                    print(f"Publisher pagination: page {page} of {total_pages}, {total_items} total items")
             
             # Additional logging for GET operations
             if route == "campaigns" and "CampaignCollection" in response_data:
@@ -605,6 +704,25 @@ class CreatorIQProvider(RapidDataProviderBase):
                         except Exception as e:
                             print(f"Error getting publishers for list {list_id}: {str(e)}")
             
+            # Add similar handling for publishers endpoint
+            if route == "publishers" and "PublisherCollection" in response_data:
+                publishers = response_data["PublisherCollection"]
+                publisher_names = []
+                
+                for p in publishers:
+                    if 'Publisher' in p:
+                        publisher_id = p['Publisher'].get('Id', 'Unknown')
+                        publisher_name = p['Publisher'].get('PublisherName', 
+                                        p['Publisher'].get('Username', 'Unnamed'))
+                        publisher_names.append(f"{publisher_id}: {publisher_name}")
+                
+                print(f"Retrieved {len(publishers)} publishers:")
+                for idx, name in enumerate(publisher_names[:5]):
+                    print(f"  {idx+1}. {name}")
+                    
+                if len(publishers) > 5:
+                    print(f"... and {len(publishers) - 5} more")
+            
             return response_data
             
         except requests.exceptions.RequestException as e:
@@ -624,13 +742,12 @@ class CreatorIQProvider(RapidDataProviderBase):
             raise ValueError(f"Creator IQ API error: {error_message}")
 
     # Add a new method to get all lists with pagination support
-    def get_all_lists(self, page_size: int = 50, max_pages: int = 10) -> Dict[str, Any]:
+    def get_all_lists(self, payload: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Get all lists with pagination support
         
         Args:
-            page_size: Number of lists per page
-            max_pages: Maximum number of pages to fetch
+            payload: Dictionary containing parameters for the request
             
         Returns:
             Combined response with all lists and metadata
@@ -640,9 +757,24 @@ class CreatorIQProvider(RapidDataProviderBase):
             total_items = 0
             total_pages = 1
             current_page = 1
+            max_pages = 10  # Default max pages to fetch
+            
+            # Set up parameters
+            if not payload:
+                payload = {}
+            
+            # Use provided limit or default to 50
+            page_size = int(payload.get("limit", 50))
+            if "max_pages" in payload:
+                max_pages = int(payload.get("max_pages"))
             
             # Make first request to get total count
-            first_page = self.call_endpoint("lists", {"limit": page_size, "page": 1})
+            first_page_payload = {**payload, "limit": page_size, "page": 1}
+            # Remove any all_pages parameter
+            if "all_pages" in first_page_payload:
+                del first_page_payload["all_pages"]
+            
+            first_page = self.call_endpoint("lists", first_page_payload)
             
             # Get pagination info
             if "total" in first_page:
@@ -660,7 +792,11 @@ class CreatorIQProvider(RapidDataProviderBase):
             
             for page in range(2, 2 + pages_to_fetch):
                 print(f"Fetching lists page {page} of {total_pages}")
-                page_result = self.call_endpoint("lists", {"limit": page_size, "page": page})
+                page_payload = {**payload, "limit": page_size, "page": page}
+                if "all_pages" in page_payload:
+                    del page_payload["all_pages"]
+                
+                page_result = self.call_endpoint("lists", page_payload)
                 
                 if "ListsCollection" in page_result:
                     all_lists.extend(page_result["ListsCollection"])
@@ -678,6 +814,324 @@ class CreatorIQProvider(RapidDataProviderBase):
         except Exception as e:
             print(f"Error fetching all lists: {str(e)}")
             return {"ListsCollection": [], "error": str(e)}
+    
+    # Add a new method to get all publishers with pagination support
+    def get_all_publishers(self, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Get all publishers with pagination support
+        
+        Args:
+            payload: Dictionary containing parameters for the request
+            
+        Returns:
+            Combined response with all publishers and metadata
+        """
+        try:
+            all_publishers = []
+            total_items = 0
+            total_pages = 1
+            current_page = 1
+            max_pages = 10  # Default max pages to fetch
+            
+            # Set up parameters
+            if not payload:
+                payload = {}
+            
+            # Use provided limit or default to 50
+            page_size = int(payload.get("limit", 50))
+            if "max_pages" in payload:
+                max_pages = int(payload.get("max_pages"))
+            
+            # Make first request to get total count
+            first_page_payload = {**payload, "limit": page_size, "page": 1}
+            # Remove any all_pages parameter
+            if "all_pages" in first_page_payload:
+                del first_page_payload["all_pages"]
+            
+            first_page = self.call_endpoint("publishers", first_page_payload)
+            
+            # Get pagination info
+            if "total" in first_page:
+                total_items = first_page["total"]
+                total_pages = first_page["total_pages"]
+                
+                print(f"Found {total_items} total publishers across {total_pages} pages")
+            
+            # Add first page of results
+            if "PublisherCollection" in first_page:
+                all_publishers.extend(first_page["PublisherCollection"])
+                
+            # If we have more pages, fetch them
+            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            
+            for page in range(2, 2 + pages_to_fetch):
+                print(f"Fetching publishers page {page} of {total_pages}")
+                page_payload = {**payload, "limit": page_size, "page": page}
+                if "all_pages" in page_payload:
+                    del page_payload["all_pages"]
+                
+                page_result = self.call_endpoint("publishers", page_payload)
+                
+                if "PublisherCollection" in page_result:
+                    all_publishers.extend(page_result["PublisherCollection"])
+            
+            # Update the first page response with combined results
+            first_page["PublisherCollection"] = all_publishers
+            first_page["pages_searched"] = min(max_pages, total_pages)
+            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["items_found"] = len(all_publishers)
+            
+            print(f"Retrieved {len(all_publishers)} publishers from {min(max_pages, total_pages)} pages")
+            
+            return first_page
+            
+        except Exception as e:
+            print(f"Error fetching all publishers: {str(e)}")
+            return {"PublisherCollection": [], "error": str(e)}
+    
+    # Add a method to get all campaigns with pagination support
+    def get_all_campaigns(self, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Get all campaigns with pagination support
+        
+        Args:
+            payload: Dictionary containing parameters for the request
+            
+        Returns:
+            Combined response with all campaigns and metadata
+        """
+        try:
+            all_campaigns = []
+            total_items = 0
+            total_pages = 1
+            max_pages = 10  # Default max pages to fetch
+            
+            # Set up parameters
+            if not payload:
+                payload = {}
+            
+            # Use provided limit or default to 50
+            page_size = int(payload.get("limit", 50))
+            if "max_pages" in payload:
+                max_pages = int(payload.get("max_pages"))
+            
+            # Make first request to get total count
+            first_page_payload = {**payload, "limit": page_size, "page": 1}
+            # Remove any all_pages parameter
+            if "all_pages" in first_page_payload:
+                del first_page_payload["all_pages"]
+            
+            first_page = self.call_endpoint("campaigns", first_page_payload)
+            
+            # Get pagination info
+            if "total" in first_page:
+                total_items = first_page["total"]
+                total_pages = first_page["total_pages"]
+                
+                print(f"Found {total_items} total campaigns across {total_pages} pages")
+            
+            # Add first page of results
+            if "CampaignCollection" in first_page:
+                all_campaigns.extend(first_page["CampaignCollection"])
+                
+            # If we have more pages, fetch them
+            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            
+            for page in range(2, 2 + pages_to_fetch):
+                print(f"Fetching campaigns page {page} of {total_pages}")
+                page_payload = {**payload, "limit": page_size, "page": page}
+                if "all_pages" in page_payload:
+                    del page_payload["all_pages"]
+                
+                page_result = self.call_endpoint("campaigns", page_payload)
+                
+                if "CampaignCollection" in page_result:
+                    all_campaigns.extend(page_result["CampaignCollection"])
+            
+            # Update the first page response with combined results
+            first_page["CampaignCollection"] = all_campaigns
+            first_page["pages_searched"] = min(max_pages, total_pages)
+            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["items_found"] = len(all_campaigns)
+            first_page["total_pages_available"] = total_pages
+            
+            print(f"Retrieved {len(all_campaigns)} campaigns from {min(max_pages, total_pages)} pages")
+            
+            return first_page
+            
+        except Exception as e:
+            print(f"Error fetching all campaigns: {str(e)}")
+            return {"CampaignCollection": [], "error": str(e)}
+    
+    # Add a method to get all publishers for a specific campaign
+    def get_all_campaign_publishers(self, campaign_id: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Get all publishers for a specific campaign with pagination support
+        
+        Args:
+            campaign_id: ID of the campaign to get publishers for
+            payload: Dictionary containing parameters for the request
+            
+        Returns:
+            Combined response with all campaign publishers and metadata
+        """
+        try:
+            all_publishers = []
+            total_items = 0
+            total_pages = 1
+            max_pages = 10  # Default max pages to fetch
+            
+            # Set up parameters
+            if not payload:
+                payload = {}
+            
+            # Use provided limit or default to 50
+            page_size = int(payload.get("limit", 50))
+            if "max_pages" in payload:
+                max_pages = int(payload.get("max_pages"))
+            
+            # Make first request to get total count
+            first_page_payload = {
+                **payload, 
+                "limit": page_size, 
+                "page": 1,
+                "campaign_id": campaign_id
+            }
+            # Remove any all_pages parameter
+            if "all_pages" in first_page_payload:
+                del first_page_payload["all_pages"]
+            
+            first_page = self.call_endpoint("campaign_publishers", first_page_payload)
+            
+            # Get pagination info
+            if "total" in first_page:
+                total_items = first_page["total"]
+                total_pages = first_page["total_pages"]
+                
+                print(f"Found {total_items} total publishers for campaign {campaign_id} across {total_pages} pages")
+            
+            # Add first page of results
+            if "PublisherCollection" in first_page:
+                all_publishers.extend(first_page["PublisherCollection"])
+                
+            # If we have more pages, fetch them
+            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            
+            for page in range(2, 2 + pages_to_fetch):
+                print(f"Fetching campaign publishers page {page} of {total_pages}")
+                page_payload = {
+                    **payload, 
+                    "limit": page_size, 
+                    "page": page,
+                    "campaign_id": campaign_id
+                }
+                if "all_pages" in page_payload:
+                    del page_payload["all_pages"]
+                
+                page_result = self.call_endpoint("campaign_publishers", page_payload)
+                
+                if "PublisherCollection" in page_result:
+                    all_publishers.extend(page_result["PublisherCollection"])
+            
+            # Update the first page response with combined results
+            first_page["PublisherCollection"] = all_publishers
+            first_page["pages_searched"] = min(max_pages, total_pages)
+            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["items_found"] = len(all_publishers)
+            first_page["campaignId"] = campaign_id
+            
+            print(f"Retrieved {len(all_publishers)} publishers for campaign {campaign_id} from {min(max_pages, total_pages)} pages")
+            
+            return first_page
+            
+        except Exception as e:
+            print(f"Error fetching all campaign publishers: {str(e)}")
+            return {"PublisherCollection": [], "campaignId": campaign_id, "error": str(e)}
+    
+    # Add a method to get all publishers for a specific list
+    def get_all_list_publishers(self, list_id: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Get all publishers for a specific list with pagination support
+        
+        Args:
+            list_id: ID of the list to get publishers for
+            payload: Dictionary containing parameters for the request
+            
+        Returns:
+            Combined response with all list publishers and metadata
+        """
+        try:
+            all_publishers = []
+            total_items = 0
+            total_pages = 1
+            max_pages = 10  # Default max pages to fetch
+            
+            # Set up parameters
+            if not payload:
+                payload = {}
+            
+            # Use provided limit or default to 50
+            page_size = int(payload.get("limit", 50))
+            if "max_pages" in payload:
+                max_pages = int(payload.get("max_pages"))
+            
+            # Make first request to get total count
+            first_page_payload = {
+                **payload, 
+                "limit": page_size, 
+                "page": 1,
+                "list_id": list_id
+            }
+            # Remove any all_pages parameter
+            if "all_pages" in first_page_payload:
+                del first_page_payload["all_pages"]
+            
+            first_page = self.call_endpoint("list_publishers", first_page_payload)
+            
+            # Get pagination info
+            if "total" in first_page:
+                total_items = first_page["total"]
+                total_pages = first_page["total_pages"]
+                
+                print(f"Found {total_items} total publishers for list {list_id} across {total_pages} pages")
+            
+            # Add first page of results
+            if "PublisherCollection" in first_page:
+                all_publishers.extend(first_page["PublisherCollection"])
+                
+            # If we have more pages, fetch them
+            pages_to_fetch = min(max_pages, total_pages) - 1  # -1 because we already fetched page 1
+            
+            for page in range(2, 2 + pages_to_fetch):
+                print(f"Fetching list publishers page {page} of {total_pages}")
+                page_payload = {
+                    **payload, 
+                    "limit": page_size, 
+                    "page": page,
+                    "list_id": list_id
+                }
+                if "all_pages" in page_payload:
+                    del page_payload["all_pages"]
+                
+                page_result = self.call_endpoint("list_publishers", page_payload)
+                
+                if "PublisherCollection" in page_result:
+                    all_publishers.extend(page_result["PublisherCollection"])
+            
+            # Update the first page response with combined results
+            first_page["PublisherCollection"] = all_publishers
+            first_page["pages_searched"] = min(max_pages, total_pages)
+            first_page["searched_all_pages"] = (min(max_pages, total_pages) == total_pages)
+            first_page["items_found"] = len(all_publishers)
+            first_page["listId"] = list_id
+            
+            print(f"Retrieved {len(all_publishers)} publishers for list {list_id} from {min(max_pages, total_pages)} pages")
+            
+            return first_page
+            
+        except Exception as e:
+            print(f"Error fetching all list publishers: {str(e)}")
+            return {"PublisherCollection": [], "listId": list_id, "error": str(e)}
     
     # Helper functions for specific operations
     def search_campaigns_by_name(self, search_term: str) -> List[Dict[str, Any]]:
@@ -724,6 +1178,29 @@ class CreatorIQProvider(RapidDataProviderBase):
             return []
         except Exception as e:
             print(f"Error in search_lists_by_name: {e}")
+            return []
+    
+    def search_publishers_by_name(self, search_term: str) -> List[Dict[str, Any]]:
+        """
+        Helper method to specifically search for publishers by name
+        
+        Args:
+            search_term: The publisher name or partial name to search for
+            
+        Returns:
+            List of matching publishers with details
+        """
+        print(f"Searching for publishers with name containing: {search_term}")
+        
+        try:
+            # Add a higher limit to get more publishers
+            response = self.call_endpoint("publishers", {"limit": 50, "search": search_term})
+            
+            if "PublisherCollection" in response:
+                return response["PublisherCollection"]
+            return []
+        except Exception as e:
+            print(f"Error in search_publishers_by_name: {e}")
             return []
 
     def create_list(self, name: str, description: str = None) -> Dict[str, Any]:
@@ -812,3 +1289,4 @@ class CreatorIQProvider(RapidDataProviderBase):
 def import_time_module_and_get_iso_time():
     from datetime import datetime
     return datetime.now().isoformat()
+

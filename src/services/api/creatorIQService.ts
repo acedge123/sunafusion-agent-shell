@@ -67,6 +67,18 @@ export async function processCreatorIQResponse(stateKey: string, userId: string,
             context += `publishers:${publishers.length},`;
           }
           
+          // Store all publishers in cache if this is the main publishers request
+          if (result.endpoint === "/publishers" && result.data.searched_all_pages && result.data.PublisherCollection?.length > 0) {
+            creatorIQCache.storeAllPublishers(
+              result.data.PublisherCollection,
+              {
+                total: result.data.total,
+                pages: result.data.pages_searched,
+                total_pages: result.data.total_pages_available
+              }
+            );
+          }
+          
           // Also cache publishers by campaign if this is a campaign-specific request
           if (result.endpoint.includes("/campaigns/") && result.data.campaignId) {
             creatorIQCache.set(
@@ -254,6 +266,41 @@ export async function fetchListsByPage(page: number = 1, limit: number = 50) {
       return cached.data;
     }
     
+    // Check if we have all lists cached
+    const allLists = creatorIQCache.getAllLists();
+    if (allLists && allLists.lists && allLists.lists.length > 0) {
+      console.log(`Using complete cached lists collection instead of fetching page ${page}`);
+      
+      // Paginate from the complete collection
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedLists = allLists.lists.slice(startIndex, endIndex);
+      
+      // Prepare pagination metadata
+      const totalItems = allLists.lists.length;
+      const totalPages = Math.ceil(totalItems / limit);
+      
+      const result = {
+        ListsCollection: paginatedLists,
+        page,
+        limit,
+        total: totalItems,
+        total_pages: totalPages,
+        _metadata: {
+          source: 'cache',
+          isFresh: true,
+          timestamp: Date.now(),
+          isPaginated: true,
+          completeCollection: true
+        }
+      };
+      
+      // Cache this specific page result
+      creatorIQCache.set(cacheKey, result);
+      
+      return result;
+    }
+    
     console.log(`Lists cache miss for page ${page}, would need to fetch from API`);
     
     // In a real implementation, we would fetch from API here
@@ -277,3 +324,131 @@ export async function fetchListsByPage(page: number = 1, limit: number = 50) {
     };
   }
 }
+
+// Fetch publishers with pagination support
+export async function fetchPublishersByPage(page: number = 1, limit: number = 50) {
+  try {
+    // Check if we already have this page in cache
+    const cacheKey = `publishers_page_${page}_limit_${limit}`;
+    const cached = creatorIQCache.get<any>(cacheKey);
+    
+    if (cached.data && cached.isFresh) {
+      console.log(`Using cached publishers for page ${page}`);
+      return cached.data;
+    }
+    
+    // Check if we have all publishers cached
+    const allPublishers = creatorIQCache.getAllPublishers();
+    if (allPublishers && allPublishers.publishers && allPublishers.publishers.length > 0) {
+      console.log(`Using complete cached publishers collection instead of fetching page ${page}`);
+      
+      // Paginate from the complete collection
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedPublishers = allPublishers.publishers.slice(startIndex, endIndex);
+      
+      // Prepare pagination metadata
+      const totalItems = allPublishers.publishers.length;
+      const totalPages = Math.ceil(totalItems / limit);
+      
+      const result = {
+        PublisherCollection: paginatedPublishers,
+        page,
+        limit,
+        total: totalItems,
+        total_pages: totalPages,
+        _metadata: {
+          source: 'cache',
+          isFresh: true,
+          timestamp: Date.now(),
+          isPaginated: true,
+          completeCollection: true
+        }
+      };
+      
+      // Cache this specific page result
+      creatorIQCache.set(cacheKey, result);
+      
+      return result;
+    }
+    
+    console.log(`Publishers cache miss for page ${page}, would need to fetch from API`);
+    
+    // In a real implementation, we would fetch from API here
+    // For now, we'll return a message that API fetching would be done
+    return {
+      publishers: [],
+      _metadata: {
+        source: "none",
+        message: `Would fetch page ${page} with limit ${limit} from API`,
+        needsApiCall: true
+      }
+    };
+  } catch (error) {
+    console.error(`Error fetching publishers page ${page}:`, error);
+    return {
+      publishers: [],
+      _metadata: {
+        source: "error",
+        error: String(error)
+      }
+    };
+  }
+}
+
+// Search for publishers by name in cache
+export async function searchPublishersByName(searchTerm: string) {
+  try {
+    console.log(`Searching for publishers with name: ${searchTerm}`);
+    
+    const results = creatorIQCache.findPublisherByName(searchTerm);
+    
+    return {
+      publishers: results,
+      _metadata: {
+        source: 'cache',
+        timestamp: Date.now(),
+        searchTerm,
+        count: results.length
+      }
+    };
+  } catch (error) {
+    console.error(`Error searching publishers by name:`, error);
+    return {
+      publishers: [],
+      _metadata: {
+        source: "error",
+        error: String(error)
+      }
+    };
+  }
+}
+
+// Search for lists by name in cache
+export async function searchListsByName(searchTerm: string) {
+  try {
+    console.log(`Searching for lists with name: ${searchTerm}`);
+    
+    const results = creatorIQCache.findListByName(searchTerm);
+    
+    return {
+      lists: results,
+      _metadata: {
+        source: 'cache',
+        timestamp: Date.now(),
+        searchTerm,
+        count: results.length
+      }
+    };
+  } catch (error) {
+    console.error(`Error searching lists by name:`, error);
+    return {
+      lists: [],
+      _metadata: {
+        source: "error",
+        error: String(error)
+      }
+    };
+  }
+}
+

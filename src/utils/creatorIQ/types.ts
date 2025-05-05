@@ -1,3 +1,4 @@
+
 // Type definitions for Creator IQ state management
 
 export enum CreatorIQErrorType {
