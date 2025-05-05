@@ -3,6 +3,14 @@ import { useState, useEffect } from "react";
 import { PaginationDisplay } from "./PaginationDisplay";
 import { toast } from "sonner";
 
+// Define the interface for list data structure
+interface ListData {
+  Name?: string;
+  Id?: string | number;
+  Description?: string;
+  Publishers?: Array<any>;
+}
+
 interface ListCollectionProps {
   endpoint: {
     data: {
@@ -158,7 +166,7 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
         {lists.length > 0 ? (
           lists.map((listItem: any, lIdx: number) => {
             // Handle nested list data correctly
-            let listData = {};
+            let listData: ListData = {};
             
             // First try with List.List pattern
             if (listItem.List && listItem.List.List) {
