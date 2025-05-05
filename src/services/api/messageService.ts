@@ -96,11 +96,12 @@ async function prepareCreatorIQState(userId: string | undefined, content: string
   if (userId && (content.toLowerCase().includes('creator') || 
       content.toLowerCase().includes('campaign') || 
       content.toLowerCase().includes('publisher') || 
+      content.toLowerCase().includes('list') ||
       content.toLowerCase().includes('ready rocker'))) {
     
     // Try to find relevant previous state based on query content
     const queryTerms = [
-      'campaign', 'publisher', 'influencer', 'creator iq', 'ready rocker'
+      'campaign', 'publisher', 'influencer', 'creator iq', 'ready rocker', 'list'
     ].filter(term => content.toLowerCase().includes(term));
     
     if (queryTerms.length > 0) {

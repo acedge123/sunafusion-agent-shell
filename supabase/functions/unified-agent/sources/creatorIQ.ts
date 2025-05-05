@@ -20,94 +20,252 @@ export function determineCreatorIQEndpoints(query, previousState = null) {
   
   // Check for add publisher to list operation
   if ((lowerQuery.includes('add') || lowerQuery.includes('copy') || lowerQuery.includes('move')) && 
-     (lowerQuery.includes('publisher') || lowerQuery.includes('influencer')) && 
-      lowerQuery.includes('list')) {
-    console.log("Detected request to add publisher to list");
+     (lowerQuery.includes('publisher') || lowerQuery.includes('influencer'))) {
     
-    // Try to extract source and target list info from the query
-    let sourceListId, targetListId;
-    let sourceListName, targetListName;
+    // Determine if adding to list or campaign
+    const isListTarget = lowerQuery.includes('list') && !lowerQuery.includes('from list to campaign');
+    const isCampaignTarget = lowerQuery.includes('campaign') || lowerQuery.includes('from list to campaign');
     
-    // Find list names in the query
-    const sourcePhrases = ['from list', 'in list', 'list called', 'source list'];
-    const targetPhrases = ['to list', 'into list', 'target list'];
-    
-    // Extract list names from query
-    for (const phrase of sourcePhrases) {
-      if (lowerQuery.includes(phrase)) {
-        const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
-        const listNameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
-                             afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
-        if (listNameMatch) {
-          sourceListName = listNameMatch[1].trim();
-          console.log(`Found potential source list name: "${sourceListName}"`);
-          break;
-        }
-      }
-    }
-    
-    for (const phrase of targetPhrases) {
-      if (lowerQuery.includes(phrase)) {
-        const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
-        const listNameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
-                             afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
-        if (listNameMatch) {
-          targetListName = listNameMatch[1].trim();
-          console.log(`Found potential target list name: "${targetListName}"`);
-          break;
-        }
-      }
-    }
-    
-    // If we have previous state with lists, try to find the lists by name
-    if (previousState && previousState.lists && previousState.lists.length > 0) {
-      if (sourceListName) {
-        const sourceList = previousState.lists.find(list => 
-          list.name.toLowerCase().includes(sourceListName.toLowerCase())
-        );
-        if (sourceList) {
-          sourceListId = sourceList.id;
-          console.log(`Found source list ID: ${sourceListId} for "${sourceListName}"`);
+    if (isListTarget) {
+      console.log("Detected request to add publisher to list");
+      
+      // Try to extract source and target list info from the query
+      let sourceListId, targetListId;
+      let sourceListName, targetListName;
+      
+      // Find list names in the query
+      const sourcePhrases = ['from list', 'in list', 'list called', 'source list'];
+      const targetPhrases = ['to list', 'into list', 'target list'];
+      
+      // Extract list names from query
+      for (const phrase of sourcePhrases) {
+        if (lowerQuery.includes(phrase)) {
+          const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
+          const listNameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
+                               afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
+          if (listNameMatch) {
+            sourceListName = listNameMatch[1].trim();
+            console.log(`Found potential source list name: "${sourceListName}"`);
+            break;
+          }
         }
       }
       
-      if (targetListName) {
-        const targetList = previousState.lists.find(list => 
-          list.name.toLowerCase().includes(targetListName.toLowerCase())
-        );
-        if (targetList) {
-          targetListId = targetList.id;
-          console.log(`Found target list ID: ${targetListId} for "${targetListName}"`);
+      for (const phrase of targetPhrases) {
+        if (lowerQuery.includes(phrase)) {
+          const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
+          const listNameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
+                               afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
+          if (listNameMatch) {
+            targetListName = listNameMatch[1].trim();
+            console.log(`Found potential target list name: "${targetListName}"`);
+            break;
+          }
         }
       }
+      
+      // If we have previous state with lists, try to find the lists by name
+      if (previousState && previousState.lists && previousState.lists.length > 0) {
+        if (sourceListName) {
+          const sourceList = previousState.lists.find(list => 
+            list.name.toLowerCase().includes(sourceListName.toLowerCase())
+          );
+          if (sourceList) {
+            sourceListId = sourceList.id;
+            console.log(`Found source list ID: ${sourceListId} for "${sourceListName}"`);
+          }
+        }
+        
+        if (targetListName) {
+          const targetList = previousState.lists.find(list => 
+            list.name.toLowerCase().includes(targetListName.toLowerCase())
+          );
+          if (targetList) {
+            targetListId = targetList.id;
+            console.log(`Found target list ID: ${targetListId} for "${targetListName}"`);
+          }
+        }
+      }
+      
+      // If we found a source list, get its publishers
+      if (sourceListId) {
+        endpoints.push({
+          route: `/lists/${sourceListId}/publishers`,
+          method: "GET",
+          name: "Get Source List Publishers",
+          sourceListId: sourceListId
+        });
+      } else {
+        // If no source list identified, we need to get all lists first
+        endpoints.push({
+          route: "/lists",
+          method: "GET",
+          name: "Get Lists"
+        });
+      }
+      
+      // If we found both source and target list IDs and they're different, add the endpoint to add publishers
+      if (sourceListId && targetListId && sourceListId !== targetListId) {
+        endpoints.push({
+          route: `/lists/${targetListId}/publishers`,
+          method: "POST",
+          name: "Add Publishers To List",
+          targetListId: targetListId,
+          sourceListId: sourceListId
+        });
+      }
     }
-    
-    // If we found a source list, get its publishers
-    if (sourceListId) {
-      endpoints.push({
-        route: `/lists/${sourceListId}/publishers`,
-        method: "GET",
-        name: "Get Source List Publishers",
-        sourceListId: sourceListId
-      });
-    } else {
-      // If no source list identified, we need to get all lists first
-      endpoints.push({
-        route: "/lists",
-        method: "GET",
-        name: "Get Lists"
-      });
-    }
-    
-    // If we found both source and target list IDs and they're different, add the endpoint to add publishers
-    if (sourceListId && targetListId && sourceListId !== targetListId) {
-      endpoints.push({
-        route: `/lists/${targetListId}/publishers`,
-        method: "POST",
-        name: "Add Publishers To List",
-        targetListId: targetListId,
-        sourceListId: sourceListId
-      });
+    else if (isCampaignTarget) {
+      console.log("Detected request to add publisher to campaign");
+      
+      // Extract source (list or campaign) and target campaign info
+      let sourceId, targetCampaignId;
+      let sourceName, targetCampaignName;
+      let sourceType = null; // 'list' or 'campaign'
+      
+      // Check for source type indicators
+      const isSourceList = lowerQuery.includes('from list') || lowerQuery.includes('from the list');
+      const isSourceCampaign = lowerQuery.includes('from campaign') || lowerQuery.includes('from the campaign');
+      
+      // Find source names in the query (list or campaign)
+      const sourcePhrases = [
+        'from list', 'from the list', 'list called', 'source list',
+        'from campaign', 'from the campaign', 'campaign called', 'source campaign'
+      ];
+      const targetPhrases = ['to campaign', 'into campaign', 'target campaign'];
+      
+      // Extract source name from query
+      for (const phrase of sourcePhrases) {
+        if (lowerQuery.includes(phrase)) {
+          const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
+          const nameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
+                           afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
+          if (nameMatch) {
+            sourceName = nameMatch[1].trim();
+            // Set source type based on phrase
+            if (phrase.includes('list')) {
+              sourceType = 'list';
+            } else if (phrase.includes('campaign')) {
+              sourceType = 'campaign';
+            }
+            console.log(`Found potential source ${sourceType}: "${sourceName}"`);
+            break;
+          }
+        }
+      }
+      
+      // Extract target campaign name from query
+      for (const phrase of targetPhrases) {
+        if (lowerQuery.includes(phrase)) {
+          const afterPhrase = query.substring(query.toLowerCase().indexOf(phrase) + phrase.length).trim();
+          const campaignNameMatch = afterPhrase.match(/["']([^"']+)["']/) || 
+                                   afterPhrase.match(/(\b[A-Z][a-zA-Z0-9\s-]+)/);
+          if (campaignNameMatch) {
+            targetCampaignName = campaignNameMatch[1].trim();
+            console.log(`Found potential target campaign name: "${targetCampaignName}"`);
+            break;
+          }
+        }
+      }
+      
+      // If we have previous state, try to find the source and target IDs
+      if (previousState) {
+        // Find source ID based on type and name
+        if (sourceName) {
+          if ((sourceType === 'list' || !sourceType) && previousState.lists && previousState.lists.length > 0) {
+            const sourceList = previousState.lists.find(list => 
+              list.name.toLowerCase().includes(sourceName.toLowerCase())
+            );
+            if (sourceList) {
+              sourceId = sourceList.id;
+              sourceType = 'list';
+              console.log(`Found source list ID: ${sourceId} for "${sourceName}"`);
+            }
+          }
+          
+          if ((sourceType === 'campaign' || (!sourceType && !sourceId)) && 
+              previousState.campaigns && previousState.campaigns.length > 0) {
+            const sourceCampaign = previousState.campaigns.find(campaign => 
+              campaign.name.toLowerCase().includes(sourceName.toLowerCase())
+            );
+            if (sourceCampaign) {
+              sourceId = sourceCampaign.id;
+              sourceType = 'campaign';
+              console.log(`Found source campaign ID: ${sourceId} for "${sourceName}"`);
+            }
+          }
+        }
+        
+        // Find target campaign ID
+        if (targetCampaignName && previousState.campaigns && previousState.campaigns.length > 0) {
+          const targetCampaign = previousState.campaigns.find(campaign => 
+            campaign.name.toLowerCase().includes(targetCampaignName.toLowerCase())
+          );
+          if (targetCampaign) {
+            targetCampaignId = targetCampaign.id;
+            console.log(`Found target campaign ID: ${targetCampaignId} for "${targetCampaignName}"`);
+          }
+        }
+      }
+      
+      // Based on what we found, set up the endpoints
+      // If we have a source list or campaign, get its publishers first
+      if (sourceId && sourceType) {
+        if (sourceType === 'list') {
+          endpoints.push({
+            route: `/lists/${sourceId}/publishers`,
+            method: "GET",
+            name: "Get Source List Publishers",
+            sourceListId: sourceId
+          });
+        } else if (sourceType === 'campaign') {
+          endpoints.push({
+            route: `/campaigns/${sourceId}/publishers`,
+            method: "GET",
+            name: "Get Source Campaign Publishers",
+            sourceCampaignId: sourceId
+          });
+        }
+      } else {
+        // If we don't have a source, get lists or campaigns first
+        if (isSourceList) {
+          endpoints.push({
+            route: "/lists",
+            method: "GET",
+            name: "Get Lists"
+          });
+        } else if (isSourceCampaign) {
+          endpoints.push({
+            route: "/campaigns",
+            method: "GET",
+            name: "List Campaigns"
+          });
+        } else {
+          // Try both
+          endpoints.push({
+            route: "/lists",
+            method: "GET",
+            name: "Get Lists"
+          });
+          endpoints.push({
+            route: "/campaigns",
+            method: "GET",
+            name: "List Campaigns"
+          });
+        }
+      }
+      
+      // If we have a target campaign ID and source, add endpoint to add publishers
+      if (targetCampaignId && sourceId) {
+        endpoints.push({
+          route: `/campaigns/${targetCampaignId}/publishers`,
+          method: "POST",
+          name: "Add Publishers To Campaign",
+          targetCampaignId: targetCampaignId,
+          sourceId: sourceId,
+          sourceType: sourceType
+        });
+      }
     }
     
     return endpoints;
@@ -281,6 +439,61 @@ export function buildCreatorIQPayload(endpoint, query, params = {}, previousStat
       
       console.log(`Using ${publisherIds.length} publisher IDs from source list ${endpoint.sourceListId}`);
       
+      return {
+        PublisherIds: publisherIds
+      };
+    }
+    
+    // Default empty array if no publishers identified
+    return {
+      PublisherIds: []
+    };
+  }
+  
+  // Add publishers to campaign
+  if (endpoint.route.includes('/campaigns/') && endpoint.route.includes('/publishers') && endpoint.method === "POST") {
+    console.log("Building payload for adding publishers to campaign");
+    
+    // If we have specific publisher IDs to add
+    if (params.publisher_ids && Array.isArray(params.publisher_ids) && params.publisher_ids.length > 0) {
+      console.log(`Using ${params.publisher_ids.length} publisher IDs from params`);
+      return {
+        PublisherIds: params.publisher_ids
+      };
+    }
+    
+    // If we have source list or campaign publishers in previous state
+    if (previousState && previousState.publishers && previousState.publishers.length > 0) {
+      let publisherIds = [];
+      
+      // Check for source list publishers
+      if (endpoint.sourceType === 'list' && endpoint.sourceId) {
+        const sourceListPublishers = previousState.publishers.filter(p => p.listId === endpoint.sourceId);
+        if (sourceListPublishers.length > 0) {
+          publisherIds = sourceListPublishers.map(p => p.id);
+          console.log(`Using ${publisherIds.length} publisher IDs from source list ${endpoint.sourceId}`);
+        }
+      }
+      
+      // Check for source campaign publishers
+      else if (endpoint.sourceType === 'campaign' && endpoint.sourceId) {
+        const sourceCampaignPublishers = previousState.publishers.filter(p => p.campaignId === endpoint.sourceId);
+        if (sourceCampaignPublishers.length > 0) {
+          publisherIds = sourceCampaignPublishers.map(p => p.id);
+          console.log(`Using ${publisherIds.length} publisher IDs from source campaign ${endpoint.sourceId}`);
+        }
+      }
+      
+      // If we found publishers, return them
+      if (publisherIds.length > 0) {
+        return {
+          PublisherIds: publisherIds
+        };
+      }
+      
+      // As a fallback, use all publishers from previous state
+      publisherIds = previousState.publishers.map(p => p.id);
+      console.log(`Using ${publisherIds.length} publisher IDs from previous state as fallback`);
       return {
         PublisherIds: publisherIds
       };
@@ -541,6 +754,31 @@ export async function queryCreatorIQEndpoint(endpoint, payload) {
     data.listId = listId;
     data.success = true;
     data.message = `${publisherIds.length} publishers added to list ${listId}`;
+    data.publisherIds = publisherIds;
+  }
+  
+  // If this is a successful publisher addition to campaign, add metadata
+  if (endpoint.method === "POST" && endpoint.route.includes("/campaigns/") && endpoint.route.includes("/publishers")) {
+    // Extract campaign ID from the URL
+    const campaignId = endpoint.route.match(/\/campaigns\/(\d+)\/publishers/)?.[1];
+    const publisherIds = payload.PublisherIds || [];
+    
+    console.log(`Added ${publisherIds.length} publishers to campaign ${campaignId}`);
+    
+    // Add operation metadata
+    data.operation = {
+      type: "Add Publishers To Campaign",
+      successful: true,
+      details: `Added ${publisherIds.length} publishers to campaign ${campaignId}`,
+      timestamp: new Date().toISOString(),
+      campaignId: campaignId,
+      publisherIds: publisherIds
+    };
+    
+    // Add additional metadata for state tracking
+    data.campaignId = campaignId;
+    data.success = true;
+    data.message = `${publisherIds.length} publishers added to campaign ${campaignId}`;
     data.publisherIds = publisherIds;
   }
   

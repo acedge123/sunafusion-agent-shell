@@ -108,6 +108,13 @@ export async function processCreatorIQResponse(stateKey: string, userId: string,
           }
         }
         
+        // Check for specific operation results (add publishers to campaign)
+        if (result.data && result.data.operation && 
+            result.data.operation.type === "Add Publishers To Campaign") {
+          console.log("Found campaign operation results to process");
+          context += `operation:add_publishers_to_campaign,`;
+        }
+        
         // If we have an error in this result, track it
         if (result.error) {
           hasErrors = true;

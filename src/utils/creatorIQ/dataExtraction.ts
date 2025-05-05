@@ -154,6 +154,18 @@ export function extractOperationResult(data: any): any {
       };
     }
     
+    // For adding publisher to campaign responses
+    if (data.success === true && data.message && data.message.includes('added to campaign')) {
+      return {
+        successful: true,
+        type: 'Add Publisher To Campaign',
+        details: data.message,
+        campaignId: data.campaignId,
+        publisherId: data.publisherId,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
     // For message sending responses
     if (data.success === true && data.messageId) {
       return {

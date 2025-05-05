@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -313,6 +314,28 @@ serve(async (req) => {
                   const campaign = stateData.newData.campaigns.find(c => c.id === creator_iq_params.campaign_id);
                   if (campaign) {
                     campaign.publishersCount = publishers.length;
+                  }
+                }
+                // Add campaign ID if this is from a campaign endpoint
+                else if (endpoint.route.includes('/campaigns/')) {
+                  const campaignId = endpoint.route.match(/\/campaigns\/(\d+)/)?.[1];
+                  if (campaignId) {
+                    result.data.campaignId = campaignId;
+                    // Add campaign context to publishers
+                    publishers.forEach(p => {
+                      p.campaignId = campaignId;
+                    });
+                  }
+                }
+                // Add list ID if this is from a list endpoint
+                else if (endpoint.route.includes('/lists/')) {
+                  const listId = endpoint.route.match(/\/lists\/(\d+)/)?.[1];
+                  if (listId) {
+                    result.data.listId = listId;
+                    // Add list context to publishers
+                    publishers.forEach(p => {
+                      p.listId = listId;
+                    });
                   }
                 }
               }

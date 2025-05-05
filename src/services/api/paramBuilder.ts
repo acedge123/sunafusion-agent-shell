@@ -78,71 +78,173 @@ export function buildCreatorIQParams(content: string, previousState: any = null)
     
     // Check for adding publishers to list operations
     else if ((lowerContent.includes('add') || lowerContent.includes('copy')) && 
-            (lowerContent.includes('publisher') || lowerContent.includes('influencer')) && 
-             lowerContent.includes('list')) {
+            (lowerContent.includes('publisher') || lowerContent.includes('influencer'))) {
       
-      params.add_publishers_to_list = true;
-      
-      // Extract source list and target list names
-      let sourceListName, targetListName;
-      
-      // Try to find the source list name
-      const sourceRegexPatterns = [
-        /from\s+(?:list|the\s+list)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
-        /from\s+the\s+["']([^"']+)["']\s+list/i,
-        /(\b[A-Z][a-zA-Z0-9\s-]+)(?:\s+list)?\s+(?:to|into)/i
-      ];
-      
-      for (const pattern of sourceRegexPatterns) {
-        const match = content.match(pattern);
-        if (match && match[1]) {
-          sourceListName = match[1].trim();
-          console.log(`Found potential source list name: "${sourceListName}"`);
-          break;
-        }
-      }
-      
-      // Try to find the target list name
-      const targetRegexPatterns = [
-        /(?:to|into)(?:\s+list|\s+the\s+list)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
-        /(?:to|into)\s+the\s+["']([^"']+)["']\s+list/i,
-        /(?:to|into)\s+(?:list|the\s+list)\s+(\b[A-Z][a-zA-Z0-9\s-]+\b)/i
-      ];
-      
-      for (const pattern of targetRegexPatterns) {
-        const match = content.match(pattern);
-        if (match && match[1]) {
-          targetListName = match[1].trim();
-          console.log(`Found potential target list name: "${targetListName}"`);
-          break;
-        }
-      }
-      
-      // Check if we have list data from previous state
-      if (previousState && previousState.lists && previousState.lists.length > 0) {
-        // Find source list ID if we have a name
-        if (sourceListName) {
-          const sourceList = previousState.lists.find((l: any) => 
-            l.name.toLowerCase().includes(sourceListName.toLowerCase())
-          );
-          
-          if (sourceList) {
-            params.source_list_id = sourceList.id;
-            params.source_list_name = sourceList.name;
-            console.log(`Found matching source list: ${sourceList.name} (ID: ${sourceList.id})`);
+      // Check if operation is for list or campaign
+      if (lowerContent.includes('list')) {
+        params.add_publishers_to_list = true;
+        
+        // Extract source list and target list names
+        let sourceListName, targetListName;
+        
+        // Try to find the source list name
+        const sourceRegexPatterns = [
+          /from\s+(?:list|the\s+list)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
+          /from\s+the\s+["']([^"']+)["']\s+list/i,
+          /(\b[A-Z][a-zA-Z0-9\s-]+)(?:\s+list)?\s+(?:to|into)/i
+        ];
+        
+        for (const pattern of sourceRegexPatterns) {
+          const match = content.match(pattern);
+          if (match && match[1]) {
+            sourceListName = match[1].trim();
+            console.log(`Found potential source list name: "${sourceListName}"`);
+            break;
           }
         }
         
-        // Find target list ID if we have a name
-        if (targetListName) {
-          const targetList = previousState.lists.find((l: any) => 
-            l.name.toLowerCase().includes(targetListName.toLowerCase())
-          );
+        // Try to find the target list name
+        const targetRegexPatterns = [
+          /(?:to|into)(?:\s+list|\s+the\s+list)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
+          /(?:to|into)\s+the\s+["']([^"']+)["']\s+list/i,
+          /(?:to|into)\s+(?:list|the\s+list)\s+(\b[A-Z][a-zA-Z0-9\s-]+\b)/i
+        ];
+        
+        for (const pattern of targetRegexPatterns) {
+          const match = content.match(pattern);
+          if (match && match[1]) {
+            targetListName = match[1].trim();
+            console.log(`Found potential target list name: "${targetListName}"`);
+            break;
+          }
+        }
+        
+        // Check if we have list data from previous state
+        if (previousState && previousState.lists && previousState.lists.length > 0) {
+          // Find source list ID if we have a name
+          if (sourceListName) {
+            const sourceList = previousState.lists.find((l: any) => 
+              l.name.toLowerCase().includes(sourceListName.toLowerCase())
+            );
+            
+            if (sourceList) {
+              params.source_list_id = sourceList.id;
+              params.source_list_name = sourceList.name;
+              console.log(`Found matching source list: ${sourceList.name} (ID: ${sourceList.id})`);
+            }
+          }
           
-          if (targetList) {
-            params.target_list_id = targetList.id;
-            params.target_list_name = targetList.name;
-            console.log(`Found matching target list: ${targetList.name} (ID: ${targetList.id})`);
+          // Find target list ID if we have a name
+          if (targetListName) {
+            const targetList = previousState.lists.find((l: any) => 
+              l.name.toLowerCase().includes(targetListName.toLowerCase())
+            );
+            
+            if (targetList) {
+              params.target_list_id = targetList.id;
+              params.target_list_name = targetList.name;
+              console.log(`Found matching target list: ${targetList.name} (ID: ${targetList.id})`);
+            }
+          }
+        }
+      } 
+      // Check if operation is for campaign
+      else if (lowerContent.includes('campaign')) {
+        params.add_publishers_to_campaign = true;
+        
+        // Extract source and target (campaign/list) names
+        let sourceName, targetCampaignName;
+        let isSourceList = false;
+        let isSourceCampaign = false;
+        
+        // Try to find the source name (could be list or campaign)
+        const sourceRegexPatterns = [
+          // From list patterns
+          /from\s+(?:list|the\s+list)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
+          /from\s+the\s+["']([^"']+)["']\s+list/i,
+          // From campaign patterns
+          /from\s+(?:campaign|the\s+campaign)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
+          /from\s+the\s+["']([^"']+)["']\s+campaign/i,
+          // Generic "from X to Y" pattern
+          /from\s+["']([^"']+)["']\s+to/i
+        ];
+        
+        for (const pattern of sourceRegexPatterns) {
+          const match = content.match(pattern);
+          if (match && match[1]) {
+            sourceName = match[1].trim();
+            // Determine if source is likely a list or campaign based on the pattern
+            if (pattern.toString().includes('list')) {
+              isSourceList = true;
+            } else if (pattern.toString().includes('campaign')) {
+              isSourceCampaign = true;
+            }
+            console.log(`Found potential source: "${sourceName}" (likely ${isSourceList ? 'list' : isSourceCampaign ? 'campaign' : 'unknown'})`);
+            break;
+          }
+        }
+        
+        // Try to find the target campaign name
+        const targetRegexPatterns = [
+          /(?:to|into)(?:\s+campaign|\s+the\s+campaign)(?:\s+called|\s+named)?\s+["']([^"']+)["']/i,
+          /(?:to|into)\s+the\s+["']([^"']+)["']\s+campaign/i,
+          /(?:to|into)\s+(?:campaign|the\s+campaign)\s+(\b[A-Z][a-zA-Z0-9\s-]+\b)/i
+        ];
+        
+        for (const pattern of targetRegexPatterns) {
+          const match = content.match(pattern);
+          if (match && match[1]) {
+            targetCampaignName = match[1].trim();
+            console.log(`Found potential target campaign name: "${targetCampaignName}"`);
+            break;
+          }
+        }
+        
+        // If we have previous state, try to find matching sources and targets
+        if (previousState) {
+          // Find source based on name and type (list or campaign)
+          if (sourceName) {
+            // Check lists if source is a list or unknown
+            if ((isSourceList || !isSourceCampaign) && previousState.lists && previousState.lists.length > 0) {
+              const sourceList = previousState.lists.find((l: any) => 
+                l.name.toLowerCase().includes(sourceName.toLowerCase())
+              );
+              
+              if (sourceList) {
+                params.source_list_id = sourceList.id;
+                params.source_list_name = sourceList.name;
+                params.source_type = 'list';
+                console.log(`Found matching source list: ${sourceList.name} (ID: ${sourceList.id})`);
+              }
+            }
+            
+            // Check campaigns if source is a campaign or unknown and we didn't find a list match
+            if ((isSourceCampaign || !isSourceList || !params.source_list_id) && 
+                previousState.campaigns && previousState.campaigns.length > 0) {
+              const sourceCampaign = previousState.campaigns.find((c: any) => 
+                c.name.toLowerCase().includes(sourceName.toLowerCase())
+              );
+              
+              if (sourceCampaign) {
+                params.source_campaign_id = sourceCampaign.id;
+                params.source_campaign_name = sourceCampaign.name;
+                params.source_type = 'campaign';
+                console.log(`Found matching source campaign: ${sourceCampaign.name} (ID: ${sourceCampaign.id})`);
+              }
+            }
+          }
+          
+          // Find target campaign
+          if (targetCampaignName && previousState.campaigns && previousState.campaigns.length > 0) {
+            const targetCampaign = previousState.campaigns.find((c: any) => 
+              c.name.toLowerCase().includes(targetCampaignName.toLowerCase())
+            );
+            
+            if (targetCampaign) {
+              params.target_campaign_id = targetCampaign.id;
+              params.target_campaign_name = targetCampaign.name;
+              console.log(`Found matching target campaign: ${targetCampaign.name} (ID: ${targetCampaign.id})`);
+            }
           }
         }
       }

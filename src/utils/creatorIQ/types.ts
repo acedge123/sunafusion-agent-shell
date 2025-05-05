@@ -44,7 +44,9 @@ export enum CreatorIQOperationType {
   CREATE = 'create',
   UPDATE = 'update',
   DELETE = 'delete',
-  ADD = 'add'
+  ADD = 'add',
+  ADD_TO_LIST = 'add_to_list',
+  ADD_TO_CAMPAIGN = 'add_to_campaign'
 }
 
 export interface CreatorIQPayload {
@@ -56,13 +58,15 @@ export interface CreatorIQEndpoint {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   name: string;
   sourceListId?: string;
+  sourceCampaignId?: string;
   targetListId?: string;
+  targetCampaignId?: string;
   publisherId?: string;
   [key: string]: any;
 }
 
 export interface CreatorIQWriteOperation {
-  type: 'create_list' | 'update_publisher' | 'add_publisher_to_list' | 'send_message';
+  type: 'create_list' | 'update_publisher' | 'add_publisher_to_list' | 'add_publisher_to_campaign' | 'send_message';
   payload: CreatorIQPayload;
   targetId?: string;
 }
