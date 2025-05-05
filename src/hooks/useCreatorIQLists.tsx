@@ -145,7 +145,7 @@ export function useCreatorIQLists() {
     }
   }, [fetchLists]);
   
-  // Handle page change
+  // Handle page change - ensure this always returns a Promise
   const changePage = useCallback(async (page: number, limit = 2000, fetchAll = true) => {
     return await fetchLists(page, searchTerm, limit, fetchAll);
   }, [fetchLists, searchTerm]);

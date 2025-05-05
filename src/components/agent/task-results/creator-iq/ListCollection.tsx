@@ -95,21 +95,25 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
     if (!showAll && onPageChange) {
       // Load all possible data when toggling "show all"
       setIsLoading(true);
-      try {
-        // Request a very large limit to ensure all data is fetched
-        onPageChange(1, 2000, true)
-          .catch(error => {
-            console.error("Error loading all lists:", error);
-            toast.error("Failed to load all lists");
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
-      } catch (error) {
-        toast.error("Failed to load all lists");
-        console.error("Error loading all lists:", error);
-        setIsLoading(false);
-      }
+      
+      // Handle promise or void return properly
+      const loadAllLists = async () => {
+        try {
+          const result = onPageChange(1, 2000, true);
+          // Handle the case where the function returns a Promise
+          if (result instanceof Promise) {
+            await result;
+          }
+          toast.success("Loading all lists");
+        } catch (error) {
+          toast.error("Failed to load all lists");
+          console.error("Error loading all lists:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      loadAllLists();
     }
   };
   
@@ -124,7 +128,11 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       // Handle the Promise properly
       const loadData = async () => {
         try {
-          await onPageChange(1, 2000, true);
+          const result = onPageChange(1, 2000, true);
+          // Check if result is a Promise before awaiting
+          if (result instanceof Promise) {
+            await result;
+          }
         } catch (error) {
           console.error("Error loading all lists:", error);
         } finally {
