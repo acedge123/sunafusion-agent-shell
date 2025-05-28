@@ -1,76 +1,94 @@
 
-// Handlers for non-GET requests (POST, PUT, DELETE)
-import { processResponseMetadata } from '../responseProcessor.ts';
-import { createErrorResponse, createPublisherNotFoundError } from './utils.ts';
+// Handle non-GET requests (POST, PUT, DELETE)
+import { logRequest, createErrorResult, createSuccessResult } from './utils.ts';
 import { QueryResult } from './types.ts';
 
 /**
- * Handle POST, PUT and DELETE requests
+ * Handle non-GET requests (POST, PUT, DELETE)
  */
-export async function handleNonGetRequest(
-  endpoint: any, 
-  payload: any,
-  apiKey: string,
-  baseUrl: string
-): Promise<QueryResult> {
+export async function handleNonGetRequest(endpoint: any, payload: any, apiKey: string, baseUrl: string): Promise<QueryResult> {
+  logRequest(endpoint, payload);
+  
   try {
-    const url = `${baseUrl}${endpoint.route}`;
-    console.log(`Making ${endpoint.method} request to ${url} with payload:`, payload);
+    let url = `${baseUrl}${endpoint.route}`;
     
-    // Set up headers for API request
-    const headers = {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    };
-    
-    const response = await fetch(url, {
-      method: endpoint.method,
-      headers,
-      body: JSON.stringify(payload)
-    });
-    
-    console.log(`Creator IQ API response status: ${response.status}`);
-    
-    // Enhanced error handling for common error codes
-    if (!response.ok) {
-      // For 404 errors on message sending, provide a more helpful error with publisher ID
-      if (response.status === 404 && endpoint.route.includes("/messages")) {
-        return createPublisherNotFoundError(endpoint);
+    // For some endpoints, we need to add query parameters
+    if (endpoint.method === "POST" && endpoint.route.includes("/publishers")) {
+      // Handle publisher assignment to campaigns
+      if (payload.publisherId && endpoint.route.includes("/campaign/")) {
+        // Query parameter for publisher ID in campaign assignment
+        url += `?publisherId=${payload.publisherId}`;
       }
-      
-      // Handle other error status codes
-      const errorText = await response.text();
-      let errorMessage = `Creator IQ API error: ${response.status} ${response.statusText}`;
-      
-      try {
-        // Try to parse error response as JSON for more details
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.message) {
-          errorMessage += ` - ${errorJson.message}`;
-        }
-      } catch (e) {
-        // If not JSON, use the text directly if available
-        if (errorText) {
-          errorMessage += ` - ${errorText}`;
-        }
+      // Handle adding publishers to lists
+      else if (payload.PublisherId && endpoint.route.includes("/list/")) {
+        // This is handled in the request body
       }
-      
-      console.error(errorMessage);
-      throw new Error(errorMessage);
     }
     
-    const data = await response.json();
+    console.log(`Making ${endpoint.method} request to: ${url}`);
+    console.log(`Request payload:`, JSON.stringify(payload, null, 2));
     
-    // Process operation metadata based on endpoint type
-    processResponseMetadata(data, endpoint);
-    
-    return {
-      endpoint: endpoint.route,
+    const requestOptions: RequestInit = {
       method: endpoint.method,
-      name: endpoint.name,
-      data
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json'
+      }
     };
+    
+    // Add body for POST and PUT requests
+    if ((endpoint.method === "POST" || endpoint.method === "PUT") && payload) {
+      requestOptions.body = JSON.stringify(payload);
+    }
+    
+    const response = await fetch(url, requestOptions);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`${endpoint.method} request failed:`, errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      // Some APIs return empty responses for successful operations
+      data = { success: true, message: "Operation completed successfully" };
+    }
+    
+    console.log(`${endpoint.method} request successful for ${endpoint.name}:`, data);
+    
+    // Add operation metadata for tracking
+    const operationData = {
+      ...data,
+      operation: {
+        successful: true,
+        type: endpoint.name,
+        details: `${endpoint.name} completed successfully`,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    // For message sending operations, add publisher context
+    if (endpoint.route.includes("/messages")) {
+      const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+      if (publisherId) {
+        operationData.publisherId = publisherId;
+        operationData.operation.details += ` (Publisher ID: ${publisherId})`;
+      }
+    }
+    
+    // For list operations, add list context
+    if (endpoint.route.includes("/lists") && data.List) {
+      operationData.listId = data.List.Id;
+      operationData.listName = data.List.Name;
+    }
+    
+    return createSuccessResult(endpoint, operationData);
+    
   } catch (error) {
-    return createErrorResponse(endpoint, error);
+    console.error(`Error in ${endpoint.method} request for ${endpoint.name}:`, error);
+    return createErrorResult(endpoint, error);
   }
 }
