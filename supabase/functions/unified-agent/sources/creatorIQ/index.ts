@@ -34,8 +34,10 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
         const targetListName = listNameMatch[1].trim();
         console.log(`Detected specific publisher ${publisherId} to be added to list "${targetListName}"`);
         
-        // First query the lists to get the list ID, then we'll add the POST endpoint
+        // First query the lists to get the list ID
+        console.log(`Step 1: Fetching all lists to find target list...`);
         const listsResult = await queryCreatorIQEndpoint(endpoints[0], buildPayload(endpoints[0], query, params, previousState));
+        console.log(`Lists fetch result:`, JSON.stringify(listsResult, null, 2));
         
         // Find the target list ID from the results
         let targetListId = null;
@@ -65,13 +67,15 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
             PublisherId: [parseInt(publisherId)]
           };
           
-          console.log(`Adding publisher ${publisherId} to list ${targetListId} with payload:`, JSON.stringify(postPayload));
-          console.log(`POST endpoint details:`, JSON.stringify(postEndpoint));
+          console.log(`Step 2: Adding publisher ${publisherId} to list ${targetListId}`);
+          console.log(`POST endpoint:`, JSON.stringify(postEndpoint, null, 2));
+          console.log(`POST payload:`, JSON.stringify(postPayload, null, 2));
           
           // Execute the POST request
+          console.log(`Executing POST request...`);
           const postResult = await queryCreatorIQEndpoint(postEndpoint, postPayload);
           
-          console.log(`POST request result:`, JSON.stringify(postResult, null, 2));
+          console.log(`POST request completed with result:`, JSON.stringify(postResult, null, 2));
           
           // Return both results
           return [listsResult, postResult];
@@ -91,7 +95,10 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
     const results = await Promise.all(
       endpoints.map(async (endpoint) => {
         const payload = buildPayload(endpoint, query, params, previousState);
-        return await queryCreatorIQEndpoint(endpoint, payload);
+        console.log(`Querying endpoint ${endpoint.route} with payload:`, JSON.stringify(payload, null, 2));
+        const result = await queryCreatorIQEndpoint(endpoint, payload);
+        console.log(`Result from ${endpoint.route}:`, JSON.stringify(result, null, 2));
+        return result;
       })
     );
     
