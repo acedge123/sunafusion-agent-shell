@@ -1,99 +1,56 @@
 
-// Utility functions for endpoint querier
-import { QueryResult, PaginationInfo } from './types.ts';
+// Utility functions for Creator IQ querier
+import { CreatorIQEndpoint, QueryResult } from './types.ts';
 
 /**
- * Create common CORS headers for API responses
+ * Create a standardized error result
  */
-export function getCorsHeaders(): Record<string, string> {
-  return {
-    "Authorization": "Bearer",
-    "Content-Type": "application/json"
-  };
-}
-
-/**
- * Extract pagination information from API response
- */
-export function extractPaginationInfo(response: any): PaginationInfo | null {
-  if (!response) return null;
-
-  const page = response.page || 1;
-  const limit = response.limit || 50;
-  const totalItems = response.total || 0;
-  const totalPages = response.total_pages || Math.ceil(totalItems / limit) || 1;
-
-  return {
-    page,
-    limit,
-    totalItems,
-    totalPages,
-    hasNextPage: page < totalPages,
-    hasPrevPage: page > 1
-  };
-}
-
-/**
- * Create standardized error response
- */
-export function createErrorResponse(endpoint: any, error: Error | string): QueryResult {
-  const errorMessage = typeof error === 'string' ? error : error.message || "Unknown error";
-  console.error(`Error querying endpoint ${endpoint.route}:`, errorMessage);
+export function createErrorResult(
+  endpoint: CreatorIQEndpoint,
+  error: string | Error,
+  details?: any
+): QueryResult {
+  const errorMessage = error instanceof Error ? error.message : error;
   
-  // Create base error response
-  const errorResponse: QueryResult = {
+  return {
     endpoint: endpoint.route,
     method: endpoint.method,
     name: endpoint.name,
     error: errorMessage,
-    data: {
-      operation: {
-        successful: false,
-        type: endpoint.name,
-        details: `Operation failed: ${errorMessage}`,
-        timestamp: new Date().toISOString()
-      },
-      success: false,
-      message: errorMessage
-    }
+    details: details ? JSON.stringify(details) : undefined,
+    data: null
   };
-
-  // Special handling for message operations
-  if (endpoint.route.includes("/messages")) {
-    const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
-    if (publisherId) {
-      errorResponse.data.publisherId = publisherId;
-      errorResponse.data.operation.details += ` (Publisher ID: ${publisherId})`;
-    }
-  }
-  
-  return errorResponse;
 }
 
 /**
- * Create standardized publisher not found error
+ * Create a standardized success result
  */
-export function createPublisherNotFoundError(endpoint: any): QueryResult {
-  const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
-  
-  console.error(`Publisher not found: ${publisherId || "Unknown ID"}`);
-  
+export function createSuccessResult(
+  endpoint: CreatorIQEndpoint,
+  data: any
+): QueryResult {
   return {
     endpoint: endpoint.route,
     method: endpoint.method,
     name: endpoint.name,
-    error: `Publisher not found: ${publisherId || "Unknown ID"}`,
-    data: {
-      operation: {
-        successful: false,
-        type: "Send Message",
-        details: `Failed to send message: Publisher with ID ${publisherId || "Unknown"} not found`,
-        timestamp: new Date().toISOString()
-      },
-      success: false,
-      messageId: null,
-      publisherId: publisherId,
-      message: `Publisher with ID ${publisherId || "Unknown"} not found`
-    }
+    data,
+    error: undefined
   };
+}
+
+/**
+ * Log request information for debugging
+ */
+export function logRequest(endpoint: CreatorIQEndpoint, payload?: any) {
+  console.log(`Querying ${endpoint.method} ${endpoint.route}`, {
+    name: endpoint.name,
+    payload: payload ? JSON.stringify(payload) : 'No payload'
+  });
+}
+
+/**
+ * Validate endpoint configuration
+ */
+export function validateEndpoint(endpoint: CreatorIQEndpoint): boolean {
+  return !!(endpoint.route && endpoint.method && endpoint.name);
 }
