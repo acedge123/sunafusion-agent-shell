@@ -2,6 +2,16 @@
 import { CreatorIQErrorType } from "../types";
 
 /**
+ * Interface for Creator IQ error objects
+ */
+export interface CreatorIQError {
+  type: CreatorIQErrorType;
+  message: string;
+  originalError?: any;
+  isRetryable: boolean;
+}
+
+/**
  * Create a structured error object for Creator IQ operations
  */
 export function createCreatorIQError(

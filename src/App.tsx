@@ -10,6 +10,7 @@ import Auth from "./pages/Auth"
 import Drive from "./pages/Drive"
 import Chat from "./pages/Chat"
 import Agent from "./pages/Agent"
+import ImagenGenerator from "./pages/ImagenGenerator"
 import NotFound from "./pages/NotFound"
 
 const queryClient = new QueryClient()
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/#" element={<Navigate to="/" replace />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/agent" element={<Agent />} />
+            <Route path="/imagen" element={<ImagenGenerator />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

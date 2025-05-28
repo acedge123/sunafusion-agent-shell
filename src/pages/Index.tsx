@@ -1,107 +1,112 @@
 
-import React, { useState } from "react"
-import { Link } from "react-router-dom"
-import { v4 as uuidv4 } from "uuid"
-import { useToast } from "@/components/ui/use-toast"
-import AgentHeader from "@/components/agent/AgentHeader"
-import ChatContainer, { Message } from "@/components/chat/ChatContainer"
-import ChatInput from "@/components/chat/ChatInput"
-import { sendMessage } from "@/services/api"
-import { Button } from "@/components/ui/button"
-import { useAuth } from "@/components/auth/AuthProvider"
-import { Loader2 } from "lucide-react"
-import AgentTaskRunner from "@/components/agent/AgentTaskRunner"
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { 
+  MessageSquare, 
+  FileText, 
+  Database, 
+  Zap,
+  Bot,
+  Image,
+  Video
+} from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Index = () => {
-  const [messages, setMessages] = useState<Message[]>([
+  const features = [
     {
-      id: "welcome-message",
-      content: "Hello! I'm your AI assistant with access to Google Drive, Slack, Creator IQ, and web search. Ask me anything or give me a complex task - I'll break it down into steps and solve it for you.",
-      role: "assistant",
-      timestamp: new Date()
+      title: "AI Agent",
+      description: "Interact with our intelligent AI agent for complex tasks and data analysis",
+      icon: Bot,
+      href: "/agent",
+      badge: "AI Powered"
+    },
+    {
+      title: "Chat Assistant", 
+      description: "Have natural conversations with our AI assistant",
+      icon: MessageSquare,
+      href: "/chat",
+      badge: "Interactive"
+    },
+    {
+      title: "Google Drive Integration",
+      description: "Connect and analyze your Google Drive files with AI assistance",
+      icon: FileText,
+      href: "/drive",
+      badge: "Cloud Connected"
+    },
+    {
+      title: "AI Ad Generator",
+      description: "Create stunning static and video ads using Google Gemini's Imagen API",
+      icon: Image,
+      href: "/imagen",
+      badge: "New"
     }
-  ]);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const { user } = useAuth();
-
-  const handleSendMessage = async (content: string) => {
-    const userMessage: Message = {
-      id: uuidv4(),
-      content,
-      role: "user",
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
-
-    try {
-      const aiMessage = await sendMessage(content);
-      setMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
-      console.error("Error getting AI response:", error);
-      
-      const errorMessage: Message = {
-        id: uuidv4(),
-        content: "Sorry, I encountered an error processing your request. Please try again.",
-        role: "assistant",
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-      
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to get response from AI. Please try again.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  ];
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <AgentHeader 
-        agentName="Suna AI" 
-        agentImage="/placeholder.svg"
-        onSettings={() => console.log("Settings clicked")}
-      />
-      
-      <div className="p-4 pb-0 bg-muted/20 border-b">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-center max-w-4xl mx-auto">
-          <div className="text-center md:text-left">
-            <h1 className="text-2xl font-bold mb-2">TheGig.Agency Unified Assistant</h1>
-            <p className="text-muted-foreground mb-2">
-              Your intelligent assistant that autonomously searches your Google Drive files, Slack messages, Creator IQ data, and the web to solve complex tasks
-            </p>
-            
-            {!user && (
-              <Button asChild>
-                <Link to="/auth">Sign In to Access All Features</Link>
-              </Button>
-            )}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-16">
+        <div className="text-center mb-16">
+          <h1 className="text-5xl font-bold text-gray-900 mb-6">
+            Welcome to <span className="text-blue-600">SunaFusion</span>
+          </h1>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
+            Your intelligent AI-powered platform for productivity, creativity, and data analysis. 
+            Explore our suite of tools designed to enhance your workflow.
+          </p>
+          <div className="flex justify-center gap-4">
+            <Badge variant="secondary" className="text-sm px-3 py-1">
+              <Zap className="w-3 h-3 mr-1" />
+              AI Powered
+            </Badge>
+            <Badge variant="secondary" className="text-sm px-3 py-1">
+              <Database className="w-3 h-3 mr-1" />
+              Cloud Connected
+            </Badge>
           </div>
         </div>
-      </div>
-      
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="max-w-4xl mx-auto">
-          <AgentTaskRunner 
-            showToolSelection={true}
-            initialTask="Example: Summarize all meeting minutes for our client Copper Fit or Find all influencers with over 1M followers from Creator IQ" 
-          />
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          {features.map((feature, index) => (
+            <Card key={index} className="hover:shadow-lg transition-shadow duration-300 border-0 shadow-md">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <feature.icon className="h-8 w-8 text-blue-600" />
+                  <Badge variant="outline" className="text-xs">
+                    {feature.badge}
+                  </Badge>
+                </div>
+                <CardTitle className="text-xl font-semibold text-gray-900">
+                  {feature.title}
+                </CardTitle>
+                <CardDescription className="text-gray-600">
+                  {feature.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Link to={feature.href}>
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                    Get Started
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="text-center mt-16">
+          <p className="text-gray-600 mb-4">
+            Ready to supercharge your productivity with AI?
+          </p>
+          <Link to="/agent">
+            <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3">
+              Start with AI Agent
+            </Button>
+          </Link>
         </div>
       </div>
-      
-      {isLoading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
-          <div className="bg-background p-4 rounded-lg shadow-lg flex items-center gap-2">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Getting response...</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
