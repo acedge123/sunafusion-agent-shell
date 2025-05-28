@@ -9,11 +9,19 @@ import { BuildPayloadOptions, CreatorIQEndpoint } from './types.ts';
 export function buildAddPublishersToListPayload({ params, previousState = null }: BuildPayloadOptions, endpoint: CreatorIQEndpoint): any {
   console.log("Building payload for adding publishers to list");
   
+  // If we have a specific publisher ID from the endpoint
+  if (endpoint.publisherId) {
+    console.log(`Using specific publisher ID from endpoint: ${endpoint.publisherId}`);
+    return {
+      PublisherId: [parseInt(endpoint.publisherId)]
+    };
+  }
+  
   // If we have specific publisher IDs to add
   if (params.publisher_ids && Array.isArray(params.publisher_ids) && params.publisher_ids.length > 0) {
     console.log(`Using ${params.publisher_ids.length} publisher IDs from params`);
     return {
-      PublisherIds: params.publisher_ids
+      PublisherId: params.publisher_ids.map((id: any) => parseInt(id))
     };
   }
   
@@ -21,13 +29,13 @@ export function buildAddPublishersToListPayload({ params, previousState = null }
   const publisherIds = getSourcePublishers(endpoint, previousState);
   if (publisherIds.length > 0) {
     return {
-      PublisherIds: publisherIds
+      PublisherId: publisherIds.map((id: any) => parseInt(id))
     };
   }
   
   // Default empty array if no publishers identified
   return {
-    PublisherIds: []
+    PublisherId: []
   };
 }
 
@@ -37,11 +45,22 @@ export function buildAddPublishersToListPayload({ params, previousState = null }
 export function buildAddPublishersToCampaignPayload({ params, previousState = null }: BuildPayloadOptions, endpoint: CreatorIQEndpoint): any {
   console.log("Building payload for adding publishers to campaign");
   
+  // If we have a specific publisher ID from the endpoint
+  if (endpoint.publisherId) {
+    console.log(`Using specific publisher ID from endpoint: ${endpoint.publisherId}`);
+    return {
+      publisherId: parseInt(endpoint.publisherId),
+      status: "Invited"
+    };
+  }
+  
   // If we have specific publisher IDs to add
   if (params.publisher_ids && Array.isArray(params.publisher_ids) && params.publisher_ids.length > 0) {
     console.log(`Using ${params.publisher_ids.length} publisher IDs from params`);
+    // For campaigns, we need to add publishers one by one
     return {
-      PublisherIds: params.publisher_ids
+      publisherId: parseInt(params.publisher_ids[0]),
+      status: "Invited"
     };
   }
   
@@ -49,22 +68,25 @@ export function buildAddPublishersToCampaignPayload({ params, previousState = nu
   const publisherIds = getSourcePublishers(endpoint, previousState);
   if (publisherIds.length > 0) {
     return {
-      PublisherIds: publisherIds
+      publisherId: parseInt(publisherIds[0]),
+      status: "Invited"
     };
   }
 
   // If no specific publishers found but we have previous state with publishers
   if (previousState && previousState.publishers && previousState.publishers.length > 0) {
-    // As a fallback, use all publishers from previous state
-    const allPublisherIds = previousState.publishers.map((p: any) => p.id);
-    console.log(`Using ${allPublisherIds.length} publisher IDs from previous state as fallback`);
+    // As a fallback, use the first publisher from previous state
+    const publisherId = previousState.publishers[0].id;
+    console.log(`Using publisher ID from previous state as fallback: ${publisherId}`);
     return {
-      PublisherIds: allPublisherIds
+      publisherId: parseInt(publisherId),
+      status: "Invited"
     };
   }
   
-  // Default empty array if no publishers identified
+  // Default payload if no publishers identified
   return {
-    PublisherIds: []
+    publisherId: null,
+    status: "Invited"
   };
 }

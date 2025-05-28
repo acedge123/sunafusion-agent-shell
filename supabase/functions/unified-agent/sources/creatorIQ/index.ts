@@ -60,20 +60,27 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
             publisherId: publisherId
           };
           
-          // Build payload for adding the publisher
+          // Build payload for adding the publisher using the correct format
           const postPayload = {
             PublisherId: [parseInt(publisherId)]
           };
           
-          console.log(`Adding publisher ${publisherId} to list ${targetListId} with payload:`, postPayload);
+          console.log(`Adding publisher ${publisherId} to list ${targetListId} with payload:`, JSON.stringify(postPayload));
+          console.log(`POST endpoint details:`, JSON.stringify(postEndpoint));
           
           // Execute the POST request
           const postResult = await queryCreatorIQEndpoint(postEndpoint, postPayload);
+          
+          console.log(`POST request result:`, JSON.stringify(postResult, null, 2));
           
           // Return both results
           return [listsResult, postResult];
         } else {
           console.error(`Could not find list with name "${targetListName}"`);
+          console.log("Available lists:", listsResult.data?.ListsCollection?.map((item: any) => {
+            const listData = item.List || item;
+            return listData?.Name;
+          }).filter(Boolean));
           // Return just the lists result
           return [listsResult];
         }
