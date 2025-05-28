@@ -36,9 +36,8 @@ serve(async (req) => {
       );
     }
 
-    const endpoint = type === 'video' 
-      ? 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage'
-      : 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage';
+    // Use the correct Imagen 3.0 endpoint
+    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage';
 
     const requestBody = {
       prompt: {
@@ -55,13 +54,22 @@ serve(async (req) => {
         }
       ],
       personGeneration: "ALLOW_ADULT",
-      aspectRatio: "ASPECT_RATIO_1_1",
-      ...(type === 'video' && {
-        videoLength: "VIDEO_LENGTH_4S"
-      })
+      aspectRatio: "ASPECT_RATIO_1_1"
     };
 
-    console.log('Calling Gemini API with:', { prompt, type });
+    // Note: Video generation might not be available in Imagen 3.0
+    // For now, we'll generate static images only
+    if (type === 'video') {
+      return new Response(
+        JSON.stringify({ error: 'Video generation is not currently supported' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    console.log('Calling Gemini Imagen API with:', { prompt, type, endpoint });
 
     const response = await fetch(`${endpoint}?key=${geminiApiKey}`, {
       method: 'POST',
@@ -71,13 +79,17 @@ serve(async (req) => {
       body: JSON.stringify(requestBody),
     });
 
+    const responseText = await response.text();
+    console.log('Gemini API response status:', response.status);
+    console.log('Gemini API response:', responseText);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', errorText);
+      console.error('Gemini API error:', responseText);
       return new Response(
         JSON.stringify({ 
           error: 'Failed to generate image',
-          details: errorText 
+          details: responseText,
+          status: response.status
         }),
         { 
           status: response.status,
@@ -86,8 +98,24 @@ serve(async (req) => {
       );
     }
 
-    const data = await response.json();
-    console.log('Gemini API response received');
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse Gemini API response:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid response from Gemini API',
+          details: 'Failed to parse JSON response'
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    console.log('Gemini API response received successfully');
 
     return new Response(
       JSON.stringify({ 
