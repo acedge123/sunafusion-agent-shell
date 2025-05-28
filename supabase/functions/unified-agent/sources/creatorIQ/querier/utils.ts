@@ -23,6 +23,17 @@ export function createErrorResult(
 }
 
 /**
+ * Create a standardized error response (alias for createErrorResult)
+ */
+export function createErrorResponse(
+  endpoint: CreatorIQEndpoint,
+  error: string | Error,
+  details?: any
+): QueryResult {
+  return createErrorResult(endpoint, error, details);
+}
+
+/**
  * Create a standardized success result
  */
 export function createSuccessResult(
