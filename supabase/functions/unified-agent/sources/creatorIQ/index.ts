@@ -1,7 +1,8 @@
+
 // Main entry point for Creator IQ integration
 import { determineCreatorIQEndpoints } from './endpoint/index.ts';
 import { buildPayload } from './payload/index.ts';
-import { queryEndpoint } from './querier/index.ts';
+import { queryCreatorIQEndpoint } from './querier/index.ts';
 import { processResponseMetadata } from './responseProcessor.ts';
 import { extractListNameFromQuery, extractStatusFromQuery, extractMessageFromQuery } from './textExtractors.ts';
 
@@ -34,7 +35,7 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
         console.log(`Detected specific publisher ${publisherId} to be added to list "${targetListName}"`);
         
         // First query the lists to get the list ID, then we'll add the POST endpoint
-        const listsResult = await queryEndpoint(endpoints[0], buildPayload(endpoints[0], query, params, previousState));
+        const listsResult = await queryCreatorIQEndpoint(endpoints[0], buildPayload(endpoints[0], query, params, previousState));
         
         // Find the target list ID from the results
         let targetListId = null;
@@ -67,7 +68,7 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
           console.log(`Adding publisher ${publisherId} to list ${targetListId} with payload:`, postPayload);
           
           // Execute the POST request
-          const postResult = await queryEndpoint(postEndpoint, postPayload);
+          const postResult = await queryCreatorIQEndpoint(postEndpoint, postPayload);
           
           // Return both results
           return [listsResult, postResult];
@@ -83,7 +84,7 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
     const results = await Promise.all(
       endpoints.map(async (endpoint) => {
         const payload = buildPayload(endpoint, query, params, previousState);
-        return await queryEndpoint(endpoint, payload);
+        return await queryCreatorIQEndpoint(endpoint, payload);
       })
     );
     
@@ -98,6 +99,6 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
 // Re-export all the main functions
 export { determineCreatorIQEndpoints } from './endpoint/index.ts';
 export { buildPayload as buildCreatorIQPayload } from './payload/index.ts';
-export { queryEndpoint as queryCreatorIQEndpoint } from './querier/index.ts';
+export { queryCreatorIQEndpoint } from './querier/index.ts';
 export { processResponseMetadata } from './responseProcessor.ts';
 export { extractListNameFromQuery, extractStatusFromQuery, extractMessageFromQuery } from './textExtractors.ts';
