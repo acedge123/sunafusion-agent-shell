@@ -1,9 +1,8 @@
-
 // Main entry point for Creator IQ integration
 import { determineCreatorIQEndpoints } from './endpoint/index.ts';
 import { buildPayload } from './payload/index.ts';
 import { queryEndpoint } from './querier/index.ts';
-import { processResponseMetadata } from './response/index.ts';
+import { processResponseMetadata } from './responseProcessor.ts';
 import { extractListNameFromQuery, extractStatusFromQuery, extractMessageFromQuery } from './textExtractors.ts';
 
 /**
@@ -100,5 +99,5 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
 export { determineCreatorIQEndpoints } from './endpoint/index.ts';
 export { buildPayload as buildCreatorIQPayload } from './payload/index.ts';
 export { queryEndpoint as queryCreatorIQEndpoint } from './querier/index.ts';
-export { processResponseMetadata } from './response/index.ts';
+export { processResponseMetadata } from './responseProcessor.ts';
 export { extractListNameFromQuery, extractStatusFromQuery, extractMessageFromQuery } from './textExtractors.ts';
