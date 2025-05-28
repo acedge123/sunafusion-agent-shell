@@ -37,7 +37,7 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
         // First query the lists to get the list ID
         console.log(`Step 1: Fetching all lists to find target list...`);
         const listsResult = await queryCreatorIQEndpoint(endpoints[0], buildPayload(endpoints[0], query, params, previousState));
-        console.log(`Lists fetch result:`, JSON.stringify(listsResult, null, 2));
+        console.log(`Lists fetch result success:`, listsResult.success);
         
         // Find the target list ID from the results
         let targetListId = null;
@@ -75,18 +75,28 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
           console.log(`Executing POST request...`);
           const postResult = await queryCreatorIQEndpoint(postEndpoint, postPayload);
           
-          console.log(`POST request completed with result:`, JSON.stringify(postResult, null, 2));
+          console.log(`POST request completed with success:`, postResult.success);
+          console.log(`POST request result:`, JSON.stringify(postResult, null, 2));
           
-          // Return both results
-          return [listsResult, postResult];
+          // Return both results with proper success indication
+          if (postResult.success) {
+            console.log(`Successfully added publisher ${publisherId} to list "${targetListName}"`);
+            return [listsResult, postResult];
+          } else {
+            console.error(`Failed to add publisher ${publisherId} to list "${targetListName}":`, postResult.error);
+            return [listsResult, postResult];
+          }
         } else {
           console.error(`Could not find list with name "${targetListName}"`);
           console.log("Available lists:", listsResult.data?.ListsCollection?.map((item: any) => {
             const listData = item.List || item;
             return listData?.Name;
           }).filter(Boolean));
-          // Return just the lists result
-          return [listsResult];
+          // Return just the lists result with error indication
+          return [{
+            ...listsResult,
+            error: `List "${targetListName}" not found`
+          }];
         }
       }
     }
@@ -97,7 +107,7 @@ export async function processCreatorIQQuery(query: string, params: any = {}, pre
         const payload = buildPayload(endpoint, query, params, previousState);
         console.log(`Querying endpoint ${endpoint.route} with payload:`, JSON.stringify(payload, null, 2));
         const result = await queryCreatorIQEndpoint(endpoint, payload);
-        console.log(`Result from ${endpoint.route}:`, JSON.stringify(result, null, 2));
+        console.log(`Result from ${endpoint.route} success:`, result.success);
         return result;
       })
     );

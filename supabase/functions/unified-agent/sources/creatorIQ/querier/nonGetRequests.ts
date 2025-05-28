@@ -12,9 +12,11 @@ export async function handleNonGetRequest(endpoint: any, payload: any, apiKey: s
   try {
     let url = `${baseUrl}${endpoint.route}`;
     
+    console.log(`=== POST REQUEST DEBUG ===`);
     console.log(`Preparing ${endpoint.method} request to: ${url}`);
     console.log(`Request payload:`, JSON.stringify(payload, null, 2));
     console.log(`Endpoint details:`, JSON.stringify(endpoint, null, 2));
+    console.log(`API Key available:`, !!apiKey);
     
     // For some endpoints, we need to add query parameters
     if (endpoint.method === "POST" && endpoint.route.includes("/publishers")) {
@@ -27,6 +29,7 @@ export async function handleNonGetRequest(endpoint: any, payload: any, apiKey: s
       // Handle adding publishers to lists - this should NOT have query params, just body
       else if (payload.PublisherId && endpoint.route.includes("/list")) {
         console.log(`Adding publishers to list - payload will be sent in request body`);
+        console.log(`Publisher IDs to add:`, payload.PublisherId);
       }
     }
     
@@ -52,15 +55,18 @@ export async function handleNonGetRequest(endpoint: any, payload: any, apiKey: s
       bodyLength: requestOptions.body ? requestOptions.body.length : 0
     });
     
+    console.log(`=== EXECUTING FETCH REQUEST ===`);
     const response = await fetch(url, requestOptions);
     
+    console.log(`=== RESPONSE RECEIVED ===`);
     console.log(`Response status: ${response.status} ${response.statusText}`);
     console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`${endpoint.method} request failed with status ${response.status}:`, errorText);
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
+      console.log(`=== POST REQUEST FAILED ===`);
+      return createErrorResult(endpoint, new Error(`HTTP ${response.status}: ${errorText}`));
     }
     
     let data;
@@ -82,6 +88,7 @@ export async function handleNonGetRequest(endpoint: any, payload: any, apiKey: s
       data = { success: true, message: "Operation completed successfully" };
     }
     
+    console.log(`=== POST REQUEST SUCCESSFUL ===`);
     console.log(`${endpoint.method} request successful for ${endpoint.name}:`, data);
     
     // Add operation metadata for tracking
@@ -129,6 +136,7 @@ export async function handleNonGetRequest(endpoint: any, payload: any, apiKey: s
     return createSuccessResult(endpoint, operationData);
     
   } catch (error) {
+    console.error(`=== POST REQUEST ERROR ===`);
     console.error(`Error in ${endpoint.method} request for ${endpoint.name}:`, error);
     return createErrorResult(endpoint, error);
   }
