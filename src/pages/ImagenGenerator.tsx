@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Download, Image, Video } from "lucide-react";
+import { Loader2, Download, Image, Video, AlertCircle } from "lucide-react";
 
 export default function ImagenGenerator() {
   const [prompt, setPrompt] = useState("");
@@ -24,6 +24,15 @@ export default function ImagenGenerator() {
       toast({
         title: "Error",
         description: "Please enter a prompt",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (type === 'video') {
+      toast({
+        title: "Not Available",
+        description: "Video generation is not currently supported by the Imagen API",
         variant: "destructive",
       });
       return;
@@ -47,7 +56,7 @@ export default function ImagenGenerator() {
       
       toast({
         title: "Success",
-        description: `${type === 'static' ? 'Image' : 'Video'} generated successfully!`,
+        description: "Ad description generated successfully!",
       });
 
     } catch (error) {
@@ -62,13 +71,13 @@ export default function ImagenGenerator() {
     }
   };
 
-  const downloadContent = (content: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = content;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied",
+        description: "Description copied to clipboard",
+      });
+    });
   };
 
   return (
@@ -79,7 +88,7 @@ export default function ImagenGenerator() {
             AI Ad Generator
           </h1>
           <p className="text-lg text-gray-600">
-            Create stunning static and video ads using Google Gemini's Imagen API
+            Generate detailed ad descriptions using Google Gemini AI
           </p>
         </div>
 
@@ -87,10 +96,10 @@ export default function ImagenGenerator() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Image className="h-5 w-5" />
-              Generate Ads
+              Generate Ad Descriptions
             </CardTitle>
             <CardDescription>
-              Enter a detailed prompt to generate your ad content
+              Enter a detailed prompt to generate professional ad descriptions
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -113,9 +122,9 @@ export default function ImagenGenerator() {
                   <Image className="h-4 w-4" />
                   Static Ad
                 </TabsTrigger>
-                <TabsTrigger value="video" className="flex items-center gap-2">
+                <TabsTrigger value="video" className="flex items-center gap-2" disabled>
                   <Video className="h-4 w-4" />
-                  Video Ad
+                  Video Ad (Coming Soon)
                 </TabsTrigger>
               </TabsList>
 
@@ -128,35 +137,24 @@ export default function ImagenGenerator() {
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Static Ad...
+                      Generating Ad Description...
                     </>
                   ) : (
                     <>
                       <Image className="mr-2 h-4 w-4" />
-                      Generate Static Ad
+                      Generate Ad Description
                     </>
                   )}
                 </Button>
               </TabsContent>
 
               <TabsContent value="video" className="space-y-4">
-                <Button
-                  onClick={() => handleGenerate('video')}
-                  disabled={isLoading || !prompt.trim()}
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Video Ad...
-                    </>
-                  ) : (
-                    <>
-                      <Video className="mr-2 h-4 w-4" />
-                      Generate Video Ad
-                    </>
-                  )}
-                </Button>
+                <div className="flex items-center gap-2 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                  <span className="text-sm text-yellow-800">
+                    Video generation is not currently available through the Imagen API
+                  </span>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -166,12 +164,8 @@ export default function ImagenGenerator() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                {generatedContent.type === 'static' ? (
-                  <Image className="h-5 w-5" />
-                ) : (
-                  <Video className="h-5 w-5" />
-                )}
-                Generated {generatedContent.type === 'static' ? 'Image' : 'Video'}
+                <Image className="h-5 w-5" />
+                Generated Ad Description
                 <Badge variant="secondary">
                   {generatedContent.type}
                 </Badge>
@@ -180,45 +174,26 @@ export default function ImagenGenerator() {
             <CardContent className="space-y-4">
               {generatedContent.data.candidates?.map((candidate: any, index: number) => (
                 <div key={index} className="space-y-4">
-                  {generatedContent.type === 'static' && candidate.image ? (
+                  {candidate.generatedText ? (
                     <div className="space-y-4">
-                      <img
-                        src={`data:image/jpeg;base64,${candidate.image.data}`}
-                        alt="Generated ad"
-                        className="w-full max-w-md mx-auto rounded-lg shadow-lg"
-                      />
-                      <Button
-                        onClick={() => downloadContent(
-                          `data:image/jpeg;base64,${candidate.image.data}`,
-                          `ad-${Date.now()}.jpg`
-                        )}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Download Image
-                      </Button>
-                    </div>
-                  ) : generatedContent.type === 'video' && candidate.video ? (
-                    <div className="space-y-4">
-                      <video
-                        controls
-                        className="w-full max-w-md mx-auto rounded-lg shadow-lg"
-                      >
-                        <source src={`data:video/mp4;base64,${candidate.video.data}`} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
-                      <Button
-                        onClick={() => downloadContent(
-                          `data:video/mp4;base64,${candidate.video.data}`,
-                          `ad-${Date.now()}.mp4`
-                        )}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Download Video
-                      </Button>
+                      <div className="p-4 bg-gray-50 rounded-lg border">
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                          {candidate.generatedText}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => copyToClipboard(candidate.generatedText)}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Copy Description
+                        </Button>
+                      </div>
+                      {candidate.description && (
+                        <p className="text-xs text-gray-500">{candidate.description}</p>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center text-gray-500">
