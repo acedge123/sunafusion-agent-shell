@@ -5,7 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 export * from "./types";
 export * from "./db";
 export * from "./dataExtraction";
-export * from "./errorHandling";
+
+// Re-export error handling but avoid the duplicate CreatorIQError export
+export { 
+  createCreatorIQError,
+  formatCreatorIQErrorMessage,
+  handlePublisherNotFoundError,
+  withCreatorIQRetry,
+  isErrorRetriable,
+  logAvailablePublisherIds
+} from "./errorHandling";
 
 // Export sessionStorage utilities but avoid ambiguous re-export
 import { creatorIQCache } from "./cache";
