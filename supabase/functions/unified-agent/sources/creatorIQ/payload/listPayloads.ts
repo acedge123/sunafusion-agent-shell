@@ -21,9 +21,12 @@ export function buildListCreationPayload({ query, params }: BuildPayloadOptions)
  * Build payload for list query endpoint
  */
 export function buildListQueryPayload({ params }: BuildPayloadOptions): any {
-  // Start with default reasonable limit (20 matches API's actual behavior)
+  // For list queries, we want to fetch all lists by default
+  // Use a large limit and enable full pagination
   const searchParams: any = { 
-    limit: params.limit || 20
+    limit: params.limit || 5000,  // Increased default limit
+    _fullSearch: true,            // Enable full search by default
+    all_pages: true               // Fetch all pages by default
   };
   
   // Important: Pass through pagination parameters correctly

@@ -8,7 +8,6 @@ export function useCreatorIQLists() {
   const [listsData, setListsData] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [listNames, setListNames] = useState<string[]>([]);
-  const [attemptedFullLoad, setAttemptedFullLoad] = useState(false);
   
   // Debug effect to log list names when data changes
   useEffect(() => {
@@ -31,24 +30,17 @@ export function useCreatorIQLists() {
       // Enhanced debug logging
       console.log(`Total lists claimed by API: ${listsData.data.total || 'unknown'}`);
       console.log(`Lists actually in collection: ${listsData.data.ListsCollection.length}`);
-      
-      // Check if we might be missing data
-      const totalLists = listsData.data.total || 0;
-      if (totalLists > names.length && !attemptedFullLoad && !listsData.data._all_pages_fetched) {
-        console.warn(`Data discrepancy: API reports ${totalLists} total lists but we only have ${names.length} in our collection`);
-        // This will trigger a retry with more aggressive parameters if we detect missing data
-        setAttemptedFullLoad(true);
-      }
+      console.log(`All pages fetched: ${listsData.data._all_pages_fetched ? 'Yes' : 'No'}`);
     }
-  }, [listsData, attemptedFullLoad]);
+  }, [listsData]);
   
-  // Fetch lists - always fetch all lists with a large limit
-  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 2000) => {
+  // Fetch lists - always fetch all lists by default
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 5000, fetchAll = true) => {
     setIsLoading(true);
     
     try {
-      console.log(`Fetching all lists${search ? ` with search "${search}"` : ''} with limit ${limit}`);
-      const data = await fetchListsByPage(page, search, limit, true);
+      console.log(`Fetching all lists${search ? ` with search "${search}"` : ''} with limit ${limit}, fetchAll: ${fetchAll}`);
+      const data = await fetchListsByPage(page, search, limit, fetchAll);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -67,16 +59,6 @@ export function useCreatorIQLists() {
             all_pages_fetched: listsEndpoint.data?._all_pages_fetched
           });
           
-          // If we got data but don't have all pages and the metadata says there are more pages,
-          // but we should have fetched them all, log a warning
-          if (listCount > 0 && 
-              listsEndpoint.data?.total_pages > 1 && 
-              !listsEndpoint.data?._all_pages_fetched) {
-            console.warn("Warning: Expected all pages to be fetched but the metadata indicates otherwise");
-            // Retry with a larger limit
-            return fetchLists(1, search, 5000);
-          }
-          
           setListsData(listsEndpoint);
           return listsEndpoint;
         }
@@ -92,28 +74,19 @@ export function useCreatorIQLists() {
     }
   }, [searchTerm]);
   
-  // If we detect missing data, retry with more aggressive parameters
-  useEffect(() => {
-    if (attemptedFullLoad && !isLoading) {
-      console.log("Attempting to reload all data with more aggressive parameters");
-      // Using a very large limit and ensuring we get all pages
-      fetchLists(1, '', 5000);
-    }
-  }, [attemptedFullLoad, isLoading, fetchLists]);
-  
   // Search lists with enhanced error handling - always fetch all results
-  const searchLists = useCallback(async (term: string, limit = 5000) => {
+  const searchLists = useCallback(async (term: string, limit = 5000, fetchAll = true) => {
     if (!term.trim()) {
       setSearchTerm('');
-      return fetchLists(1, '', limit);
+      return fetchLists(1, '', limit, fetchAll);
     }
     
     setIsLoading(true);
     setSearchTerm(term);
     
     try {
-      console.log(`Searching all lists with term: ${term} and limit: ${limit}`);
-      const data = await searchListsByName(term, limit, true);
+      console.log(`Searching all lists with term: ${term} and limit: ${limit}, fetchAll: ${fetchAll}`);
+      const data = await searchListsByName(term, limit, fetchAll);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -140,9 +113,9 @@ export function useCreatorIQLists() {
     }
   }, [fetchLists]);
   
-  // Load all lists on component mount with aggressive parameters
+  // Load all lists on component mount with full pagination enabled
   useEffect(() => {
-    fetchLists(1, '', 5000);
+    fetchLists(1, '', 5000, true);
   }, [fetchLists]);
   
   return {
