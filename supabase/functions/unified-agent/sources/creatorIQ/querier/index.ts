@@ -6,48 +6,124 @@ import { createErrorResponse } from './utils.ts';
 import { QueryResult } from './types.ts';
 
 /**
+ * Enhanced error logging function
+ */
+function logDetailedError(context: string, error: any, endpoint?: any, payload?: any) {
+  console.error(`=== ${context.toUpperCase()} ERROR ===`);
+  console.error(`Error type: ${error?.constructor?.name || 'Unknown'}`);
+  console.error(`Error message: ${error?.message || 'No message'}`);
+  
+  if (error?.status) {
+    console.error(`HTTP status: ${error.status}`);
+  }
+  
+  if (error?.stack) {
+    console.error(`Stack trace:`, error.stack);
+  }
+  
+  if (endpoint) {
+    console.error(`Endpoint details:`, {
+      route: endpoint.route,
+      method: endpoint.method,
+      name: endpoint.name
+    });
+  }
+  
+  if (payload) {
+    console.error(`Payload:`, JSON.stringify(payload, null, 2));
+  }
+  
+  console.error(`=== END ${context.toUpperCase()} ERROR ===`);
+}
+
+/**
  * Query Creator IQ API endpoint with automatic pagination support
  */
 export async function queryCreatorIQEndpoint(endpoint: any, payload: any): Promise<QueryResult> {
-  const apiKey = Deno.env.get("CREATOR_IQ_API_KEY");
-  if (!apiKey) {
-    throw new Error("Creator IQ API key is not configured");
-  }
-  
-  let baseUrl = "https://apis.creatoriq.com/crm/v1/api";
-  
-  // Enhanced error handling for publisher ID placeholder in message endpoints
-  if (endpoint.route.includes("{publisher_id}") && endpoint.route.includes("/messages")) {
-    console.error("Error: Publisher ID placeholder not resolved in message endpoint URL");
-    
-    // Create a more descriptive error response
-    return {
-      endpoint: endpoint.route,
-      method: endpoint.method,
-      name: endpoint.name,
-      error: "Missing publisher ID",
-      data: {
-        operation: {
-          successful: false,
-          type: "Send Message",
-          details: "Failed to send message: No publisher ID specified. Please provide a specific publisher ID.",
-          timestamp: new Date().toISOString()
-        },
-        success: false,
-        message: "Unable to send message without a valid publisher ID. Please specify a publisher ID."
-      }
-    };
-  }
+  console.log("=== QUERY CREATOR IQ ENDPOINT START ===");
+  console.log(`Endpoint: ${endpoint?.method || 'UNKNOWN'} ${endpoint?.route || 'UNKNOWN'}`);
+  console.log(`Name: ${endpoint?.name || 'UNKNOWN'}`);
   
   try {
+    // Validate API key
+    const apiKey = Deno.env.get("CREATOR_IQ_API_KEY");
+    if (!apiKey) {
+      const errorMsg = "Creator IQ API key is not configured";
+      console.error("=== API KEY ERROR ===", errorMsg);
+      throw new Error(errorMsg);
+    }
+    console.log("API key: ✓ Available");
+    
+    // Validate endpoint
+    if (!endpoint) {
+      throw new Error("Endpoint is null or undefined");
+    }
+    
+    if (!endpoint.route) {
+      throw new Error("Endpoint route is missing");
+    }
+    
+    if (!endpoint.method) {
+      throw new Error("Endpoint method is missing");
+    }
+    
+    console.log("Endpoint validation: ✓ Valid");
+    
+    let baseUrl = "https://apis.creatoriq.com/crm/v1/api";
+    console.log(`Base URL: ${baseUrl}`);
+    
+    // Enhanced error handling for publisher ID placeholder in message endpoints
+    if (endpoint.route.includes("{publisher_id}") && endpoint.route.includes("/messages")) {
+      console.error("=== PUBLISHER ID PLACEHOLDER ERROR ===");
+      
+      // Create a more descriptive error response
+      return {
+        endpoint: endpoint.route,
+        method: endpoint.method,
+        name: endpoint.name,
+        error: "Missing publisher ID",
+        success: false,
+        data: {
+          operation: {
+            successful: false,
+            type: "Send Message",
+            details: "Failed to send message: No publisher ID specified. Please provide a specific publisher ID.",
+            timestamp: new Date().toISOString()
+          },
+          success: false,
+          message: "Unable to send message without a valid publisher ID. Please specify a publisher ID."
+        }
+      };
+    }
+    
+    console.log("=== DELEGATING TO REQUEST HANDLER ===");
+    
     // For GET requests, need to handle pagination
     if (endpoint.method === "GET") {
-      return await handleGetRequest(endpoint, payload, apiKey, baseUrl);
+      console.log("Delegating to GET request handler");
+      try {
+        const result = await handleGetRequest(endpoint, payload, apiKey, baseUrl);
+        console.log(`GET request result - Success: ${result.success}`);
+        return result;
+      } catch (error) {
+        logDetailedError("GET REQUEST", error, endpoint, payload);
+        return createErrorResponse(endpoint, error);
+      }
     } else {
       // For non-GET methods (POST, PUT, DELETE)
-      return await handleNonGetRequest(endpoint, payload, apiKey, baseUrl);
+      console.log("Delegating to non-GET request handler");
+      try {
+        const result = await handleNonGetRequest(endpoint, payload, apiKey, baseUrl);
+        console.log(`Non-GET request result - Success: ${result.success}`);
+        return result;
+      } catch (error) {
+        logDetailedError("NON-GET REQUEST", error, endpoint, payload);
+        return createErrorResponse(endpoint, error);
+      }
     }
+    
   } catch (error) {
+    logDetailedError("QUERY ENDPOINT", error, endpoint, payload);
     return createErrorResponse(endpoint, error);
   }
 }

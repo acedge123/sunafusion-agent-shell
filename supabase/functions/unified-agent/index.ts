@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
@@ -220,6 +221,7 @@ serve(async (req) => {
     // 4. Query Creator IQ if requested and tool is enabled
     if (include_creator_iq && tools.includes("creator_iq")) {
       try {
+        console.log(`=== CREATOR IQ PROCESSING START ===`);
         console.log(`Starting Creator IQ search ${userId ? `for user: ${userId}` : '(no user ID)'}`);
         
         if (!CREATOR_IQ_API_KEY) {
@@ -263,15 +265,26 @@ serve(async (req) => {
           endpoints = determineCreatorIQEndpoints(query, previous_state);
         }
         
+        console.log(`=== ENDPOINTS TO PROCESS: ${endpoints.length} ===`);
+        endpoints.forEach((ep, i) => {
+          console.log(`${i + 1}. ${ep.method} ${ep.route} (${ep.name})`);
+        });
+        
         const creatorIQResults = await Promise.all(
-          endpoints.map(async (endpoint) => {
+          endpoints.map(async (endpoint, index) => {
             try {
+              console.log(`=== PROCESSING ENDPOINT ${index + 1}/${endpoints.length} ===`);
+              console.log(`Endpoint: ${endpoint.method} ${endpoint.route}`);
+              
               const payload = buildCreatorIQPayload(endpoint, query, creator_iq_params, previous_state);
               
               // Log the endpoint and payload for debugging
-              console.log(`Querying endpoint ${endpoint.route} with payload:`, payload);
+              console.log(`Payload for ${endpoint.route}:`, JSON.stringify(payload, null, 2));
               
               const result = await queryCreatorIQEndpoint(endpoint, payload);
+              
+              console.log(`=== ENDPOINT ${index + 1} RESULT ===`);
+              console.log(`Success: ${result.success}`);
               
               // Process results for state storage
               if (endpoint.route === "/campaigns" && result.data && result.data.CampaignCollection) {
@@ -341,19 +354,25 @@ serve(async (req) => {
               
               return result;
             } catch (endpointError) {
-              console.error(`Error querying endpoint ${endpoint.route}:`, endpointError);
+              console.error(`=== ENDPOINT ERROR: ${endpoint.route} ===`, endpointError);
               return {
                 endpoint: endpoint.route,
+                method: endpoint.method,
                 name: endpoint.name,
-                error: endpointError.message || "Unknown error"
+                error: endpointError.message || "Unknown error",
+                success: false,
+                data: null
               };
             }
           })
         );
         
         // Filter out failed requests
-        const validResults = creatorIQResults.filter(result => !result.error);
-        console.log(`Creator IQ search returned ${validResults.length} results`);
+        const validResults = creatorIQResults.filter(result => result.success !== false);
+        console.log(`=== CREATOR IQ RESULTS SUMMARY ===`);
+        console.log(`Total endpoints: ${creatorIQResults.length}`);
+        console.log(`Successful: ${validResults.length}`);
+        console.log(`Failed: ${creatorIQResults.length - validResults.length}`);
         
         results.push({
           source: "creator_iq",
@@ -364,7 +383,7 @@ serve(async (req) => {
           }
         });
       } catch (error) {
-        console.error("Creator IQ search error:", error);
+        console.error("=== CREATOR IQ SEARCH ERROR ===", error);
         results.push({
           source: "creator_iq",
           error: error.message || "Failed to search Creator IQ",
