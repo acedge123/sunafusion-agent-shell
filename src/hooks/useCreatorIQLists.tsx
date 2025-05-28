@@ -34,13 +34,15 @@ export function useCreatorIQLists() {
     }
   }, [listsData]);
   
-  // Fetch lists - always fetch all lists by default
-  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 5000, fetchAll = true) => {
+  // Fetch lists - use maximum allowed limit of 1000
+  const fetchLists = useCallback(async (page = 1, search = searchTerm, limit = 1000, fetchAll = true) => {
     setIsLoading(true);
     
     try {
-      console.log(`Fetching all lists${search ? ` with search "${search}"` : ''} with limit ${limit}, fetchAll: ${fetchAll}`);
-      const data = await fetchListsByPage(page, search, limit, fetchAll);
+      // Cap the limit at 1000 (API maximum)
+      const cappedLimit = Math.min(limit, 1000);
+      console.log(`Fetching all lists${search ? ` with search "${search}"` : ''} with limit ${cappedLimit}, fetchAll: ${fetchAll}`);
+      const data = await fetchListsByPage(page, search, cappedLimit, fetchAll);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -74,19 +76,21 @@ export function useCreatorIQLists() {
     }
   }, [searchTerm]);
   
-  // Search lists with enhanced error handling - always fetch all results
-  const searchLists = useCallback(async (term: string, limit = 5000, fetchAll = true) => {
+  // Search lists with enhanced error handling - use maximum allowed limit of 1000
+  const searchLists = useCallback(async (term: string, limit = 1000, fetchAll = true) => {
     if (!term.trim()) {
       setSearchTerm('');
-      return fetchLists(1, '', limit, fetchAll);
+      return fetchLists(1, '', Math.min(limit, 1000), fetchAll);
     }
     
     setIsLoading(true);
     setSearchTerm(term);
     
     try {
-      console.log(`Searching all lists with term: ${term} and limit: ${limit}, fetchAll: ${fetchAll}`);
-      const data = await searchListsByName(term, limit, fetchAll);
+      // Cap the limit at 1000 (API maximum)
+      const cappedLimit = Math.min(limit, 1000);
+      console.log(`Searching all lists with term: ${term} and limit: ${cappedLimit}, fetchAll: ${fetchAll}`);
+      const data = await searchListsByName(term, cappedLimit, fetchAll);
       
       const creatorIQSource = data?.sources?.find(source => source.source === 'creator_iq');
       if (creatorIQSource) {
@@ -113,9 +117,9 @@ export function useCreatorIQLists() {
     }
   }, [fetchLists]);
   
-  // Load all lists on component mount with full pagination enabled
+  // Load all lists on component mount with full pagination enabled and capped limit
   useEffect(() => {
-    fetchLists(1, '', 5000, true);
+    fetchLists(1, '', 1000, true);
   }, [fetchLists]);
   
   return {

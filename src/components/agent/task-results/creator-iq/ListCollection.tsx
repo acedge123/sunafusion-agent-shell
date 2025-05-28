@@ -42,10 +42,10 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
       console.log("Lists data is incomplete, attempting to load all lists...");
       setIsLoading(true);
       
-      // Handle the Promise properly
+      // Handle the Promise properly - use API maximum limit of 1000
       const loadData = async () => {
         try {
-          const result = onPageChange(1, 5000, true);
+          const result = onPageChange(1, 1000, true);
           // Check if result is a Promise before awaiting
           if (result instanceof Promise) {
             await result;

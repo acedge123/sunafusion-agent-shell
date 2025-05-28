@@ -22,9 +22,9 @@ export function buildListCreationPayload({ query, params }: BuildPayloadOptions)
  */
 export function buildListQueryPayload({ params }: BuildPayloadOptions): any {
   // For list queries, we want to fetch all lists by default
-  // Use a large limit and enable full pagination
+  // Use the maximum allowed limit of 1000 (API constraint)
   const searchParams: any = { 
-    limit: params.limit || 5000,  // Increased default limit
+    limit: Math.min(params.limit || 1000, 1000),  // Cap at 1000 max
     _fullSearch: true,            // Enable full search by default
     all_pages: true               // Fetch all pages by default
   };
