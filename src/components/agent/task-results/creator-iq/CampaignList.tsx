@@ -11,8 +11,6 @@ interface CampaignListProps {
       total?: number;
       page?: number | string;
       total_pages?: number | string;
-      count?: number;
-      _all_pages_fetched?: boolean;
     };
   };
 }
@@ -52,37 +50,19 @@ export const CampaignList = ({ endpoint }: CampaignListProps) => {
     );
   };
   
-  const currentPageCampaigns = endpoint.data.CampaignCollection.length;
-  const totalCampaigns = Number(endpoint.data.total) || currentPageCampaigns;
-  const currentPage = Number(endpoint.data.page) || 1;
-  const totalPages = Number(endpoint.data.total_pages) || 1;
-  const allPagesFetched = endpoint.data._all_pages_fetched || false;
+  const totalCampaigns = endpoint.data.total || endpoint.data.CampaignCollection.length;
   
   return (
-    <div>
+    <Fragment>
       <div className="text-sm text-muted-foreground flex items-center">
         <Search className="h-4 w-4 mr-2" />
         {endpoint.data.filtered_by ? (
-          <span>Found {currentPageCampaigns} campaigns matching "{endpoint.data.filtered_by}" 
-            {totalCampaigns > currentPageCampaigns ? ` (showing page ${currentPage} of ${totalPages}, ${totalCampaigns} total)` : ''}
-          </span>
+          <span>Found {endpoint.data.CampaignCollection.length} campaigns matching "{endpoint.data.filtered_by}" 
+            (from {endpoint.data.total || 'unknown'} total)</span>
         ) : (
-          <span>
-            {allPagesFetched || totalPages === 1 ? (
-              `${totalCampaigns} campaigns found`
-            ) : (
-              `Showing ${currentPageCampaigns} of ${totalCampaigns} campaigns (page ${currentPage} of ${totalPages})`
-            )}
-          </span>
+          <span>{totalCampaigns} campaigns found</span>
         )}
       </div>
-      
-      {!allPagesFetched && totalPages > 1 && (
-        <div className="text-xs text-amber-600 mt-1 p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200">
-          Note: Only showing campaigns from page {currentPage} of {totalPages}. 
-          To see all {totalCampaigns} campaigns, the query would need to fetch all pages.
-        </div>
-      )}
       
       <div className="space-y-2 mt-3">
         {endpoint.data.CampaignCollection.length > 0 ? (
@@ -95,6 +75,6 @@ export const CampaignList = ({ endpoint }: CampaignListProps) => {
           </div>
         )}
       </div>
-    </div>
+    </Fragment>
   );
 };

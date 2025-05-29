@@ -2,7 +2,6 @@
 import { Button } from "@/components/ui/button";
 import { Check, X, Search, File, FileSearch, LogIn, Briefcase } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useEffect } from "react";
 
 interface ToolSelectorProps {
   selectedTools: string[];
@@ -40,21 +39,6 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
     }
   ];
 
-  // Automatically turn off Drive tools when not connected
-  useEffect(() => {
-    if (!driveConnected) {
-      const driveTools = tools.filter(tool => tool.requiresDrive).map(tool => tool.id);
-      const activeDriveTools = selectedTools.filter(tool => driveTools.includes(tool));
-      
-      // Turn off any active Drive tools if Drive is not connected
-      activeDriveTools.forEach(toolId => {
-        if (selectedTools.includes(toolId)) {
-          onToolToggle(toolId);
-        }
-      });
-    }
-  }, [driveConnected, selectedTools, onToolToggle]);
-
   return (
     <div className="space-y-2">
       <h3 className="font-medium text-sm">Select tools to use:</h3>
@@ -78,21 +62,17 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
                   <span className="font-medium">{tool.name}</span>
                 </div>
                 {isDriveAndDisconnected ? (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">Off</span>
-                    <Button asChild size="sm" variant="ghost" className="px-2 h-7">
-                      <Link to="/drive">
-                        <LogIn className="h-3 w-3 mr-1" /> Connect
-                      </Link>
-                    </Button>
-                  </div>
+                  <Button asChild size="sm" variant="ghost" className="px-2 h-7">
+                    <Link to="/drive">
+                      <LogIn className="h-3 w-3 mr-1" /> Connect
+                    </Link>
+                  </Button>
                 ) : (
                   <Button
                     size="sm"
                     variant={isSelected ? "default" : "outline"}
                     className="px-2 h-7"
                     onClick={() => onToolToggle(tool.id)}
-                    disabled={isDriveAndDisconnected}
                   >
                     {isSelected ? (
                       <><Check className="h-3 w-3 mr-1" /> On</>
@@ -104,11 +84,6 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {tool.description}
-                {isDriveAndDisconnected && (
-                  <span className="block text-orange-600 mt-1">
-                    Requires Google Drive connection
-                  </span>
-                )}
               </p>
             </div>
           );

@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -38,7 +37,7 @@ const AgentTaskRunner = ({
 }: AgentTaskRunnerProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
-  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "creator_iq"]);
+  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis", "creator_iq"]);
   const [reasoningLevel, setReasoningLevel] = useState<"low" | "medium" | "high">("medium");
   const [driveError, setDriveError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -47,16 +46,6 @@ const AgentTaskRunner = ({
   const { getToken, isAuthenticated, initiateAuth } = useGoogleDrive();
 
   const toggleTool = (toolId: string) => {
-    // Prevent toggling Drive tools if not authenticated
-    if ((toolId === "file_search" || toolId === "file_analysis") && !isAuthenticated) {
-      toast({
-        title: "Google Drive Required",
-        description: "Please connect your Google Drive account first to use this tool.",
-        variant: "default"
-      });
-      return;
-    }
-
     setSelectedTools(prev => 
       prev.includes(toolId) 
         ? prev.filter(id => id !== toolId)
@@ -79,19 +68,11 @@ const AgentTaskRunner = ({
       const { data: sessionData } = await supabase.auth.getSession();
       const authToken = sessionData?.session?.access_token;
       
-      // Filter out Drive tools if not authenticated to prevent errors
-      const filteredTools = selectedTools.filter(tool => {
-        if ((tool === "file_search" || tool === "file_analysis") && !isAuthenticated) {
-          return false;
-        }
-        return true;
-      });
-
-      // Only try to get Drive token if we actually need it and are authenticated
-      const needsDrive = filteredTools.includes("file_search") || filteredTools.includes("file_analysis");
+      // Get Google Drive token using our centralized hook
+      const includeDrive = selectedTools.includes("file_search") || selectedTools.includes("file_analysis");
       
       let driveToken = null;
-      if (needsDrive && user && isAuthenticated) {
+      if (includeDrive && user) {
         try {
           const { token, isValid } = await getToken();
           
@@ -121,7 +102,7 @@ const AgentTaskRunner = ({
           }
           
           // If Drive is essential but we can't get a token, abort
-          if (needsDrive && !filteredTools.includes("web_search") && !filteredTools.includes("creator_iq")) {
+          if (includeDrive && (!selectedTools.includes("web_search") || task.toLowerCase().includes("drive"))) {
             displayDriveError(parsedError);
             setIsProcessing(false);
             return;
@@ -139,12 +120,18 @@ const AgentTaskRunner = ({
         body: {
           query: task,
           conversation_history: [],
-          include_web: filteredTools.includes("web_search"),
-          include_drive: needsDrive && driveToken !== null,
-          include_creator_iq: filteredTools.includes("creator_iq"),
+          include_web: selectedTools.includes("web_search"),
+          include_drive: includeDrive && driveToken !== null,
+          include_creator_iq: selectedTools.includes("creator_iq"),
           provider_token: driveToken,
           task_mode: true,
-          tools: filteredTools,
+          tools: selectedTools.filter(tool => {
+            // Filter out Drive tools if we don't have a valid token
+            if ((tool === "file_search" || tool === "file_analysis") && !driveToken) {
+              return false;
+            }
+            return true;
+          }),
           allow_iterations: true,
           max_iterations: 5,
           reasoning_level: reasoningLevel,
