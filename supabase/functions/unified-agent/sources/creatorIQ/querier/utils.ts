@@ -1,67 +1,129 @@
 
-// Utility functions for Creator IQ querier
-import { CreatorIQEndpoint, QueryResult } from './types.ts';
+// Utility functions for Creator IQ API requests
 
-/**
- * Create a standardized error result
- */
-export function createErrorResult(
-  endpoint: CreatorIQEndpoint,
-  error: string | Error,
-  details?: any
-): QueryResult {
-  const errorMessage = error instanceof Error ? error.message : error;
+export async function executeGetRequest(
+  endpoint: string,
+  payload: any,
+  apiKey: string
+): Promise<any> {
+  const url = new URL(`https://apis.creatoriq.com/crm/v1/api/${endpoint}`);
   
-  return {
-    endpoint: endpoint.route,
-    method: endpoint.method,
-    name: endpoint.name,
-    error: errorMessage,
-    details: details ? JSON.stringify(details) : undefined,
-    data: null
-  };
-}
+  // Add query parameters for GET requests
+  if (payload) {
+    Object.keys(payload).forEach(key => {
+      if (payload[key] !== undefined && payload[key] !== null) {
+        url.searchParams.append(key, payload[key].toString());
+      }
+    });
+  }
 
-/**
- * Create a standardized error response (alias for createErrorResult)
- */
-export function createErrorResponse(
-  endpoint: CreatorIQEndpoint,
-  error: string | Error,
-  details?: any
-): QueryResult {
-  return createErrorResult(endpoint, error, details);
-}
-
-/**
- * Create a standardized success result
- */
-export function createSuccessResult(
-  endpoint: CreatorIQEndpoint,
-  data: any
-): QueryResult {
-  return {
-    endpoint: endpoint.route,
-    method: endpoint.method,
-    name: endpoint.name,
-    data,
-    error: undefined
-  };
-}
-
-/**
- * Log request information for debugging
- */
-export function logRequest(endpoint: CreatorIQEndpoint, payload?: any) {
-  console.log(`Querying ${endpoint.method} ${endpoint.route}`, {
-    name: endpoint.name,
-    payload: payload ? JSON.stringify(payload) : 'No payload'
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'x-api-key': apiKey
+    }
   });
+
+  if (!response.ok) {
+    throw new Error(`Creator IQ API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  return await response.json();
 }
 
-/**
- * Validate endpoint configuration
- */
-export function validateEndpoint(endpoint: CreatorIQEndpoint): boolean {
-  return !!(endpoint.route && endpoint.method && endpoint.name);
+export async function executePostRequest(
+  endpoint: string,
+  payload: any,
+  apiKey: string
+): Promise<any> {
+  const response = await fetch(`https://apis.creatoriq.com/crm/v1/api/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Creator IQ API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+export async function executePatchRequest(
+  endpoint: string,
+  payload: any,
+  apiKey: string
+): Promise<any> {
+  const response = await fetch(`https://apis.creatoriq.com/crm/v1/api/${endpoint}`, {
+    method: 'PATCH',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Creator IQ API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+export async function executeDeleteRequest(
+  endpoint: string,
+  payload: any,
+  apiKey: string
+): Promise<any> {
+  const url = new URL(`https://apis.creatoriq.com/crm/v1/api/${endpoint}`);
+  
+  // Add query parameters for DELETE requests if needed
+  if (payload) {
+    Object.keys(payload).forEach(key => {
+      if (payload[key] !== undefined && payload[key] !== null) {
+        url.searchParams.append(key, payload[key].toString());
+      }
+    });
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'DELETE',
+    headers: {
+      'Accept': 'application/json',
+      'x-api-key': apiKey
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Creator IQ API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+// Helper function to handle different HTTP methods
+export async function executeRequest(
+  method: string,
+  endpoint: string,
+  payload: any,
+  apiKey: string
+): Promise<any> {
+  switch (method.toUpperCase()) {
+    case 'GET':
+      return executeGetRequest(endpoint, payload, apiKey);
+    case 'POST':
+      return executePostRequest(endpoint, payload, apiKey);
+    case 'PATCH':
+      return executePatchRequest(endpoint, payload, apiKey);
+    case 'DELETE':
+      return executeDeleteRequest(endpoint, payload, apiKey);
+    default:
+      throw new Error(`Unsupported HTTP method: ${method}`);
+  }
 }
