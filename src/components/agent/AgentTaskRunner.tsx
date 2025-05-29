@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -37,7 +38,7 @@ const AgentTaskRunner = ({
 }: AgentTaskRunnerProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<TaskResult | null>(null);
-  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis", "creator_iq"]);
+  const [selectedTools, setSelectedTools] = useState<string[]>(["web_search", "file_search", "file_analysis", "product_feed_search", "creator_iq"]);
   const [reasoningLevel, setReasoningLevel] = useState<"low" | "medium" | "high">("medium");
   const [driveError, setDriveError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -122,6 +123,7 @@ const AgentTaskRunner = ({
           conversation_history: [],
           include_web: selectedTools.includes("web_search"),
           include_drive: includeDrive && driveToken !== null,
+          include_product_feeds: selectedTools.includes("product_feed_search"),
           include_creator_iq: selectedTools.includes("creator_iq"),
           provider_token: driveToken,
           task_mode: true,

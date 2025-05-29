@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Check, X, Search, File, FileSearch, LogIn, Briefcase } from "lucide-react";
+import { Check, X, Search, File, FileSearch, LogIn, Briefcase, Package } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface ToolSelectorProps {
@@ -30,6 +30,12 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
       description: "Analyze files from Google Drive",
       icon: <File className="h-4 w-4" />,
       requiresDrive: true
+    },
+    {
+      id: "product_feed_search",
+      name: "Product Feed Search",
+      description: "Search and analyze products from uploaded product feeds",
+      icon: <Package className="h-4 w-4" />
     },
     {
       id: "creator_iq",
@@ -63,8 +69,8 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
                 </div>
                 {isDriveAndDisconnected ? (
                   <Button asChild size="sm" variant="ghost" className="px-2 h-7">
-                    <Link to="/drive">
-                      <LogIn className="h-3 w-3 mr-1" /> Connect
+                    <Link to="/product-feeds">
+                      <LogIn className="h-3 w-3 mr-1" /> Setup
                     </Link>
                   </Button>
                 ) : (

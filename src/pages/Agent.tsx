@@ -22,6 +22,9 @@ const Agent = () => {
     "Find information about climate change impacts in coastal areas and compile the key findings",
     "Search for articles about machine learning applications in healthcare and identify the top trends",
     "Look through my Google Drive files related to project management and summarize the key points",
+    "Find all products in my product feeds that are related to electronics and under $100",
+    "Search my product feeds for items from a specific brand and show me their price range",
+    "Analyze the product categories in my feeds and identify the most common types",
     "Find influencer campaigns in Creator IQ with engagement rates above 5% from the last quarter",
     "Analyze the performance of our top creators in Creator IQ and compare their metrics"
   ]);
@@ -29,7 +32,7 @@ const Agent = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome-message",
-      content: "Hello! I'm your AI agent assistant. I can help you complete complex tasks by using tools like web search, Google Drive integration, and Creator IQ data access.",
+      content: "Hello! I'm your AI agent assistant. I can help you complete complex tasks by using tools like web search, Google Drive integration, product feed analysis, and Creator IQ data access.",
       role: "assistant",
       timestamp: new Date()
     }
@@ -59,7 +62,7 @@ const Agent = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">AI Agent</h1>
             <p className="text-muted-foreground mt-2">
-              Your autonomous AI agent that can complete complex tasks using tools like web search, Google Drive, and Creator IQ
+              Your autonomous AI agent that can complete complex tasks using tools like web search, Google Drive, product feed analysis, and Creator IQ
             </p>
           </div>
 
@@ -69,7 +72,7 @@ const Agent = () => {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center">
-                  <p className="mb-4">Sign in to access all agent capabilities, including Google Drive integration</p>
+                  <p className="mb-4">Sign in to access all agent capabilities, including Google Drive integration and product feed analysis</p>
                   <Button asChild>
                     <Link to="/auth">Sign In</Link>
                   </Button>
