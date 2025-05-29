@@ -1,5 +1,5 @@
 
-import { executeGetRequest } from './getRequests.ts';
+import { handleGetRequest } from './getRequests.ts';
 import { executeNonGetRequest } from './nonGetRequests.ts';
 import type { EndpointType, QueryPayload } from './types.ts';
 
@@ -12,7 +12,7 @@ export async function executeQuery(
   
   try {
     if (endpoint.method === 'GET') {
-      return await executeGetRequest(endpoint, payload, apiKey);
+      return await handleGetRequest(endpoint, payload, apiKey);
     } else {
       return await executeNonGetRequest(endpoint, payload, apiKey);
     }
@@ -23,5 +23,5 @@ export async function executeQuery(
 }
 
 // Re-export other functions
-export { executeGetRequest } from './getRequests.ts';
+export { handleGetRequest } from './getRequests.ts';
 export { executeNonGetRequest } from './nonGetRequests.ts';

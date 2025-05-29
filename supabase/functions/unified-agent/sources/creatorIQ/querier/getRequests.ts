@@ -10,23 +10,13 @@ export async function handleGetRequest(
   try {
     console.log(`Executing GET request to: ${endpoint.path}`);
     
-    const response = await executeGetRequest(payload, apiKey);
+    const response = await executeGetRequest(endpoint.path, payload, apiKey);
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`GET request failed: ${response.status} ${errorText}`);
-      return {
-        error: `Request failed: ${response.status} ${errorText}`,
-        status: response.status
-      };
-    }
-    
-    const data = await response.json();
-    console.log(`GET request successful, received data:`, data);
+    console.log(`GET request successful, received data:`, response);
     
     return {
-      data,
-      status: response.status
+      data: response,
+      status: 200
     };
   } catch (error) {
     console.error('Error in GET request:', error);
