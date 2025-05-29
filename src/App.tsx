@@ -11,6 +11,7 @@ import Drive from "./pages/Drive"
 import Chat from "./pages/Chat"
 import Agent from "./pages/Agent"
 import ImagenGenerator from "./pages/ImagenGenerator"
+import ProductFeeds from "./pages/ProductFeeds"
 import NotFound from "./pages/NotFound"
 
 const queryClient = new QueryClient()
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/drive" element={<Drive />} />
+            <Route path="/product-feeds" element={<ProductFeeds />} />
             {/* Add redirect for handling OAuth callbacks with hash */}
             <Route path="/drive#" element={<Navigate to="/drive" replace />} />
             <Route path="/#" element={<Navigate to="/" replace />} />
