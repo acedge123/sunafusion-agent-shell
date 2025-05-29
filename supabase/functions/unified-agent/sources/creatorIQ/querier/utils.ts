@@ -127,3 +127,21 @@ export async function executeRequest(
       throw new Error(`Unsupported HTTP method: ${method}`);
   }
 }
+
+// Helper function to create error result objects
+export function createErrorResult(source: string, error: string): any {
+  return {
+    source,
+    results: [],
+    error
+  };
+}
+
+// Helper function to create success result objects
+export function createSuccessResult(source: string, results: any[]): any {
+  return {
+    source,
+    results,
+    error: null
+  };
+}
