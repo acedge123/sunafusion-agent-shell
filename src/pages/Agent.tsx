@@ -1,14 +1,11 @@
 
 import React, { useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth";
 import AgentTaskRunner from "@/components/agent/AgentTaskRunner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, ListChecks, MessageSquare, Bot } from "lucide-react";
+import { Brain, ListChecks, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { v4 as uuidv4 } from "uuid";
 import ChatContainer, { Message } from "@/components/chat/ChatContainer";
 import { Link } from "react-router-dom";
@@ -66,9 +63,7 @@ const Agent = () => {
             </p>
           </div>
 
-          {user ? (
-            <GoogleDriveAuth />
-          ) : (
+          {!user && (
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center">
