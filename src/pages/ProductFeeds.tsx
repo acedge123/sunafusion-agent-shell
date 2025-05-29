@@ -10,6 +10,7 @@ import { ProductFeedForm } from "@/components/product-feeds/ProductFeedForm";
 import { CompanyList } from "@/components/product-feeds/CompanyList";
 import { ProductFeedList } from "@/components/product-feeds/ProductFeedList";
 import { useToast } from "@/hooks/use-toast";
+import Navigation from "@/components/navigation/Navigation";
 
 export default function ProductFeeds() {
   const { user, session } = useAuth();
@@ -71,37 +72,45 @@ export default function ProductFeeds() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>
-              Please sign in to access the product feeds management system.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => window.location.href = '/auth'} className="w-full">
-              Sign In
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="min-h-screen flex items-center justify-center">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Authentication Required</CardTitle>
+              <CardDescription>
+                Please sign in to access the product feeds management system.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => window.location.href = '/auth'} className="w-full">
+                Sign In
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Feed Management</h1>
