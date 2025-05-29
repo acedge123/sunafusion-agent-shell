@@ -4,8 +4,7 @@ import {
   Settings,
   MoreVertical,
   MinusCircle,
-  LogOut,
-  Home
+  LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,25 +57,9 @@ const AgentHeader: React.FC<AgentHeaderProps> = ({
     }
   };
 
-  const handleHomeNavigation = () => {
-    navigate("/");
-  };
-
   return (
     <header className={`flex items-center justify-between p-4 bg-background border-b ${className}`}>
       <div className="flex items-center gap-3">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={handleHomeNavigation}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <Home className="h-4 w-4" />
-          <span className="hidden sm:inline">Home</span>
-        </Button>
-        
-        <div className="h-4 w-px bg-border hidden sm:block" />
-        
         <div className="flex items-center gap-2">
           {agentImage && (
             <div className="h-8 w-8 rounded-full overflow-hidden bg-muted">
