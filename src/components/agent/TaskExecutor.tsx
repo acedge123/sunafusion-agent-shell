@@ -30,7 +30,7 @@ export const useTaskExecutor = ({
   onDriveError,
   onProcessingChange
 }: UseTaskExecutorProps) => {
-  const { getValidToken } = useGoogleDrive();
+  const { getToken } = useGoogleDrive();
 
   const executeTask = async (task: string) => {
     if (!task.trim()) return;
@@ -65,8 +65,14 @@ export const useTaskExecutor = ({
       if (driveToolsSelected) {
         console.log('Drive tools selected, getting provider token...');
         try {
-          providerToken = await getValidToken();
+          const tokenInfo = await getToken();
+          providerToken = tokenInfo.token;
           console.log('Provider token obtained:', !!providerToken);
+          
+          if (!providerToken || !tokenInfo.isValid) {
+            onDriveError("Google Drive authentication failed. Please reconnect your Google account.");
+            return;
+          }
         } catch (error) {
           console.error('Failed to get provider token:', error);
           onDriveError("Google Drive authentication failed. Please reconnect your Google account.");
