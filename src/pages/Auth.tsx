@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cleanupAuthState, forceSignOut } from "@/utils/authCleanup";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -39,7 +40,15 @@ const Auth = () => {
     setLoading(true);
 
     try {
+      // Clean up any existing auth state first
+      cleanupAuthState();
+      await forceSignOut(supabase);
+      
+      // Wait a moment for cleanup to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       if (isSignUp) {
+        console.log('Attempting signup for:', email);
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -53,8 +62,10 @@ const Auth = () => {
             description: "Account created successfully. You can now sign in.",
           });
           setIsSignUp(false);
+          setPassword(""); // Clear password for security
         }
       } else {
+        console.log('Attempting signin for:', email);
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -62,12 +73,16 @@ const Auth = () => {
         
         if (error) throw error;
         
-        if (data.user) {
+        if (data.user && data.session) {
+          console.log('Sign in successful for:', email);
           toast({
             title: "Success!",
             description: "Signed in successfully.",
           });
-          navigate("/");
+          
+          // Force a complete page refresh to ensure clean state
+          window.location.href = "/";
+          return;
         }
       }
     } catch (error: any) {
@@ -81,6 +96,9 @@ const Auth = () => {
         errorMessage = "Please check your email and click the confirmation link before signing in.";
       } else if (error.message?.includes("User already registered")) {
         errorMessage = "An account with this email already exists. Try signing in instead.";
+        setIsSignUp(false);
+      } else if (error.message?.includes("signup is disabled")) {
+        errorMessage = "Account creation is currently disabled. Please contact support.";
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -93,6 +111,11 @@ const Auth = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const switchMode = () => {
+    setIsSignUp(!isSignUp);
+    setPassword(""); // Clear password when switching modes
   };
 
   return (
@@ -116,6 +139,7 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
+                autoComplete="email"
               />
             </div>
             <div>
@@ -127,6 +151,7 @@ const Auth = () => {
                 required
                 minLength={6}
                 disabled={loading}
+                autoComplete={isSignUp ? "new-password" : "current-password"}
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
@@ -137,7 +162,7 @@ const Auth = () => {
           <div className="text-center mt-4">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={switchMode}
               className="text-sm text-muted-foreground hover:text-primary"
               disabled={loading}
             >

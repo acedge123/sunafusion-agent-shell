@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { cleanupAuthState, forceSignOut } from "@/utils/authCleanup";
 
 const Index = () => {
   const { user, loading } = useAuth();
@@ -14,26 +15,38 @@ const Index = () => {
 
   useEffect(() => {
     if (!loading && !user) {
+      console.log('No user found, redirecting to auth');
       navigate("/auth");
     }
   }, [user, loading, navigate]);
 
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      console.log('Signing out user:', user?.email);
+      
+      // Clean up auth state first
+      cleanupAuthState();
+      
+      // Attempt to sign out
+      await forceSignOut(supabase);
       
       toast({
         title: "Signed out",
         description: "You have been signed out successfully.",
       });
-      navigate("/auth");
+      
+      // Force a complete page refresh for clean state
+      window.location.href = "/auth";
     } catch (error: any) {
+      console.error('Sign out error:', error);
       toast({
         variant: "destructive",
         title: "Error",
         description: error.message || "Failed to sign out",
       });
+      
+      // Even if sign out fails, redirect to auth page
+      window.location.href = "/auth";
     }
   };
 
