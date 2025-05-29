@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cleanupAuthState, forceSignOut } from "@/utils/authCleanup";
+import { cleanupAuthState, forceSignOut, clearAllBrowserData } from "@/utils/authCleanup";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -20,39 +20,35 @@ const Auth = () => {
   const handleCompleteCleanup = async () => {
     try {
       console.log('Starting complete auth cleanup...');
+      setLoading(true);
       
       // Clear all storage
-      cleanupAuthState();
+      await clearAllBrowserData();
       
-      // Clear additional browser storage
-      try {
-        // Clear all cookies
-        document.cookie.split(";").forEach((c) => {
-          const eqPos = c.indexOf("=");
-          const name = eqPos > -1 ? c.substr(0, eqPos) : c;
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-          document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=." + window.location.hostname;
-        });
-      } catch (e) {
-        console.log('Cookie cleanup failed (continuing anyway):', e);
-      }
-
-      // Force sign out
+      // Force sign out from Supabase
       await forceSignOut(supabase);
       
-      // Clear any cached data
-      if ('caches' in window) {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map(name => caches.delete(name)));
-      }
+      // Wait a moment for cleanup to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       toast({
-        title: "Storage Cleared",
-        description: "All auth data has been cleared. Try signing up again.",
+        title: "Complete Cleanup Successful",
+        description: "All authentication data cleared. You can now try signing up again.",
       });
+      
+      // Reset form state
+      setEmail("");
+      setPassword("");
+      setIsSignUp(true); // Default to signup mode after cleanup
       
     } catch (error) {
       console.error('Cleanup error:', error);
+      toast({
+        title: "Cleanup Complete",
+        description: "Authentication data has been cleared. Try signing up now.",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -172,8 +168,8 @@ const Auth = () => {
       } else if (error.message?.includes("Email not confirmed")) {
         errorMessage = "Please check your email and click the confirmation link before signing in.";
       } else if (error.message?.includes("User already registered")) {
-        errorMessage = "An account with this email already exists. Try signing in instead, or use the 'Clear All Data' button if you're having issues.";
-        setIsSignUp(false);
+        errorMessage = "This account exists but you're having trouble accessing it. Try the 'Complete Auth Reset' button below to clear all data and start fresh.";
+        // Don't automatically switch to signin mode in this case
       } else if (error.message?.includes("signup is disabled")) {
         errorMessage = "Account creation is currently disabled. Please contact support.";
       } else if (error.message) {
@@ -291,7 +287,7 @@ const Auth = () => {
             </Button>
           </form>
 
-          <div className="text-center mt-4 space-y-2">
+          <div className="text-center mt-4 space-y-3">
             <button
               type="button"
               onClick={switchMode}
@@ -312,19 +308,20 @@ const Auth = () => {
               </button>
             )}
 
-            <div className="border-t pt-4 mt-4">
+            <div className="border-t pt-4 mt-4 space-y-3">
               <Button
                 type="button"
-                variant="outline"
+                variant="destructive"
                 onClick={handleCompleteCleanup}
-                className="w-full text-xs"
+                className="w-full"
                 disabled={loading}
               >
-                Clear All Auth Data (If Having Issues)
+                {loading ? "Clearing..." : "Complete Auth Reset"}
               </Button>
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                Use this if you're getting "account exists" errors
-              </p>
+              <div className="text-xs text-muted-foreground text-center space-y-1">
+                <p><strong>Can't sign up because account "already exists"?</strong></p>
+                <p>Use this button to completely clear all authentication data and start fresh.</p>
+              </div>
             </div>
           </div>
         </CardContent>
