@@ -53,9 +53,9 @@ export const CampaignList = ({ endpoint }: CampaignListProps) => {
   };
   
   const currentPageCampaigns = endpoint.data.CampaignCollection.length;
-  const totalCampaigns = endpoint.data.total || currentPageCampaigns;
-  const currentPage = endpoint.data.page || 1;
-  const totalPages = endpoint.data.total_pages || 1;
+  const totalCampaigns = Number(endpoint.data.total) || currentPageCampaigns;
+  const currentPage = Number(endpoint.data.page) || 1;
+  const totalPages = Number(endpoint.data.total_pages) || 1;
   const allPagesFetched = endpoint.data._all_pages_fetched || false;
   
   return (
