@@ -1,23 +1,19 @@
 
 export interface EndpointType {
   name: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   path: string;
-  description: string;
-  requiresAuth: boolean;
-  supportedQueries: string[];
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  description?: string;
 }
 
 export interface QueryPayload {
-  method: string;
-  path: string;
-  queryParams?: Record<string, any>;
-  body?: any;
-  headers?: Record<string, string>;
+  query_params?: Record<string, any>;
+  body_params?: Record<string, any>;
+  path_params?: Record<string, any>;
 }
 
 export interface CreatorIQResponse {
   data?: any;
   error?: string;
-  status?: number;
+  status: number;
 }
