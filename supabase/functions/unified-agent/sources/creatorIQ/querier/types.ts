@@ -1,19 +1,24 @@
 
-export interface EndpointType {
+// Type definitions for endpoint querier
+export interface QueryResult {
+  endpoint: string;
+  method: string;
   name: string;
-  path: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  description?: string;
-}
-
-export interface QueryPayload {
-  query_params?: Record<string, any>;
-  body_params?: Record<string, any>;
-  path_params?: Record<string, any>;
-}
-
-export interface CreatorIQResponse {
-  data?: any;
+  data: any;
   error?: string;
-  status: number;
+}
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface QueryOptions {
+  enableAllPages?: boolean;
+  maxPages?: number;
+  pageSize?: number;
 }

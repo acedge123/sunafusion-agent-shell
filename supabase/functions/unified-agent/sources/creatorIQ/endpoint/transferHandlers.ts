@@ -13,28 +13,6 @@ export function handlePublisherTransferEndpoints(query: string, previousState: a
   if ((lowerQuery.includes('add') || lowerQuery.includes('copy') || lowerQuery.includes('move')) && 
      (lowerQuery.includes('publisher') || lowerQuery.includes('influencer'))) {
     
-    // Check for specific publisher ID in the query (like "Publisher ( 13439816)")
-    const publisherIdMatch = query.match(/publisher\s*\(\s*(\d+)\s*\)/i) || 
-                            query.match(/publisher\s+(\d+)/i) ||
-                            query.match(/(\d{6,10})/); // Look for 6-10 digit numbers that could be publisher IDs
-    
-    let publisherId = null;
-    if (publisherIdMatch && publisherIdMatch[1]) {
-      publisherId = publisherIdMatch[1];
-      console.log(`Found publisher ID in query: ${publisherId}`);
-    }
-    
-    // Look for list name in the query
-    const listNameMatch = query.match(/list[^?]*?["']([^"']+)["']/i) ||
-                         query.match(/list\s+([A-Za-z0-9\s-]+[a-zA-Z0-9])(?:\s*:|\s*\?|$)/i) ||
-                         query.match(/to\s+this\s+list[^?]*?([A-Za-z0-9\s-]+[a-zA-Z0-9])(?:\s*:|\s*\?|$)/i);
-    
-    let targetListName = null;
-    if (listNameMatch && listNameMatch[1]) {
-      targetListName = listNameMatch[1].trim();
-      console.log(`Found target list name in query: "${targetListName}"`);
-    }
-    
     // Determine if adding to list or campaign
     const isListTarget = lowerQuery.includes('list') && !lowerQuery.includes('from list to campaign');
     const isCampaignTarget = lowerQuery.includes('campaign') || lowerQuery.includes('from list to campaign');
@@ -42,26 +20,12 @@ export function handlePublisherTransferEndpoints(query: string, previousState: a
     if (isListTarget) {
       console.log("Detected request to add publisher to list");
       
-      // If we have a specific publisher ID and list name, try to find the list
-      if (publisherId && targetListName) {
-        // First, we need to get all lists to find the target list ID
-        endpoints.push({
-          route: "/lists",
-          method: "GET",
-          name: "Get Lists"
-        });
-        
-        // We'll need the list ID to create the POST endpoint, but we can prepare it
-        // The actual POST will be handled in the payload builder when we have the list ID
-        console.log(`Will add publisher ${publisherId} to list "${targetListName}" after finding list ID`);
-        return endpoints;
-      }
-      
-      // Extract source and target list names for list-to-list transfers
+      // Extract source and target list names
       const sourcePhrases = ['from list', 'in list', 'list called', 'source list'];
       const targetPhrases = ['to list', 'into list', 'target list'];
       
       let sourceListName = null;
+      let targetListName = null;
       
       // Extract source and target list names
       for (const phrase of sourcePhrases) {
@@ -75,7 +39,7 @@ export function handlePublisherTransferEndpoints(query: string, previousState: a
       
       for (const phrase of targetPhrases) {
         const extractedName = extractNameAfterPhrase(query, phrase);
-        if (extractedName && !targetListName) {
+        if (extractedName) {
           targetListName = extractedName;
           console.log(`Found potential target list name: "${targetListName}"`);
           break;
@@ -94,8 +58,8 @@ export function handlePublisherTransferEndpoints(query: string, previousState: a
           name: "Get Source List Publishers",
           sourceListId: sourceListId
         });
-      } else if (!publisherId) {
-        // If no source list identified and no specific publisher ID, we need to get all lists first
+      } else {
+        // If no source list identified, we need to get all lists first
         endpoints.push({
           route: "/lists",
           method: "GET",
@@ -111,16 +75,6 @@ export function handlePublisherTransferEndpoints(query: string, previousState: a
           name: "Add Publishers To List",
           targetListId: targetListId,
           sourceListId: sourceListId
-        });
-      }
-      // If we have a specific publisher ID and target list ID, add endpoint to add that publisher
-      else if (publisherId && targetListId) {
-        endpoints.push({
-          route: `/lists/${targetListId}/publishers`,
-          method: "POST",
-          name: "Add Publishers To List",
-          targetListId: targetListId,
-          publisherId: publisherId
         });
       }
     }

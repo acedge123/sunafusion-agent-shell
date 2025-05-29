@@ -37,19 +37,19 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
   
   // Effect to check if we need to load all lists when first mounted
   useEffect(() => {
-    // If all pages weren't fetched yet and we have an onPageChange function and there's a discrepancy
-    if (!allPagesFetched && actualItemCount < totalLists && onPageChange && actualItemCount > 0) {
+    // If all pages weren't fetched yet and we have an onPageChange function
+    if (!allPagesFetched && actualItemCount < totalLists && onPageChange) {
       console.log("Lists data is incomplete, attempting to load all lists...");
       setIsLoading(true);
       
-      // Handle the Promise properly - use API maximum limit of 1000
+      // Handle the Promise properly
       const loadData = async () => {
         try {
-          const result = onPageChange(1, 1000, true);
+          const result = onPageChange(1, 5000, true);
           // Check if result is a Promise before awaiting
           if (result instanceof Promise) {
             await result;
-            toast.success(`All ${totalLists} lists loaded successfully`);
+            toast.success("All lists loaded");
           }
         } catch (error) {
           console.error("Error loading all lists:", error);
@@ -81,20 +81,6 @@ export const ListCollection = ({ endpoint, onPageChange }: ListCollectionProps) 
           <EmptyListState isLoading={isLoading} />
         )}
       </div>
-      
-      {/* Show pagination status */}
-      {lists.length > 0 && (
-        <div className="mt-4 text-sm text-muted-foreground text-center">
-          {allPagesFetched ? (
-            <span className="text-green-600">✓ All {totalLists} lists loaded</span>
-          ) : (
-            <span className="text-orange-600">
-              Showing {actualItemCount} of {totalLists} lists
-              {isLoading && " - Loading more..."}
-            </span>
-          )}
-        </div>
-      )}
     </>
   );
 };

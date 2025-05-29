@@ -36,10 +36,32 @@ serve(async (req) => {
       );
     }
 
-    // Video generation is not supported in current Imagen API
+    // Use the correct Imagen 3.0 endpoint
+    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage';
+
+    const requestBody = {
+      prompt: {
+        text: prompt
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_LOW_AND_ABOVE"
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH", 
+          threshold: "BLOCK_LOW_AND_ABOVE"
+        }
+      ],
+      personGeneration: "ALLOW_ADULT",
+      aspectRatio: "ASPECT_RATIO_1_1"
+    };
+
+    // Note: Video generation might not be available in Imagen 3.0
+    // For now, we'll generate static images only
     if (type === 'video') {
       return new Response(
-        JSON.stringify({ error: 'Video generation is not currently supported by the Imagen API' }),
+        JSON.stringify({ error: 'Video generation is not currently supported' }),
         { 
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -47,24 +69,7 @@ serve(async (req) => {
       );
     }
 
-    // Use the Gemini API for image generation
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent`;
-
-    const requestBody = {
-      contents: [{
-        parts: [{
-          text: `Generate a detailed image description for an advertisement based on this prompt: ${prompt}. Make it professional and suitable for commercial use.`
-        }]
-      }],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      }
-    };
-
-    console.log('Calling Gemini API with:', { prompt, type, endpoint });
+    console.log('Calling Gemini Imagen API with:', { prompt, type, endpoint });
 
     const response = await fetch(`${endpoint}?key=${geminiApiKey}`, {
       method: 'POST',
@@ -82,7 +87,7 @@ serve(async (req) => {
       console.error('Gemini API error:', responseText);
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to generate content with Gemini API',
+          error: 'Failed to generate image',
           details: responseText,
           status: response.status
         }),
@@ -112,19 +117,10 @@ serve(async (req) => {
 
     console.log('Gemini API response received successfully');
 
-    // For now, return the generated text since Imagen 3.0 direct access might not be available
-    // This gives users a detailed description they can use with other image generation tools
-    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Generated content not available';
-
     return new Response(
       JSON.stringify({ 
         success: true,
-        data: {
-          candidates: [{
-            generatedText: generatedText,
-            description: "Generated detailed ad description (Imagen API not directly accessible)"
-          }]
-        },
+        data: data,
         type: type
       }),
       {

@@ -1,105 +1,99 @@
 
-import type { QueryPayload } from './types.ts';
+// Utility functions for endpoint querier
+import { QueryResult, PaginationInfo } from './types.ts';
 
-const CREATOR_IQ_BASE_URL = 'https://apis.creatoriq.com/crm/v1/api';
+/**
+ * Create common CORS headers for API responses
+ */
+export function getCorsHeaders(): Record<string, string> {
+  return {
+    "Authorization": "Bearer",
+    "Content-Type": "application/json"
+  };
+}
 
-export async function executeGetRequest(
-  path: string,
-  payload: QueryPayload,
-  apiKey: string
-): Promise<any> {
-  const url = new URL(`${CREATOR_IQ_BASE_URL}${path}`);
+/**
+ * Extract pagination information from API response
+ */
+export function extractPaginationInfo(response: any): PaginationInfo | null {
+  if (!response) return null;
+
+  const page = response.page || 1;
+  const limit = response.limit || 50;
+  const totalItems = response.total || 0;
+  const totalPages = response.total_pages || Math.ceil(totalItems / limit) || 1;
+
+  return {
+    page,
+    limit,
+    totalItems,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1
+  };
+}
+
+/**
+ * Create standardized error response
+ */
+export function createErrorResponse(endpoint: any, error: Error | string): QueryResult {
+  const errorMessage = typeof error === 'string' ? error : error.message || "Unknown error";
+  console.error(`Error querying endpoint ${endpoint.route}:`, errorMessage);
   
-  // Add query parameters
-  if (payload.query_params) {
-    Object.entries(payload.query_params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, String(value));
-      }
-    });
-  }
-  
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      'x-api-key': apiKey,
-      'Accept': 'application/json'
+  // Create base error response
+  const errorResponse: QueryResult = {
+    endpoint: endpoint.route,
+    method: endpoint.method,
+    name: endpoint.name,
+    error: errorMessage,
+    data: {
+      operation: {
+        successful: false,
+        type: endpoint.name,
+        details: `Operation failed: ${errorMessage}`,
+        timestamp: new Date().toISOString()
+      },
+      success: false,
+      message: errorMessage
     }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  
-  return await response.json();
-}
+  };
 
-export async function executePostRequest(
-  path: string,
-  payload: QueryPayload,
-  apiKey: string
-): Promise<any> {
-  const url = `${CREATOR_IQ_BASE_URL}${path}`;
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify(payload.body_params || {})
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  
-  return await response.json();
-}
-
-export async function executePatchRequest(
-  path: string,
-  payload: QueryPayload,
-  apiKey: string
-): Promise<any> {
-  const url = `${CREATOR_IQ_BASE_URL}${path}`;
-  
-  const response = await fetch(url, {
-    method: 'PATCH',
-    headers: {
-      'x-api-key': apiKey,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify(payload.body_params || {})
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  
-  return await response.json();
-}
-
-export async function executeDeleteRequest(
-  path: string,
-  payload: QueryPayload,
-  apiKey: string
-): Promise<any> {
-  const url = `${CREATOR_IQ_BASE_URL}${path}`;
-  
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: {
-      'x-api-key': apiKey,
-      'Accept': 'application/json'
+  // Special handling for message operations
+  if (endpoint.route.includes("/messages")) {
+    const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+    if (publisherId) {
+      errorResponse.data.publisherId = publisherId;
+      errorResponse.data.operation.details += ` (Publisher ID: ${publisherId})`;
     }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
   
-  return await response.json();
+  return errorResponse;
+}
+
+/**
+ * Create standardized publisher not found error
+ */
+export function createPublisherNotFoundError(endpoint: any): QueryResult {
+  const publisherId = endpoint.route.match(/\/publishers\/(\d+)\/messages/)?.[1];
+  
+  console.error(`Publisher not found: ${publisherId || "Unknown ID"}`);
+  
+  return {
+    endpoint: endpoint.route,
+    method: endpoint.method,
+    name: endpoint.name,
+    error: `Publisher not found: ${publisherId || "Unknown ID"}`,
+    data: {
+      operation: {
+        successful: false,
+        type: "Send Message",
+        details: `Failed to send message: Publisher with ID ${publisherId || "Unknown"} not found`,
+        timestamp: new Date().toISOString()
+      },
+      success: false,
+      messageId: null,
+      publisherId: publisherId,
+      message: `Publisher with ID ${publisherId || "Unknown"} not found`
+    }
+  };
 }

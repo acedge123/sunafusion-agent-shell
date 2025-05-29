@@ -4,378 +4,94 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cleanupAuthState, forceSignOut, clearAllBrowserData, forcePasswordReset } from "@/utils/authCleanup";
+import { useToast } from "@/components/ui/use-toast";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [isResetMode, setIsResetMode] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleCompleteCleanup = async () => {
-    try {
-      console.log('Starting complete auth cleanup...');
-      setLoading(true);
-      
-      // Clear all storage
-      await clearAllBrowserData();
-      
-      // Force sign out from Supabase
-      await forceSignOut(supabase);
-      
-      // Wait a moment for cleanup to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      toast({
-        title: "Complete Cleanup Successful",
-        description: "All authentication data cleared. You can now try signing in again.",
-      });
-      
-      // Reset form state
-      setEmail("");
-      setPassword("");
-      setIsSignUp(false); // Default to signin mode after cleanup
-      
-    } catch (error) {
-      console.error('Cleanup error:', error);
-      toast({
-        title: "Cleanup Complete",
-        description: "Authentication data has been cleared. Try signing in now.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForcePasswordReset = async () => {
-    if (!email) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please enter your email address first.",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const result = await forcePasswordReset(supabase, email);
-      
-      if (result.success) {
-        toast({
-          title: "Password Reset Sent",
-          description: "Check your email for password reset instructions. This will allow you to set a new password and access your account.",
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Password Reset Failed",
-          description: result.error?.message || "Failed to send password reset email",
-        });
-      }
-    } catch (error: any) {
-      console.error("Password reset error:", error);
-      toast({
-        variant: "destructive",
-        title: "Password Reset Failed",
-        description: error.message || "Failed to send password reset email",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please enter your email address.",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth?reset=true`,
-      });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Password Reset Email Sent",
-        description: "Check your email for password reset instructions.",
-      });
-      setIsResetMode(false);
-    } catch (error: any) {
-      console.error("Password reset error:", error);
-      toast({
-        variant: "destructive",
-        title: "Password Reset Error",
-        description: error.message || "Failed to send password reset email",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!email || !password) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please enter both email and password.",
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Password must be at least 6 characters long.",
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // Clean up any existing auth state first
-      cleanupAuthState();
-      await forceSignOut(supabase);
-      
-      // Wait a moment for cleanup to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
-
       if (isSignUp) {
-        console.log('Attempting signup for:', email);
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
         });
-        
         if (error) throw error;
-        
-        if (data.user) {
-          toast({
-            title: "Success!",
-            description: "Account created successfully. You can now sign in.",
-          });
-          setIsSignUp(false);
-          setPassword(""); // Clear password for security
-        }
+        toast({
+          title: "Success!",
+          description: "Please check your email to confirm your account.",
+        });
       } else {
-        console.log('Attempting signin for:', email);
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        
         if (error) throw error;
-        
-        if (data.user && data.session) {
-          console.log('Sign in successful for:', email);
-          toast({
-            title: "Success!",
-            description: "Signed in successfully.",
-          });
-          
-          // Force a complete page refresh to ensure clean state
-          window.location.href = "/";
-          return;
-        }
+        navigate("/");
       }
     } catch (error: any) {
-      console.error("Auth error:", error);
-      
-      let errorMessage = "An unexpected error occurred.";
-      
-      if (error.message?.includes("Invalid login credentials")) {
-        errorMessage = "Invalid email or password. If you're sure your credentials are correct, try the 'Force Password Reset' option below to regain access to your account.";
-      } else if (error.message?.includes("Email not confirmed")) {
-        errorMessage = "Please check your email and click the confirmation link before signing in.";
-      } else if (error.message?.includes("User already registered")) {
-        errorMessage = "This account exists. Try signing in instead, or use 'Force Password Reset' if you've forgotten your password.";
-        setIsSignUp(false); // Switch to signin mode
-      } else if (error.message?.includes("signup is disabled")) {
-        errorMessage = "Account creation is currently disabled. Please contact support.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
       toast({
         variant: "destructive",
-        title: "Authentication Error",
-        description: errorMessage,
+        title: "Error",
+        description: error.message,
       });
     } finally {
       setLoading(false);
     }
   };
-
-  const switchMode = () => {
-    setIsSignUp(!isSignUp);
-    setIsResetMode(false);
-    setPassword(""); // Clear password when switching modes
-  };
-
-  const switchToReset = () => {
-    setIsResetMode(true);
-    setIsSignUp(false);
-    setPassword("");
-  };
-
-  const switchToAuth = () => {
-    setIsResetMode(false);
-  };
-
-  if (isResetMode) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="text-center">Reset Password</CardTitle>
-            <p className="text-muted-foreground text-center">
-              Enter your email to receive password reset instructions
-            </p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handlePasswordReset} className="space-y-4">
-              <div>
-                <Input
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                  autoComplete="email"
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Sending..." : "Send Reset Email"}
-              </Button>
-            </form>
-
-            <div className="text-center mt-4 space-y-2">
-              <button
-                type="button"
-                onClick={switchToAuth}
-                className="text-sm text-muted-foreground hover:text-primary"
-                disabled={loading}
-              >
-                Back to sign in
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-center">
-            {isSignUp ? "Create Account" : "Welcome Back"}
-          </CardTitle>
-          <p className="text-muted-foreground text-center">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">{isSignUp ? "Create Account" : "Welcome Back"}</h2>
+          <p className="text-muted-foreground mt-2">
             {isSignUp ? "Sign up to get started" : "Sign in to continue"}
           </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div>
-              <Input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-                autoComplete="email"
-              />
-            </div>
-            <div>
-              <Input
-                type="password"
-                placeholder="Password (min 6 characters)"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                disabled={loading}
-                autoComplete={isSignUp ? "new-password" : "current-password"}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
-            </Button>
-          </form>
+        </div>
 
-          <div className="text-center mt-4 space-y-3">
-            <button
-              type="button"
-              onClick={switchMode}
-              className="text-sm text-muted-foreground hover:text-primary block w-full"
-              disabled={loading}
-            >
-              {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
-            </button>
-            
-            {!isSignUp && (
-              <button
-                type="button"
-                onClick={switchToReset}
-                className="text-sm text-muted-foreground hover:text-primary block w-full"
-                disabled={loading}
-              >
-                Forgot your password?
-              </button>
-            )}
-
-            <div className="border-t pt-4 mt-4 space-y-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleForcePasswordReset}
-                className="w-full"
-                disabled={loading || !email}
-              >
-                {loading ? "Sending..." : "Force Password Reset"}
-              </Button>
-              
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleCompleteCleanup}
-                className="w-full"
-                disabled={loading}
-              >
-                {loading ? "Clearing..." : "Complete Auth Reset"}
-              </Button>
-              
-              <div className="text-xs text-muted-foreground text-center space-y-1">
-                <p><strong>Having trouble accessing your account?</strong></p>
-                <p>1. First try "Force Password Reset" if you have the email</p>
-                <p>2. Use "Complete Auth Reset" to clear all data and start fresh</p>
-              </div>
-            </div>
+        <form onSubmit={handleAuth} className="space-y-4">
+          <div>
+            <Input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <Input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Loading..." : isSignUp ? "Sign Up" : "Sign In"}
+          </Button>
+        </form>
+
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setIsSignUp(!isSignUp)}
+            className="text-sm text-muted-foreground hover:text-primary"
+          >
+            {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

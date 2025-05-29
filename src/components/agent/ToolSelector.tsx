@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Check, X, Search, File, FileSearch, LogIn, Briefcase, Package } from "lucide-react";
+import { Check, X, Search, File, FileSearch, LogIn, Briefcase } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface ToolSelectorProps {
@@ -32,12 +32,6 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
       requiresDrive: true
     },
     {
-      id: "product_feed_search",
-      name: "Product Feed Search",
-      description: "Search and analyze products from uploaded product feeds",
-      icon: <Package className="h-4 w-4" />
-    },
-    {
       id: "creator_iq",
       name: "Creator IQ",
       description: "Access publisher, campaign, and list data from Creator IQ platform",
@@ -45,20 +39,9 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
     }
   ];
 
-  // Add debug logging to see what's happening with tool selection
-  const handleToolToggle = (toolId: string) => {
-    console.log('Tool toggle clicked:', toolId);
-    console.log('Current selected tools:', selectedTools);
-    console.log('Is tool currently selected:', selectedTools.includes(toolId));
-    onToolToggle(toolId);
-  };
-
   return (
     <div className="space-y-2">
       <h3 className="font-medium text-sm">Select tools to use:</h3>
-      <div className="text-xs text-muted-foreground mb-2">
-        Selected tools: {selectedTools.length > 0 ? selectedTools.join(', ') : 'None'}
-      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
         {tools.map((tool) => {
           const isSelected = selectedTools.includes(tool.id);
@@ -80,8 +63,8 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
                 </div>
                 {isDriveAndDisconnected ? (
                   <Button asChild size="sm" variant="ghost" className="px-2 h-7">
-                    <Link to="/product-feeds">
-                      <LogIn className="h-3 w-3 mr-1" /> Setup
+                    <Link to="/drive">
+                      <LogIn className="h-3 w-3 mr-1" /> Connect
                     </Link>
                   </Button>
                 ) : (
@@ -89,7 +72,7 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
                     size="sm"
                     variant={isSelected ? "default" : "outline"}
                     className="px-2 h-7"
-                    onClick={() => handleToolToggle(tool.id)}
+                    onClick={() => onToolToggle(tool.id)}
                   >
                     {isSelected ? (
                       <><Check className="h-3 w-3 mr-1" /> On</>

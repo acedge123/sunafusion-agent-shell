@@ -22,10 +22,8 @@ export const ListPagination = () => {
   };
   
   // Adapter function to make fetchLists compatible with ListCollection's onPageChange
-  // Cap the limit at 1000 (API maximum)
   const handlePageChange = (page?: number, limit?: number, fetchAll?: boolean) => {
-    const cappedLimit = Math.min(limit || 1000, 1000);
-    return fetchLists(page || 1, searchInput, cappedLimit);
+    return fetchLists(page || 1, searchInput, limit || 5000);
   };
   
   return (

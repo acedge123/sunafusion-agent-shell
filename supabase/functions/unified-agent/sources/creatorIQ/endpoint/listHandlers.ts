@@ -29,11 +29,7 @@ export function handleListQueryEndpoints(query: string, previousState: any): Cre
   const lowerQuery = query.toLowerCase();
   const endpoints: CreatorIQEndpoint[] = [];
   
-  // Check for various list-related queries
   if (lowerQuery.includes('list') || 
-      lowerQuery.includes('all lists') ||
-      lowerQuery.includes('show lists') ||
-      lowerQuery.includes('get lists') ||
       (lowerQuery.includes('find') && lowerQuery.includes('influencer'))) {
     console.log("Adding list endpoints based on keywords");
     endpoints.push({
