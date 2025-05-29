@@ -103,7 +103,10 @@ export function ProductFeedForm({ companies, selectedCompany, onSuccess, onCance
       }
 
       const { error } = await supabase.from("product_feeds").insert({
-        ...data,
+        feed_name: data.feed_name,
+        company_id: data.company_id,
+        feed_url: data.feed_url || null,
+        feed_format: data.feed_format,
         feed_data: feedData,
         user_id: user.id,
         status: 'active',

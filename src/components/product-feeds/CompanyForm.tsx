@@ -44,7 +44,9 @@ export function CompanyForm({ onSuccess, onCancel }: CompanyFormProps) {
     setLoading(true);
     try {
       const { error } = await supabase.from("companies").insert({
-        ...data,
+        name: data.name,
+        description: data.description || null,
+        website_url: data.website_url || null,
         user_id: user.id,
       });
 
