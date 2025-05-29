@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cleanupAuthState, forceSignOut, clearAllBrowserData } from "@/utils/authCleanup";
+import { cleanupAuthState, forceSignOut, clearAllBrowserData, forcePasswordReset } from "@/utils/authCleanup";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -33,19 +33,57 @@ const Auth = () => {
       
       toast({
         title: "Complete Cleanup Successful",
-        description: "All authentication data cleared. You can now try signing up again.",
+        description: "All authentication data cleared. You can now try signing in again.",
       });
       
       // Reset form state
       setEmail("");
       setPassword("");
-      setIsSignUp(true); // Default to signup mode after cleanup
+      setIsSignUp(false); // Default to signin mode after cleanup
       
     } catch (error) {
       console.error('Cleanup error:', error);
       toast({
         title: "Cleanup Complete",
-        description: "Authentication data has been cleared. Try signing up now.",
+        description: "Authentication data has been cleared. Try signing in now.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForcePasswordReset = async () => {
+    if (!email) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please enter your email address first.",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await forcePasswordReset(supabase, email);
+      
+      if (result.success) {
+        toast({
+          title: "Password Reset Sent",
+          description: "Check your email for password reset instructions. This will allow you to set a new password and access your account.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Password Reset Failed",
+          description: result.error?.message || "Failed to send password reset email",
+        });
+      }
+    } catch (error: any) {
+      console.error("Password reset error:", error);
+      toast({
+        variant: "destructive",
+        title: "Password Reset Failed",
+        description: error.message || "Failed to send password reset email",
       });
     } finally {
       setLoading(false);
@@ -164,12 +202,12 @@ const Auth = () => {
       let errorMessage = "An unexpected error occurred.";
       
       if (error.message?.includes("Invalid login credentials")) {
-        errorMessage = "Invalid email or password. Please check your credentials and try again.";
+        errorMessage = "Invalid email or password. If you're sure your credentials are correct, try the 'Force Password Reset' option below to regain access to your account.";
       } else if (error.message?.includes("Email not confirmed")) {
         errorMessage = "Please check your email and click the confirmation link before signing in.";
       } else if (error.message?.includes("User already registered")) {
-        errorMessage = "This account exists but you're having trouble accessing it. Try the 'Complete Auth Reset' button below to clear all data and start fresh.";
-        // Don't automatically switch to signin mode in this case
+        errorMessage = "This account exists. Try signing in instead, or use 'Force Password Reset' if you've forgotten your password.";
+        setIsSignUp(false); // Switch to signin mode
       } else if (error.message?.includes("signup is disabled")) {
         errorMessage = "Account creation is currently disabled. Please contact support.";
       } else if (error.message) {
@@ -311,6 +349,16 @@ const Auth = () => {
             <div className="border-t pt-4 mt-4 space-y-3">
               <Button
                 type="button"
+                variant="outline"
+                onClick={handleForcePasswordReset}
+                className="w-full"
+                disabled={loading || !email}
+              >
+                {loading ? "Sending..." : "Force Password Reset"}
+              </Button>
+              
+              <Button
+                type="button"
                 variant="destructive"
                 onClick={handleCompleteCleanup}
                 className="w-full"
@@ -318,9 +366,11 @@ const Auth = () => {
               >
                 {loading ? "Clearing..." : "Complete Auth Reset"}
               </Button>
+              
               <div className="text-xs text-muted-foreground text-center space-y-1">
-                <p><strong>Can't sign up because account "already exists"?</strong></p>
-                <p>Use this button to completely clear all authentication data and start fresh.</p>
+                <p><strong>Having trouble accessing your account?</strong></p>
+                <p>1. First try "Force Password Reset" if you have the email</p>
+                <p>2. Use "Complete Auth Reset" to clear all data and start fresh</p>
               </div>
             </div>
           </div>

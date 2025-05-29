@@ -78,3 +78,29 @@ export const clearAllBrowserData = async () => {
     console.error('Error clearing browser data:', error);
   }
 };
+
+export const forcePasswordReset = async (supabase: any, email: string) => {
+  try {
+    console.log('Attempting password reset for:', email);
+    
+    // Clear all auth state first
+    await clearAllBrowserData();
+    await forceSignOut(supabase);
+    
+    // Wait a moment
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Send password reset
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth?reset=true`,
+    });
+    
+    if (error) throw error;
+    
+    console.log('Password reset email sent successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('Password reset failed:', error);
+    return { success: false, error };
+  }
+};
