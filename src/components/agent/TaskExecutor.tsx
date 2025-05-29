@@ -1,9 +1,7 @@
+
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
-import { useAuth } from "@/components/auth/AuthProvider";
 import { useGoogleDrive } from "@/hooks/useGoogleDrive";
-import { displayDriveError, GoogleDriveErrorType, parseGoogleDriveError } from "@/utils/googleDriveErrors";
 
 interface TaskResult {
   answer: string;
@@ -17,11 +15,11 @@ interface TaskResult {
   sources?: any[];
 }
 
-interface TaskExecutorProps {
+interface UseTaskExecutorProps {
   selectedTools: string[];
   reasoningLevel: "low" | "medium" | "high";
-  onResult: (result: TaskResult) => void;
-  onDriveError: (error: string) => void;
+  onResult: (result: TaskResult | null) => void;
+  onDriveError: (error: string | null) => void;
   onProcessingChange: (isProcessing: boolean) => void;
 }
 
@@ -31,128 +29,110 @@ export const useTaskExecutor = ({
   onResult,
   onDriveError,
   onProcessingChange
-}: TaskExecutorProps) => {
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const { getToken } = useGoogleDrive();
+}: UseTaskExecutorProps) => {
+  const { getValidToken } = useGoogleDrive();
 
   const executeTask = async (task: string) => {
     if (!task.trim()) return;
-    
+
+    console.log('=== Task Execution Debug ===');
+    console.log('Task:', task);
+    console.log('Selected tools:', selectedTools);
+    console.log('Reasoning level:', reasoningLevel);
+    console.log('Tools count:', selectedTools.length);
+
     onProcessingChange(true);
-    onResult(null as any);
-    onDriveError(null as any);
+    onResult(null);
+    onDriveError(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
+      // Get auth session
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error("Session error:", sessionError);
+        throw new Error("Failed to get authentication session");
+      }
+
       const authToken = sessionData?.session?.access_token;
-      
-      // Get Google Drive token using our centralized hook
-      const includeDrive = selectedTools.includes("file_search") || selectedTools.includes("file_analysis");
-      
-      let driveToken = null;
-      if (includeDrive && user) {
+      let providerToken = null;
+
+      // Check if Google Drive tools are selected
+      const driveToolsSelected = selectedTools.some(tool => 
+        tool === 'file_search' || tool === 'file_analysis'
+      );
+
+      if (driveToolsSelected) {
+        console.log('Drive tools selected, getting provider token...');
         try {
-          const { token, isValid } = await getToken();
-          
-          if (!isValid) {
-            onDriveError("Your Google Drive connection is invalid or has insufficient permissions.");
-            toast({
-              variant: "default",
-              title: "Google Drive Access Required",
-              description: "Your task involves Google Drive but your connection is invalid. Please reconnect Google Drive first."
-            });
-            
-            if (!token) {
-              onProcessingChange(false);
-              return;
-            }
-          }
-          
-          driveToken = token;
+          providerToken = await getValidToken();
+          console.log('Provider token obtained:', !!providerToken);
         } catch (error) {
-          const parsedError = parseGoogleDriveError(error);
-          console.error("Drive token error:", parsedError);
-          
-          if (parsedError.type === GoogleDriveErrorType.AUTH_ERROR) {
-            onDriveError("Google Drive authentication failed. Please reconnect your account.");
-          } else {
-            onDriveError(parsedError.message);
-          }
-          
-          // If Drive is essential but we can't get a token, abort
-          if (includeDrive && (!selectedTools.includes("web_search") || task.toLowerCase().includes("drive"))) {
-            displayDriveError(parsedError);
-            onProcessingChange(false);
-            return;
-          } else {
-            // Otherwise, proceed without Drive functionality
-            toast({
-              title: "Limited Functionality",
-              description: "Continuing without Google Drive access. Some results may be limited."
-            });
-          }
+          console.error('Failed to get provider token:', error);
+          onDriveError("Google Drive authentication failed. Please reconnect your Google account.");
+          return;
         }
       }
 
+      // Build the request payload
+      const payload = {
+        query: task,
+        conversation_history: [],
+        task_mode: true,
+        tools: selectedTools,
+        allow_iterations: true,
+        max_iterations: 3,
+        reasoning_level: reasoningLevel,
+        // Enable sources based on selected tools
+        include_web: selectedTools.includes('web_search'),
+        include_drive: selectedTools.includes('file_search') || selectedTools.includes('file_analysis'),
+        include_product_feeds: selectedTools.includes('product_feed_search'),
+        include_creator_iq: selectedTools.includes('creator_iq'),
+        provider_token: providerToken
+      };
+
+      console.log('Request payload:', {
+        ...payload,
+        provider_token: !!payload.provider_token // Don't log the actual token
+      });
+
+      // Make the request to the unified-agent function
       const response = await supabase.functions.invoke('unified-agent', {
-        body: {
-          query: task,
-          conversation_history: [],
-          include_web: selectedTools.includes("web_search"),
-          include_drive: includeDrive && driveToken !== null,
-          include_product_feeds: selectedTools.includes("product_feed_search"),
-          include_creator_iq: selectedTools.includes("creator_iq"),
-          provider_token: driveToken,
-          task_mode: true,
-          tools: selectedTools.filter(tool => {
-            // Filter out Drive tools if we don't have a valid token
-            if ((tool === "file_search" || tool === "file_analysis") && !driveToken) {
-              return false;
-            }
-            return true;
-          }),
-          allow_iterations: true,
-          max_iterations: 5,
-          reasoning_level: reasoningLevel,
-        },
+        body: payload,
         headers: authToken ? {
           Authorization: `Bearer ${authToken}`
         } : undefined
       });
 
-      if (response.error) throw response.error;
-      
-      onResult(response.data);
-      
-      // Handle Drive-specific errors from the response
-      const driveSource = response.data.sources?.find(source => source.source === "google_drive");
-      if (driveSource && driveSource.error) {
-        onDriveError(driveSource.error);
-        toast({
-          variant: "default",
-          title: "Google Drive Access Issue",
-          description: "There was an issue accessing your Google Drive. Try reconnecting your account."
-        });
+      console.log('Response received:', {
+        error: response.error,
+        hasData: !!response.data,
+        dataKeys: response.data ? Object.keys(response.data) : []
+      });
+
+      if (response.error) {
+        console.error("Edge function error:", response.error);
+        throw new Error(response.error.message || "Failed to execute task");
       }
-      
+
+      const result = response.data;
+      console.log('Task result:', {
+        hasAnswer: !!result?.answer,
+        hasReasoning: !!result?.reasoning,
+        stepsCount: result?.steps_taken?.length || 0,
+        toolsUsed: result?.tools_used || [],
+        sourcesCount: result?.sources?.length || 0
+      });
+
+      onResult(result);
     } catch (error) {
-      console.error("Task execution error:", error);
-      
-      // Try to categorize the error
-      const isNetworkError = error instanceof Error && 
-        (error.message.includes("network") || error.message.includes("fetch"));
-      
-      const isServerError = error instanceof Error && 
-        (error.message.includes("500") || error.message.includes("server"));
-      
-      // Show appropriate error message
-      toast({
-        variant: "destructive",
-        title: isNetworkError ? "Network Error" : 
-               isServerError ? "Server Error" : "Error",
-        description: error instanceof Error ? 
-                     error.message : "An unexpected error occurred"
+      console.error("Error executing task:", error);
+      onResult({
+        answer: `I encountered an error while executing your task: ${error.message}. Please try again or contact support if the issue persists.`,
+        reasoning: "An error occurred during task execution.",
+        steps_taken: [],
+        tools_used: selectedTools,
+        sources: []
       });
     } finally {
       onProcessingChange(false);

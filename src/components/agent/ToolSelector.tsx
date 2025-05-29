@@ -45,9 +45,20 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
     }
   ];
 
+  // Add debug logging to see what's happening with tool selection
+  const handleToolToggle = (toolId: string) => {
+    console.log('Tool toggle clicked:', toolId);
+    console.log('Current selected tools:', selectedTools);
+    console.log('Is tool currently selected:', selectedTools.includes(toolId));
+    onToolToggle(toolId);
+  };
+
   return (
     <div className="space-y-2">
       <h3 className="font-medium text-sm">Select tools to use:</h3>
+      <div className="text-xs text-muted-foreground mb-2">
+        Selected tools: {selectedTools.length > 0 ? selectedTools.join(', ') : 'None'}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
         {tools.map((tool) => {
           const isSelected = selectedTools.includes(tool.id);
@@ -78,7 +89,7 @@ export const ToolSelector = ({ selectedTools, onToolToggle, driveConnected = fal
                     size="sm"
                     variant={isSelected ? "default" : "outline"}
                     className="px-2 h-7"
-                    onClick={() => onToolToggle(tool.id)}
+                    onClick={() => handleToolToggle(tool.id)}
                   >
                     {isSelected ? (
                       <><Check className="h-3 w-3 mr-1" /> On</>
