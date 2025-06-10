@@ -11,6 +11,9 @@ import Drive from "./pages/Drive"
 import Chat from "./pages/Chat"
 import Agent from "./pages/Agent"
 import ImagenGenerator from "./pages/ImagenGenerator"
+import LeadForm from "./pages/LeadForm"
+import LeadAdmin from "./pages/LeadAdmin"
+import LeadDashboard from "./pages/LeadDashboard"
 import NotFound from "./pages/NotFound"
 
 const queryClient = new QueryClient()
@@ -32,6 +35,9 @@ const App = () => (
             <Route path="/chat" element={<Chat />} />
             <Route path="/agent" element={<Agent />} />
             <Route path="/imagen" element={<ImagenGenerator />} />
+            <Route path="/lead-form" element={<LeadForm />} />
+            <Route path="/lead-admin" element={<LeadAdmin />} />
+            <Route path="/lead-dashboard" element={<LeadDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
