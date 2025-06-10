@@ -9,7 +9,8 @@ import {
   Zap,
   Bot,
   Image,
-  Video
+  Users,
+  BarChart3
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -42,6 +43,20 @@ const Index = () => {
       icon: Image,
       href: "/imagen",
       badge: "New"
+    },
+    {
+      title: "Lead Dashboard",
+      description: "View and analyze leads received from ManyChat and other sources in real-time",
+      icon: BarChart3,
+      href: "/lead-dashboard",
+      badge: "Real-time"
+    },
+    {
+      title: "Lead Admin",
+      description: "Administrative interface for managing and reviewing all lead submissions",
+      icon: Users,
+      href: "/lead-admin",
+      badge: "Admin"
     }
   ];
 
@@ -68,7 +83,7 @@ const Index = () => {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
           {features.map((feature, index) => (
             <Card key={index} className="hover:shadow-lg transition-shadow duration-300 border-0 shadow-md">
               <CardHeader className="pb-4">
