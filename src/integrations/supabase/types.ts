@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      companies: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       creator_iq_state: {
         Row: {
           created_at: string
@@ -71,6 +101,98 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      leads: {
+        Row: {
+          created_at: string
+          credit_score_range: string | null
+          email: string
+          id: string
+          last_name: string
+          loan_type: string
+          phone: string
+          property_value: number | null
+          purchase_timeframe: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credit_score_range?: string | null
+          email: string
+          id?: string
+          last_name: string
+          loan_type: string
+          phone: string
+          property_value?: number | null
+          purchase_timeframe?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credit_score_range?: string | null
+          email?: string
+          id?: string
+          last_name?: string
+          loan_type?: string
+          phone?: string
+          property_value?: number | null
+          purchase_timeframe?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      product_feeds: {
+        Row: {
+          company_id: string
+          created_at: string
+          error_message: string | null
+          feed_data: Json | null
+          feed_format: string | null
+          feed_name: string
+          feed_url: string | null
+          id: string
+          last_updated: string | null
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          feed_data?: Json | null
+          feed_format?: string | null
+          feed_name: string
+          feed_url?: string | null
+          id?: string
+          last_updated?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          feed_data?: Json | null
+          feed_format?: string | null
+          feed_name?: string
+          feed_url?: string | null
+          id?: string
+          last_updated?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_feeds_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
