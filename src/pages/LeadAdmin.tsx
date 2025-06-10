@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Loader2, Mail, Phone, DollarSign, Calendar } from "lucide-react";
 import { format } from "date-fns";
+import Navigation from "@/components/Navigation";
 
 interface Lead {
   id: string;
@@ -90,111 +91,110 @@ const LeadAdmin = () => {
     }
   };
 
-  if (!user) {
-    return (
-      <div className="container max-w-4xl mx-auto py-8">
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">Please log in to access the admin panel.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="container max-w-6xl mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Lead Management Dashboard
-          </CardTitle>
-          <p className="text-muted-foreground">
-            View and manage submitted lead information
-          </p>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Loading leads...</span>
-            </div>
-          ) : leads.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No leads have been submitted yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Showing {leads.length} lead{leads.length !== 1 ? 's' : ''}
-              </div>
-              
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Loan Details</TableHead>
-                      <TableHead>Property Value</TableHead>
-                      <TableHead>Credit Score</TableHead>
-                      <TableHead>Timeframe</TableHead>
-                      <TableHead>Submitted</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {leads.map((lead) => (
-                      <TableRow key={lead.id}>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="font-medium">{lead.last_name}</div>
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <Mail className="h-3 w-3" />
-                              {lead.email}
-                            </div>
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <Phone className="h-3 w-3" />
-                              {lead.phone}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getLoanTypeBadgeColor(lead.loan_type)}>
-                            {lead.loan_type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {formatCurrency(lead.property_value)}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {lead.credit_score_range || "Not specified"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {lead.purchase_timeframe || "Not specified"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {format(new Date(lead.created_at), 'MMM d, yyyy')}
-                            <div className="text-xs text-muted-foreground">
-                              {format(new Date(lead.created_at), 'h:mm a')}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      <div className="container max-w-6xl mx-auto py-8">
+        {!user ? (
+          <Card>
+            <CardContent className="text-center py-8">
+              <p className="text-muted-foreground">Please log in to access the admin panel.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Lead Management Dashboard
+              </CardTitle>
+              <p className="text-muted-foreground">
+                View and manage submitted lead information
+              </p>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="ml-2">Loading leads...</span>
+                </div>
+              ) : leads.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No leads have been submitted yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {leads.length} lead{leads.length !== 1 ? 's' : ''}
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Contact</TableHead>
+                          <TableHead>Loan Details</TableHead>
+                          <TableHead>Property Value</TableHead>
+                          <TableHead>Credit Score</TableHead>
+                          <TableHead>Timeframe</TableHead>
+                          <TableHead>Submitted</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {leads.map((lead) => (
+                          <TableRow key={lead.id}>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="font-medium">{lead.last_name}</div>
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <Mail className="h-3 w-3" />
+                                  {lead.email}
+                                </div>
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <Phone className="h-3 w-3" />
+                                  {lead.phone}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getLoanTypeBadgeColor(lead.loan_type)}>
+                                {lead.loan_type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                {formatCurrency(lead.property_value)}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {lead.credit_score_range || "Not specified"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {lead.purchase_timeframe || "Not specified"}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                {format(new Date(lead.created_at), 'MMM d, yyyy')}
+                                <div className="text-xs text-muted-foreground">
+                                  {format(new Date(lead.created_at), 'h:mm a')}
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 };
