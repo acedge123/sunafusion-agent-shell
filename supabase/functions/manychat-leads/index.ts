@@ -61,6 +61,13 @@ serve(async (req) => {
       );
     }
 
+    // Validate loan_type to ensure it's one of the accepted values
+    const validLoanTypes = ['Home Purchase', 'Refinance', 'Investment Property', 'Jumbo Loan', 'HELOC'];
+    if (!validLoanTypes.includes(leadData.loan_type)) {
+      console.log(`Invalid loan type received: ${leadData.loan_type}. Defaulting to 'Home Purchase'`);
+      leadData.loan_type = 'Home Purchase';
+    }
+
     // Insert lead into database
     const { data, error } = await supabase
       .from('leads')

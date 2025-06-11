@@ -100,6 +100,8 @@ const LeadVisualization = () => {
         return "bg-purple-100 text-purple-800";
       case "Jumbo Loan":
         return "bg-orange-100 text-orange-800";
+      case "HELOC":
+        return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -220,7 +222,7 @@ const LeadVisualization = () => {
                 <li><code>last_name</code> or <code>name</code> (required)</li>
                 <li><code>email</code> or <code>user_email</code> (required)</li>
                 <li><code>phone</code> or <code>phone_number</code> or <code>user_phone</code> (required)</li>
-                <li><code>loan_type</code> or <code>loanType</code> (optional)</li>
+                <li><code>loan_type</code> or <code>loanType</code> (optional) - Valid values: Home Purchase, Refinance, Investment Property, Jumbo Loan, HELOC</li>
                 <li><code>property_value</code> (optional, numeric)</li>
                 <li><code>credit_score_range</code> or <code>creditScore</code> (optional)</li>
                 <li><code>purchase_timeframe</code> or <code>timeframe</code> (optional)</li>

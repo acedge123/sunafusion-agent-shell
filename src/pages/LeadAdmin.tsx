@@ -86,6 +86,8 @@ const LeadAdmin = () => {
         return "bg-purple-100 text-purple-800";
       case "Jumbo Loan":
         return "bg-orange-100 text-orange-800";
+      case "HELOC":
+        return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
