@@ -93,6 +93,7 @@ const LeadVisualization = () => {
   const getLoanTypeBadgeColor = (loanType: string) => {
     switch (loanType) {
       case "Home Purchase":
+      case "Buy a new home":
         return "bg-blue-100 text-blue-800";
       case "Refinance":
         return "bg-green-100 text-green-800";
@@ -102,6 +103,8 @@ const LeadVisualization = () => {
         return "bg-orange-100 text-orange-800";
       case "HELOC":
         return "bg-red-100 text-red-800";
+      case "Just exploring":
+        return "bg-gray-100 text-gray-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -219,13 +222,13 @@ const LeadVisualization = () => {
             <div>
               <h4 className="font-semibold">Supported Fields:</h4>
               <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
-                <li><code>last_name</code> or <code>name</code> (required)</li>
+                <li><code>last_name</code> or <code>name</code> or <code>first_name</code> (required)</li>
                 <li><code>email</code> or <code>user_email</code> (required)</li>
                 <li><code>phone</code> or <code>phone_number</code> or <code>user_phone</code> (required)</li>
-                <li><code>loan_type</code> or <code>loanType</code> (optional) - Valid values: Home Purchase, Refinance, Investment Property, Jumbo Loan, HELOC</li>
+                <li><code>loan_type</code> or <code>loanType</code> (optional) - Valid values: "Home Purchase", "Refinance", "Investment Property", "Jumbo Loan", "HELOC", "Buy a new home", "Just exploring"</li>
                 <li><code>property_value</code> (optional, numeric)</li>
-                <li><code>credit_score_range</code> or <code>creditScore</code> (optional)</li>
-                <li><code>purchase_timeframe</code> or <code>timeframe</code> (optional)</li>
+                <li><code>credit_score_range</code> or <code>creditScore</code> or <code>credit__score_range</code> (optional) - Valid values: "Excellent (720+)", "Good (660–719)", "Fair (600–659)", "Below 600", "Prefer not to say"</li>
+                <li><code>purchase_timeframe</code> or <code>timeframe</code> (optional) - Valid values: "ASAP / next 30 days", "1–3 months", "3–6 months", "6+ months"</li>
               </ul>
             </div>
           </div>

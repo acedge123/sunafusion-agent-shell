@@ -35,15 +35,24 @@ serve(async (req) => {
     
     console.log('Received ManyChat data:', JSON.stringify(requestData, null, 2))
 
+    // Map ManyChat loan_type values to our database values
+    const mapLoanType = (loanType: string) => {
+      const loanTypeMap: Record<string, string> = {
+        'Buy a new home': 'Home Purchase',
+        'Just exploring': 'Home Purchase' // Map to default since "Just exploring" isn't a valid loan type
+      };
+      return loanTypeMap[loanType] || loanType;
+    };
+
     // Extract lead data from ManyChat payload
     // ManyChat typically sends data in different formats, so we'll be flexible
     const leadData = {
-      last_name: requestData.last_name || requestData.lastName || requestData.name || 'Unknown',
+      last_name: requestData.last_name || requestData.lastName || requestData.first_name || requestData.name || 'Unknown',
       email: requestData.email || requestData.user_email || '',
       phone: requestData.phone || requestData.phone_number || requestData.user_phone || '',
-      loan_type: requestData.loan_type || requestData.loanType || 'Home Purchase',
+      loan_type: mapLoanType(requestData.loan_type || requestData.loanType || 'Home Purchase'),
       property_value: requestData.property_value ? parseFloat(requestData.property_value) : null,
-      credit_score_range: requestData.credit_score_range || requestData.creditScore || null,
+      credit_score_range: requestData.credit_score_range || requestData.creditScore || requestData.credit__score_range || null,
       purchase_timeframe: requestData.purchase_timeframe || requestData.timeframe || null
     }
 
@@ -62,7 +71,7 @@ serve(async (req) => {
     }
 
     // Validate loan_type to ensure it's one of the accepted values
-    const validLoanTypes = ['Home Purchase', 'Refinance', 'Investment Property', 'Jumbo Loan', 'HELOC'];
+    const validLoanTypes = ['Home Purchase', 'Refinance', 'Investment Property', 'Jumbo Loan', 'HELOC', 'Buy a new home', 'Just exploring'];
     if (!validLoanTypes.includes(leadData.loan_type)) {
       console.log(`Invalid loan type received: ${leadData.loan_type}. Defaulting to 'Home Purchase'`);
       leadData.loan_type = 'Home Purchase';
