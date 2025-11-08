@@ -38,9 +38,9 @@ export async function runIterativeTask(config: IterativeTaskConfig): Promise<Tas
     previousState = null
   } = config;
 
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key is not configured');
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) {
+    throw new Error('Lovable AI key is not configured - ensure Lovable Cloud is enabled');
   }
 
   console.log(`Starting iterative task with max ${maxIterations} iterations`);
@@ -115,25 +115,31 @@ Please analyze the information and use tools as needed to complete this task. Pa
     console.log(`\n=== Iteration ${iteration}/${maxIterations} ===`);
 
     try {
-      // Call OpenAI with function calling
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      // Call Lovable AI Gateway with function calling
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: 'google/gemini-2.5-flash',
           messages: messages,
           tools: tools,
-          tool_choice: iteration === 1 ? "auto" : "auto", // Let model decide when to stop
+          tool_choice: "auto",
           temperature: 0.7
         })
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`OpenAI API error: ${error}`);
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded for Lovable AI. Please try again in a moment.');
+        }
+        if (response.status === 402) {
+          throw new Error('Lovable AI credits depleted. Please add credits to your workspace.');
+        }
+        const errorData = await response.text();
+        throw new Error(`Lovable AI error: ${errorData}`);
       }
 
       const data = await response.json();
