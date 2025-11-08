@@ -373,17 +373,57 @@ serve(async (req) => {
       }
     }
 
-    // Use task mode if requested (full agent capabilities)
-    if (task_mode) {
+    // Use task mode if requested (full agent capabilities with iterative tool calling)
+    if (task_mode && allow_iterations) {
       try {
-        console.log("Starting agent task mode execution");
+        console.log("Starting iterative agent task mode execution");
+        
+        // Import the iterative task runner
+        const { runIterativeTask } = await import('./agent/iterativeTaskRunner.ts');
+        
+        const agentResponse = await runIterativeTask({
+          query,
+          initialResults: results,
+          conversationHistory: conversation_history,
+          maxIterations: max_iterations,
+          reasoningLevel: reasoning_level,
+          previousState: previous_state
+        });
+        
+        return new Response(
+          JSON.stringify({
+            answer: agentResponse.answer,
+            reasoning: agentResponse.reasoning,
+            steps_taken: agentResponse.steps,
+            tools_used: agentResponse.tools_used,
+            iterations_used: agentResponse.iterations_used,
+            sources: results,
+            total_data: agentResponse.total_data_fetched
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error("Iterative agent task execution error:", error);
+        return new Response(
+          JSON.stringify({ 
+            error: error.message || 'Failed to execute iterative agent task',
+            sources: results 
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+    // Fallback to simple task mode (non-iterative) if iterations disabled
+    else if (task_mode) {
+      try {
+        console.log("Starting simple agent task mode execution (no iterations)");
         const agentResponse = await runAgentTask(
           query, 
           results, 
           conversation_history, 
           tools, 
-          allow_iterations, 
-          max_iterations, 
+          false, // disable iterations in simple mode
+          1, // single iteration
           reasoning_level
         );
         
@@ -398,7 +438,7 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } catch (error) {
-        console.error("Agent task execution error:", error);
+        console.error("Simple agent task execution error:", error);
         return new Response(
           JSON.stringify({ 
             error: error.message || 'Failed to execute agent task',
