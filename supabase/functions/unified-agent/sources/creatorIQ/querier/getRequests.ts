@@ -137,8 +137,9 @@ export async function handleGetRequest(
       }
     }
     
-    // Add pagination parameters
-    queryParams.append('page', "1");
+    // Add pagination parameters - use requested page from payload or default to 1
+    const requestedPage = queryPayload.page || 1;
+    queryParams.append('page', String(requestedPage));
     queryParams.append('limit', String(pageSize));
     
     const initialData = await fetchPage(url, queryParams, headers);
