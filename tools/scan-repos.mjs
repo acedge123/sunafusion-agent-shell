@@ -222,6 +222,58 @@ function findAppRoutes(apiDir) {
   return [...new Set(routes)].sort();
 }
 
+function extractTablesFromSQL(sql) {
+  const tables = new Set();
+  
+  // SQL keywords to exclude
+  const sqlKeywords = new Set(['for', 'to', 'from', 'where', 'select', 'insert', 'update', 'delete', 'create', 'alter', 'drop', 'if', 'not', 'exists']);
+  
+  // Match CREATE TABLE statements
+  // Handles: CREATE TABLE public.table_name, CREATE TABLE table_name, CREATE TABLE IF NOT EXISTS...
+  // More precise: look for CREATE TABLE followed by schema.table or just table
+  const createTableRegex = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:([a-z_][a-z0-9_]*)\.)?([a-z_][a-z0-9_]*)/gi;
+  let match;
+  while ((match = createTableRegex.exec(sql)) !== null) {
+    const schema = match[1] ? match[1].toLowerCase() : null;
+    const tableName = match[2].toLowerCase();
+    
+    // Skip SQL keywords and system tables
+    if (!sqlKeywords.has(tableName) && 
+        !tableName.startsWith('_') && 
+        !tableName.includes('pg_') &&
+        tableName.length > 1) {
+      tables.add(tableName);
+    }
+  }
+  
+  return Array.from(tables).sort();
+}
+
+function findSupabaseTables(repoDir) {
+  const migrationsDir = path.join(repoDir, "supabase", "migrations");
+  const tables = new Set();
+  
+  if (!fs.existsSync(migrationsDir)) return [];
+  
+  try {
+    const files = fs.readdirSync(migrationsDir, { withFileTypes: true });
+    for (const file of files) {
+      if (file.isFile() && file.name.endsWith('.sql')) {
+        const sqlPath = path.join(migrationsDir, file.name);
+        const sql = safeRead(sqlPath);
+        if (sql) {
+          const foundTables = extractTablesFromSQL(sql);
+          foundTables.forEach(t => tables.add(t));
+        }
+      }
+    }
+  } catch (e) {
+    // Silently skip if can't read
+  }
+  
+  return Array.from(tables).sort();
+}
+
 function loadOverrides() {
   const overridesPath = path.join(OUT_DIR, "overrides.json");
   try {
@@ -246,6 +298,8 @@ function main() {
 
   const inventory = [];
   const routesAndFunctions = [];
+  const schemaData = []; // { repo, tables: [] }
+  const tableOwnership = new Map(); // table -> { owner: repo, repos: [repo1, repo2] }
   
   for (const repoDir of repoDirs) {
     const name = path.basename(repoDir);
@@ -263,8 +317,33 @@ function main() {
     const supabaseFunctions = findSupabaseFunctions(repoDir);
     const apiRoutes = findAPIRoutes(repoDir);
     
+    // Extract Supabase tables
+    const tables = findSupabaseTables(repoDir);
+    
     // Merge override information
     const override = overrides[name] || {};
+    
+    // Track table ownership
+    for (const table of tables) {
+      if (!tableOwnership.has(table)) {
+        tableOwnership.set(table, { owner: name, repos: [name] });
+      } else {
+        const existing = tableOwnership.get(table);
+        if (!existing.repos.includes(name)) {
+          existing.repos.push(name);
+        }
+        // First repo with migration owns it
+      }
+    }
+    
+    if (tables.length > 0) {
+      schemaData.push({
+        name,
+        origin,
+        tables,
+        override
+      });
+    }
     
     if (supabaseFunctions.length > 0 || apiRoutes.pages.length > 0 || apiRoutes.app.length > 0) {
       routesAndFunctions.push({
@@ -365,6 +444,260 @@ function main() {
 
   fs.writeFileSync(path.join(OUT_DIR, "routes-and-functions.md"), routesMd);
   console.log(`✅ Wrote repo-map/routes-and-functions.md (${routesAndFunctions.length} repos with routes/functions).`);
+
+  // Generate schemas.md
+  schemaData.sort((a, b) => a.name.localeCompare(b.name));
+  
+  const schemasMd = [
+    `# Database Schema Ownership`,
+    ``,
+    `Generated: ${new Date().toISOString()}`,
+    ``,
+    `This document maps database tables to their owning repositories.`,
+    `**Ownership** = the repo where the migration that creates the table lives.`,
+    ``,
+    `## Table Ownership`,
+    ``,
+    ...Array.from(tableOwnership.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([table, info]) => {
+        const parts = [];
+        parts.push(`### \`${table}\``);
+        parts.push(`- **Owner:** \`${info.owner}\``);
+        if (info.repos.length > 1) {
+          parts.push(`- **Also used by:** ${info.repos.filter(r => r !== info.owner).map(r => `\`${r}\``).join(", ")}`);
+          parts.push(`- ⚠️  **Shared table** - changes should be coordinated`);
+        }
+        return parts.join("\n");
+      }),
+    ``,
+    `## Repositories and Their Tables`,
+    ``,
+    ...schemaData.map(r => {
+      const parts = [];
+      parts.push(`## ${r.name}`);
+      if (r.origin) parts.push(`- Origin: ${r.origin}`);
+      if (r.override?.alias_of) {
+        parts.push(`- ⚠️  Alias of: \`${r.override.alias_of}\``);
+      }
+      if (r.override?.status) {
+        parts.push(`- Status: \`${r.override.status}\``);
+      }
+      parts.push(`- **Owns ${r.tables.length} table(s):** ${r.tables.map(t => `\`${t}\``).join(", ")}`);
+      return parts.join("\n");
+    })
+  ].join("\n\n");
+
+  fs.writeFileSync(path.join(OUT_DIR, "schemas.md"), schemasMd);
+  console.log(`✅ Wrote repo-map/schemas.md (${tableOwnership.size} tables across ${schemaData.length} repos).`);
+
+  // Generate integration graph
+  const graph = {
+    nodes: [],
+    edges: []
+  };
+
+  // Add nodes (repos)
+  for (const repo of inventory) {
+    graph.nodes.push({
+      id: repo.name,
+      label: repo.name,
+      integrations: repo.integrations,
+      hasTables: schemaData.some(s => s.name === repo.name)
+    });
+  }
+
+  // Add edges based on:
+  // 1. Shared tables
+  for (const [table, info] of tableOwnership.entries()) {
+    if (info.repos.length > 1) {
+      // Create edges between all repos that share this table
+      for (let i = 0; i < info.repos.length; i++) {
+        for (let j = i + 1; j < info.repos.length; j++) {
+          const edgeId = `${info.repos[i]}--${info.repos[j]}`;
+          const existingEdge = graph.edges.find(e => e.id === edgeId);
+          if (existingEdge) {
+            if (!existingEdge.sharedTables.includes(table)) {
+              existingEdge.sharedTables.push(table);
+            }
+          } else {
+            graph.edges.push({
+              id: edgeId,
+              source: info.repos[i],
+              target: info.repos[j],
+              type: "shared_table",
+              sharedTables: [table],
+              sharedIntegrations: [],
+              sharedAPIs: []
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Shared integrations (external APIs)
+  const apiIntegrations = ["creatoriq", "shopify", "bigcommerce", "slack", "gmail", "stripe", "openai"];
+  for (const api of apiIntegrations) {
+    const reposUsingAPI = inventory.filter(r => r.integrations.includes(api));
+    if (reposUsingAPI.length > 1) {
+      for (let i = 0; i < reposUsingAPI.length; i++) {
+        for (let j = i + 1; j < reposUsingAPI.length; j++) {
+          const edgeId = `${reposUsingAPI[i].name}--${reposUsingAPI[j].name}`;
+          const existingEdge = graph.edges.find(e => e.id === edgeId);
+          if (existingEdge) {
+            if (!existingEdge.sharedAPIs.includes(api)) {
+              existingEdge.sharedAPIs.push(api);
+            }
+          } else {
+            graph.edges.push({
+              id: edgeId,
+              source: reposUsingAPI[i].name,
+              target: reposUsingAPI[j].name,
+              type: "shared_api",
+              sharedTables: [],
+              sharedIntegrations: [],
+              sharedAPIs: [api]
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Shared integrations (other)
+  const otherIntegrations = ["supabase", "aws", "redis", "vercel", "webhook"];
+  for (const integration of otherIntegrations) {
+    const reposUsingIntegration = inventory.filter(r => r.integrations.includes(integration));
+    if (reposUsingIntegration.length > 1) {
+      for (let i = 0; i < reposUsingIntegration.length; i++) {
+        for (let j = i + 1; j < reposUsingIntegration.length; j++) {
+          const edgeId = `${reposUsingIntegration[i].name}--${reposUsingIntegration[j].name}`;
+          const existingEdge = graph.edges.find(e => e.id === edgeId);
+          if (existingEdge) {
+            if (!existingEdge.sharedIntegrations.includes(integration)) {
+              existingEdge.sharedIntegrations.push(integration);
+            }
+          } else {
+            graph.edges.push({
+              id: edgeId,
+              source: reposUsingIntegration[i].name,
+              target: reposUsingIntegration[j].name,
+              type: "shared_integration",
+              sharedTables: [],
+              sharedIntegrations: [integration],
+              sharedAPIs: []
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Merge edges with multiple connection types
+  const edgeMap = new Map();
+  for (const edge of graph.edges) {
+    // Normalize key (always use alphabetical order)
+    const [source, target] = edge.source < edge.target 
+      ? [edge.source, edge.target] 
+      : [edge.target, edge.source];
+    const key = `${source}--${target}`;
+    
+    if (edgeMap.has(key)) {
+      const existing = edgeMap.get(key);
+      existing.sharedTables.push(...edge.sharedTables);
+      existing.sharedIntegrations.push(...edge.sharedIntegrations);
+      existing.sharedAPIs.push(...edge.sharedAPIs);
+      existing.sharedTables = [...new Set(existing.sharedTables)].sort();
+      existing.sharedIntegrations = [...new Set(existing.sharedIntegrations)].sort();
+      existing.sharedAPIs = [...new Set(existing.sharedAPIs)].sort();
+    } else {
+      edgeMap.set(key, { 
+        id: key,
+        source,
+        target,
+        sharedTables: [...edge.sharedTables].sort(),
+        sharedIntegrations: [...edge.sharedIntegrations].sort(),
+        sharedAPIs: [...edge.sharedAPIs].sort()
+      });
+    }
+  }
+  graph.edges = Array.from(edgeMap.values());
+
+  // Generate graph markdown
+  const graphMd = [
+    `# Integration Graph`,
+    ``,
+    `Generated: ${new Date().toISOString()}`,
+    ``,
+    `Strategic map showing relationships between repositories based on:`,
+    `- **Shared Tables**: Repos that share database tables (coordination required for schema changes)`,
+    `- **Shared APIs**: Repos using the same external APIs (CIQ, Shopify, BigCommerce, Slack, Gmail, etc.)`,
+    `- **Shared Integrations**: Repos using the same infrastructure (Supabase, AWS, Redis, etc.)`,
+    ``,
+    `## Graph Statistics`,
+    ``,
+    `- **Nodes (Repos):** ${graph.nodes.length}`,
+    `- **Edges (Relationships):** ${graph.edges.length}`,
+    `- **Repos with Tables:** ${graph.nodes.filter(n => n.hasTables).length}`,
+    ``,
+    `## Relationships`,
+    ``,
+    ...graph.edges
+      .sort((a, b) => {
+        // Sort by number of connections (most connected first)
+        const aCount = a.sharedTables.length + a.sharedAPIs.length + a.sharedIntegrations.length;
+        const bCount = b.sharedTables.length + b.sharedAPIs.length + b.sharedIntegrations.length;
+        return bCount - aCount;
+      })
+      .map(edge => {
+        const parts = [];
+        parts.push(`### \`${edge.source}\` ↔ \`${edge.target}\``);
+        
+        if (edge.sharedTables.length > 0) {
+          parts.push(`- **Shared Tables:** ${edge.sharedTables.map(t => `\`${t}\``).join(", ")}`);
+          parts.push(`  - ⚠️  Schema changes require coordination`);
+        }
+        
+        if (edge.sharedAPIs.length > 0) {
+          parts.push(`- **Shared APIs:** ${edge.sharedAPIs.join(", ")}`);
+        }
+        
+        if (edge.sharedIntegrations.length > 0) {
+          parts.push(`- **Shared Integrations:** ${edge.sharedIntegrations.join(", ")}`);
+        }
+        
+        return parts.join("\n");
+      }),
+    ``,
+    `## Repositories`,
+    ``,
+    ...graph.nodes
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map(node => {
+        const connections = graph.edges.filter(e => e.source === node.id || e.target === node.id);
+        const parts = [];
+        parts.push(`### \`${node.id}\``);
+        parts.push(`- **Connections:** ${connections.length}`);
+        if (node.hasTables) {
+          parts.push(`- **Has database tables**`);
+        }
+        if (node.integrations.length > 0) {
+          parts.push(`- **Integrations:** ${node.integrations.join(", ")}`);
+        }
+        return parts.join("\n");
+      })
+  ].join("\n\n");
+
+  fs.writeFileSync(path.join(OUT_DIR, "integration-graph.md"), graphMd);
+  
+  // Also write JSON for programmatic access
+  fs.writeFileSync(
+    path.join(OUT_DIR, "integration-graph.json"),
+    JSON.stringify({ generated_at: new Date().toISOString(), ...graph }, null, 2)
+  );
+  
+  console.log(`✅ Wrote repo-map/integration-graph.md and integration-graph.json (${graph.edges.length} relationships).`);
 }
 
 main();
