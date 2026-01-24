@@ -116,7 +116,8 @@ app.add_middleware(
     allow_origins=["https://www.suna.so", "https://suna.so", "https://staging.suna.so", "http://localhost:3000"], #http://localhost:3000
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "Cache-Control", "X-Accel-Buffering"],
+    expose_headers=["Cache-Control", "Connection", "X-Accel-Buffering"],
 )
 
 # Include the agent router with a prefix

@@ -23,6 +23,7 @@ const Chat = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [runMode, setRunMode] = useState<RunMode>('quick')
   const [showHeavyTaskAdvisory, setShowHeavyTaskAdvisory] = useState(false)
+  const [activeAgentRunId, setActiveAgentRunId] = useState<string | null>(null)
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -233,6 +234,7 @@ const Chat = () => {
     })
 
     const { agent_run_id } = response
+    setActiveAgentRunId(agent_run_id)  // Track active run for stop button
 
     // Create a placeholder assistant message that we'll update as we stream
     const assistantMessageId = uuidv4()
@@ -275,8 +277,47 @@ const Chat = () => {
       () => {
         // Stream complete
         console.log("Backend agent stream completed")
+        setActiveAgentRunId(null)  // Clear active run
       }
     )
+  }
+
+  const handleStopAgent = async () => {
+    if (!activeAgentRunId) return
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const authToken = sessionData?.session?.access_token
+
+      if (!authToken) {
+        throw new Error("Authentication required")
+      }
+
+      const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${BACKEND_API_URL}/api/agent-run/${activeAgentRunId}/stop`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to stop agent: ${response.statusText}`)
+      }
+
+      setActiveAgentRunId(null)
+      toast({
+        title: "Agent stopped",
+        description: "The agent run has been stopped successfully."
+      })
+    } catch (error) {
+      console.error("Error stopping agent:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to stop agent"
+      })
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -374,18 +415,31 @@ const Chat = () => {
             className="resize-none"
             rows={3}
           />
-          <Button 
-            onClick={handleSendMessage}
-            disabled={!input.trim() || isProcessing}
-            className="align-self-end"
-          >
-            {isProcessing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Send className="h-5 w-5" />
+          <div className="flex flex-col gap-2">
+            {runMode === 'heavy' && activeAgentRunId && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleStopAgent}
+                disabled={!activeAgentRunId}
+                className="h-8"
+              >
+                Stop
+              </Button>
             )}
-            <span className="sr-only">Send message</span>
-          </Button>
+            <Button 
+              onClick={handleSendMessage}
+              disabled={!input.trim() || isProcessing}
+              className="align-self-end"
+            >
+              {isProcessing ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+              <span className="sr-only">Send message</span>
+            </Button>
+          </div>
         </div>
       </div>
     </div>

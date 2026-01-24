@@ -649,7 +649,8 @@ async def run_agent_background(
     enable_thinking: Optional[bool],
     reasoning_effort: Optional[str],
     stream: bool,
-    enable_context_manager: bool
+    enable_context_manager: bool,
+    max_iterations: Optional[int] = None
 ):
     """Run the agent in the background and handle status updates."""
     logger.debug(f"Starting background agent run: {agent_run_id} for thread: {thread_id} (instance: {instance_id}) with model={model_name}, thinking={enable_thinking}, effort={reasoning_effort}, stream={stream}, context_manager={enable_context_manager}")
@@ -768,8 +769,12 @@ async def run_agent_background(
         logger.warning(f"No stop signal checker for agent run: {agent_run_id} - pubsub unavailable")
     
     try:
+        # Safety rails: Runtime limit for UI-triggered runs (5 minutes max)
+        MAX_RUNTIME_SECONDS = 300  # 5 minutes
+        runtime_limit = start_time.timestamp() + MAX_RUNTIME_SECONDS
+        
         # Run the agent
-        logger.debug(f"Initializing agent generator for thread: {thread_id} (instance: {instance_id})")
+        logger.debug(f"Initializing agent generator for thread: {thread_id} (instance: {instance_id}) with max_iterations={max_iterations}")
         agent_gen = run_agent(
             thread_id=thread_id,
             project_id=project_id,
@@ -778,7 +783,8 @@ async def run_agent_background(
             model_name=model_name,
             enable_thinking=enable_thinking,
             reasoning_effort=reasoning_effort,
-            enable_context_manager=enable_context_manager
+            enable_context_manager=enable_context_manager,
+            max_iterations=max_iterations or 30  # Default to 30 for UI safety
         )
         
         # Collect all responses to save to database
@@ -789,6 +795,18 @@ async def run_agent_background(
             if stop_signal_received:
                 logger.info(f"Agent run stopped due to stop signal: {agent_run_id} (instance: {instance_id})")
                 await update_agent_run_status(client, agent_run_id, "stopped", responses=all_responses)
+                break
+            
+            # Safety rail: Check runtime limit
+            if datetime.now(timezone.utc).timestamp() > runtime_limit:
+                logger.warning(f"Agent run exceeded runtime limit ({MAX_RUNTIME_SECONDS}s): {agent_run_id} (instance: {instance_id})")
+                await update_agent_run_status(
+                    client, 
+                    agent_run_id, 
+                    "failed", 
+                    error=f"Runtime limit exceeded ({MAX_RUNTIME_SECONDS}s). Please break this into smaller tasks.",
+                    responses=all_responses
+                )
                 break
                 
             # Check for billing error status
@@ -1160,6 +1178,10 @@ async def initiate_agent_with_files(
         except Exception as e:
             logger.warning(f"Failed to register agent run in Redis, continuing without Redis tracking: {str(e)}")
         
+        # Safety rails: Cap iterations for UI-triggered runs (default 30)
+        # This prevents accidental long-running tasks that could bill excessively
+        max_iterations_override = 30  # Safe default for UI
+        
         # Run the agent in the background
         task = asyncio.create_task(
             run_agent_background(
@@ -1172,7 +1194,8 @@ async def initiate_agent_with_files(
                 enable_thinking=enable_thinking,
                 reasoning_effort=reasoning_effort,
                 stream=stream,
-                enable_context_manager=enable_context_manager
+                enable_context_manager=enable_context_manager,
+                max_iterations=max_iterations_override  # Apply safety cap
             )
         )
         

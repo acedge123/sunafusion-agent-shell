@@ -2,8 +2,6 @@
  * Service for calling the backend agentpress API (heavy tasks)
  */
 
-import { supabase } from "@/integrations/supabase/client";
-
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000';
 
 export interface BackendAgentStartRequest {
@@ -28,6 +26,36 @@ export interface StreamMessage {
 }
 
 /**
+ * Search repo-map before starting agent (same as unified-agent)
+ */
+async function searchRepoMapBeforeAgent(query: string, supabaseClient: any): Promise<any[]> {
+  const repoMapKeywords = [
+    'which repo', 'where is', 'which function', 'which table', 
+    'webhook', 'webhooks', 'creatoriq', 'shopify', 'bigcommerce',
+    'slack', 'gmail', 'api route', 'edge function', 'supabase function',
+    'migration', 'schema', 'database table', 'integration'
+  ];
+  const queryLower = query.toLowerCase();
+  const isRepoMapQuery = repoMapKeywords.some(keyword => queryLower.includes(keyword));
+  
+  if (!isRepoMapQuery) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabaseClient.rpc('search_repo_map', { query });
+    if (error) {
+      console.error("Repo-map search error:", error);
+      return [];
+    }
+    return data || [];
+  } catch (error) {
+    console.error("Error searching repo-map:", error);
+    return [];
+  }
+}
+
+/**
  * Start a backend agent run
  */
 export async function startBackendAgent(
@@ -39,6 +67,21 @@ export async function startBackendAgent(
 
   if (!authToken) {
     throw new Error("Authentication required for backend agent");
+  }
+
+  // Search repo-map if query matches keywords (same as unified-agent)
+  // Dynamic import to avoid circular dependencies
+  const supabaseModule = await import("@/integrations/supabase/client");
+  const supabaseClient = supabaseModule.supabase || supabaseModule.default;
+  const repoMapResults = await searchRepoMapBeforeAgent(prompt, supabaseClient);
+  if (repoMapResults.length > 0) {
+    console.log(`Found ${repoMapResults.length} repo-map results, adding to context`);
+    // Prepend repo-map context to prompt
+    const repoMapContext = repoMapResults
+      .slice(0, 5)  // Limit to top 5 results
+      .map((r: any) => `Repo: ${r.repo_name}${r.integrations ? ` (${r.integrations.join(', ')})` : ''}`)
+      .join('\n');
+    prompt = `Repository context:\n${repoMapContext}\n\nUser query: ${prompt}`;
   }
 
   // Build form data
