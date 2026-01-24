@@ -1,0 +1,87 @@
+name: Check Repo Map Sync
+
+on:
+  pull_request:
+    paths:
+      - '**/supabase/migrations/*.sql'
+      - '**/supabase/migrations/**/*.sql'
+      - 'repos/*/supabase/migrations/*.sql'
+  push:
+    branches:
+      - main
+    paths:
+      - '**/supabase/migrations/*.sql'
+      - '**/supabase/migrations/**/*.sql'
+      - 'repos/*/supabase/migrations/*.sql'
+
+jobs:
+  check-repo-map:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check if migrations changed
+        id: check-migrations
+        run: |
+          # Determine base ref for comparison
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_REF="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_REF="${{ github.event.before }}"
+          fi
+          
+          # Check if any migration files changed
+          if git diff --name-only $BASE_REF HEAD | grep -qE '(supabase|backend/supabase)/migrations/.*\.sql$'; then
+            echo "migrations_changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Migration files changed"
+          else
+            echo "migrations_changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No migration files changed"
+          fi
+
+      - name: Regenerate repo map
+        if: steps.check-migrations.outputs.migrations_changed == 'true'
+        working-directory: .
+        run: |
+          npm install
+          node tools/scan-repos.mjs || true
+
+      - name: Check if schemas.md needs update
+        if: steps.check-migrations.outputs.migrations_changed == 'true'
+        id: check-schemas
+        run: |
+          # Determine base ref for comparison
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_REF="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE_REF="${{ github.event.before }}"
+          fi
+          
+          # Check if schemas.md was updated
+          if git diff --name-only $BASE_REF HEAD | grep -q 'repo-map/schemas.md'; then
+            echo "schemas_updated=true" >> $GITHUB_OUTPUT
+            echo "✅ schemas.md was updated"
+          else
+            echo "schemas_updated=false" >> $GITHUB_OUTPUT
+            echo "❌ schemas.md was NOT updated"
+          fi
+
+      - name: Fail if schemas.md not updated
+        if: steps.check-migrations.outputs.migrations_changed == 'true' && steps.check-schemas.outputs.schemas_updated == 'false'
+        run: |
+          echo "::error::Migration files changed but repo-map/schemas.md was not updated. Please run 'npm run repo-map:scan' and commit the updated schemas.md"
+          exit 1
+
+      - name: Check repo-map table sync (optional)
+        if: steps.check-migrations.outputs.migrations_changed == 'true' && steps.check-schemas.outputs.schemas_updated == 'true'
+        run: |
+          echo "ℹ️  If Supabase is configured, consider running 'npm run repo-map:load' to sync the database"
+          echo "::notice::Remember to update the Supabase repo_map table if needed"

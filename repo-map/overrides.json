@@ -1,9 +1,10 @@
 {
   "temp-creator-repo": {
-    "alias_of": "creator-licensing-hub",
-    "status": "duplicate"
+    "status": "duplicate",
+    "alias_of": "creator-licensing-hub"
   },
   "influencer-iq-flow-analysis": {
-    "status": "analysis-copy"
+    "status": "analysis-copy",
+    "alias_of": "ciq-automations"
   }
 }
