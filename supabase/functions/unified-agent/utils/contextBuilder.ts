@@ -118,6 +118,31 @@ export function buildContextFromResults(results, previousState = null) {
       });
     }
     
+    // Process repo-map results
+    const repoMapResults = results.find(r => r.source === "repo_map");
+    if (repoMapResults && repoMapResults.results && repoMapResults.results.length > 0) {
+      context += "REPOSITORY MAPPING RESULTS:\n";
+      context += "Information about repositories, functions, tables, and integrations:\n\n";
+      
+      repoMapResults.results.forEach((repo, index) => {
+        context += `[${index + 1}] Repository: ${repo.repo_name}\n`;
+        if (repo.origin) {
+          context += `  Origin: ${repo.origin}\n`;
+        }
+        if (repo.integrations && repo.integrations.length > 0) {
+          context += `  Integrations: ${repo.integrations.join(", ")}\n`;
+        }
+        if (repo.supabase_functions && repo.supabase_functions.length > 0) {
+          context += `  Supabase Edge Functions: ${repo.supabase_functions.join(", ")}\n`;
+        }
+        if (repo.relevance) {
+          context += `  Relevance: ${(repo.relevance * 100).toFixed(1)}%\n`;
+        }
+        context += "\n";
+      });
+      context += "\n";
+    }
+    
     // Process Creator IQ results
     const creatorIQResults = results.find(r => r.source === "creator_iq");
     if (creatorIQResults && creatorIQResults.results && creatorIQResults.results.length > 0) {

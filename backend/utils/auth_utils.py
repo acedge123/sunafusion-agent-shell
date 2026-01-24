@@ -1,8 +1,49 @@
 from fastapi import HTTPException, Request, Depends
 from typing import Optional, List, Dict, Any
 import jwt
-from jwt.exceptions import PyJWTError
+from jwt.exceptions import PyJWTError, InvalidSignatureError, ExpiredSignatureError
 from utils.logger import logger
+import os
+
+def _get_jwt_secret() -> Optional[str]:
+    """Get JWT secret from environment variable."""
+    return os.getenv('SUPABASE_JWT_SECRET')
+
+def _verify_jwt_token(token: str) -> dict:
+    """
+    Verify JWT token signature if secret is available.
+    Falls back to unverified decode if secret not set (for backward compatibility).
+    """
+    secret = _get_jwt_secret()
+    
+    if secret:
+        try:
+            # Verify signature and expiration
+            payload = jwt.decode(token, secret, algorithms=['HS256'])
+            return payload
+        except ExpiredSignatureError:
+            raise HTTPException(
+                status_code=401,
+                detail="Token has expired",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        except InvalidSignatureError:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid token signature",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+        except PyJWTError as e:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid token: {str(e)}",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+    else:
+        # Fallback: decode without verification (backward compatibility)
+        # Log warning to encourage setting SUPABASE_JWT_SECRET
+        logger.warning("SUPABASE_JWT_SECRET not set - JWT signature not verified. Set this env var for production security.")
+        return jwt.decode(token, options={"verify_signature": False})
 
 # This function extracts the user ID from Supabase JWT
 async def get_current_user_id(request: Request) -> str:
@@ -33,9 +74,8 @@ async def get_current_user_id(request: Request) -> str:
     token = auth_header.split(' ')[1]
     
     try:
-        # For Supabase JWT, we just need to decode and extract the user ID
-        # The actual validation is handled by Supabase's RLS
-        payload = jwt.decode(token, options={"verify_signature": False})
+        # Verify JWT signature if secret is available, otherwise decode without verification
+        payload = _verify_jwt_token(token)
         
         # Supabase stores the user ID in the 'sub' claim
         user_id = payload.get('sub')
@@ -49,6 +89,9 @@ async def get_current_user_id(request: Request) -> str:
         
         return user_id
         
+    except HTTPException:
+        # Re-raise HTTP exceptions (from _verify_jwt_token)
+        raise
     except PyJWTError:
         raise HTTPException(
             status_code=401,
@@ -78,12 +121,11 @@ async def get_user_id_from_stream_auth(
     # Try to get user_id from token in query param (for EventSource which can't set headers)
     if token:
         try:
-            # For Supabase JWT, we just need to decode and extract the user ID
-            payload = jwt.decode(token, options={"verify_signature": False})
+            payload = _verify_jwt_token(token)
             user_id = payload.get('sub')
             if user_id:
                 return user_id
-        except Exception:
+        except (HTTPException, PyJWTError):
             pass
     
     # If no valid token in query param, try to get it from the Authorization header
@@ -92,11 +134,11 @@ async def get_user_id_from_stream_auth(
         try:
             # Extract token from header
             header_token = auth_header.split(' ')[1]
-            payload = jwt.decode(header_token, options={"verify_signature": False})
+            payload = _verify_jwt_token(header_token)
             user_id = payload.get('sub')
             if user_id:
                 return user_id
-        except Exception:
+        except (HTTPException, PyJWTError):
             pass
     
     # If we still don't have a user_id, return authentication error
@@ -166,12 +208,13 @@ async def get_optional_user_id(request: Request) -> Optional[str]:
     token = auth_header.split(' ')[1]
     
     try:
-        # For Supabase JWT, we just need to decode and extract the user ID
-        payload = jwt.decode(token, options={"verify_signature": False})
+        # Verify JWT signature if secret is available
+        payload = _verify_jwt_token(token)
         
         # Supabase stores the user ID in the 'sub' claim
         user_id = payload.get('sub')
         
         return user_id
-    except PyJWTError:
+    except (HTTPException, PyJWTError):
+        # Return None for optional auth - don't raise exception
         return None

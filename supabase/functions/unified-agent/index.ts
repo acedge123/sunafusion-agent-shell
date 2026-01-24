@@ -449,6 +449,44 @@ serve(async (req) => {
       }
     }
     
+    // 5. Search repo-map if query appears to be about repositories/codebase
+    const repoMapKeywords = [
+      'which repo', 'where is', 'which function', 'which table', 
+      'webhook', 'webhooks', 'creatoriq', 'shopify', 'bigcommerce',
+      'slack', 'gmail', 'api route', 'edge function', 'supabase function',
+      'migration', 'schema', 'database table', 'integration'
+    ];
+    const queryLower = query.toLowerCase();
+    const isRepoMapQuery = repoMapKeywords.some(keyword => queryLower.includes(keyword));
+    
+    if (isRepoMapQuery) {
+      try {
+        console.log("Detected repo-map query, searching repository mapping...");
+        const { data: repoMapResults, error: repoMapError } = await supabase.rpc('search_repo_map', {
+          query: query
+        });
+        
+        if (!repoMapError && repoMapResults && repoMapResults.length > 0) {
+          console.log(`Found ${repoMapResults.length} repo-map results`);
+          results.push({
+            source: "repo_map",
+            results: repoMapResults.map((r: any) => ({
+              repo_name: r.repo_name,
+              origin: r.origin,
+              integrations: r.integrations,
+              supabase_functions: r.supabase_functions,
+              relevance: r.relevance
+            }))
+          });
+        } else if (repoMapError) {
+          console.error("Repo-map search error:", repoMapError);
+        }
+      } catch (error) {
+        console.error("Error searching repo-map:", error);
+        // Continue without repo-map results
+      }
+    }
+
     // For non-task mode, just synthesize with AI as before
     console.log("Synthesizing results with OpenAI");
     const answer = await synthesizeWithAI(query, results, conversation_history, previous_state);
