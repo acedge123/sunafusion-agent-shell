@@ -1,0 +1,1089 @@
+{
+  "generated_at": "2026-01-24T21:42:40.017Z",
+  "repos": [
+    {
+      "name": "ads-gpt-starter",
+      "origin": "git@github.com:acedge123/ads-gpt-starter.git",
+      "stack": [
+        "supabase",
+        "python"
+      ],
+      "entrypoints": [
+        "README.md",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "supabase"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "b78653ef9f7e72089a1c07cdf05859543679c35c"
+    },
+    {
+      "name": "alan_test",
+      "origin": null,
+      "stack": [
+        "node",
+        "python"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "redis"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "2a2139dec9043f190395f14bf7cf12327cc201e5"
+    },
+    {
+      "name": "api-ninja-gateway",
+      "origin": "git@github.com:acedge123/api-ninja-gateway.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "openai",
+        "supabase"
+      ],
+      "file_count_sampled": 110,
+      "fingerprint": "b9b56eeb0985883e4074f1b6fe63f4febcdcd2c5"
+    },
+    {
+      "name": "candd-adserver",
+      "origin": "https://github.com/The-Gig-Agency/candd-adserver",
+      "stack": [
+        "python"
+      ],
+      "entrypoints": [
+        "README.md"
+      ],
+      "integrations": [
+        "aws",
+        "redis"
+      ],
+      "file_count_sampled": 99,
+      "fingerprint": "1002507eac9386d8d3da0bd34d627c1568d5cb11"
+    },
+    {
+      "name": "ciq-automations",
+      "origin": "git@github.com:acedge123/ciq-automations.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "openai",
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "d1f1e4c51bd7beba99b99198c8b8bdeed0a0824e"
+    },
+    {
+      "name": "ciq-feed-map",
+      "origin": "git@github.com:acedge123/ciq-feed-map.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "openai",
+        "supabase"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "16bcf1cfe8059c1ab19cdb051b72c41aac283736"
+    },
+    {
+      "name": "CIQ-landing-pages",
+      "origin": "git@github.com:acedge123/CIQ-landing-pages.git",
+      "stack": [],
+      "entrypoints": [],
+      "integrations": [],
+      "file_count_sampled": 0,
+      "fingerprint": "f9a701d38f6c6f9d0a06060b4a844cea6434c0c5"
+    },
+    {
+      "name": "client-survey-hub",
+      "origin": "git@github.com:acedge123/client-survey-hub.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase",
+        "vercel"
+      ],
+      "file_count_sampled": 180,
+      "fingerprint": "f23a795803ae7078fa7a6c2538b396cf71aed7d4"
+    },
+    {
+      "name": "content4brand",
+      "origin": "git@github.com:acedge123/content4brand.git",
+      "stack": [
+        "node"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [],
+      "file_count_sampled": 9,
+      "fingerprint": "712aad86ed69ad54bdc00b2a28ca40904ebc4d80"
+    },
+    {
+      "name": "convo-sparkle-magic",
+      "origin": "git@github.com:acedge123/convo-sparkle-magic.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "webhook"
+      ],
+      "file_count_sampled": 73,
+      "fingerprint": "a875ea5c08be354d66b95f876bf15b0e740f0339"
+    },
+    {
+      "name": "creator-licensing-harmony",
+      "origin": "git@github.com:acedge123/creator-licensing-harmony.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 78,
+      "fingerprint": "8b48f1b24a9260af80f43241c8fd25c7a665e4d9"
+    },
+    {
+      "name": "creator-licensing-hub",
+      "origin": "git@github.com:acedge123/creator-licensing-hub.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "openai",
+        "redis",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "4e17b297eb10f966437fa8a84c7c538ad2042146"
+    },
+    {
+      "name": "creator-licensing-marketplace",
+      "origin": "git@github.com:acedge123/creator-licensing-marketplace.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [],
+      "file_count_sampled": 85,
+      "fingerprint": "23c725870546f8fbe88549c1b4b9bfa9415b3f96"
+    },
+    {
+      "name": "creator-sold-analysis",
+      "origin": "https://github.com/The-Gig-Agency/creator-sold.git",
+      "stack": [
+        "node",
+        "nextjs",
+        "docker"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "src/pages/api"
+      ],
+      "integrations": [
+        "aws",
+        "vercel"
+      ],
+      "file_count_sampled": 104,
+      "fingerprint": "75d05d7f8d0404f7aa9e1289e01a3db49bcc3d1d"
+    },
+    {
+      "name": "creator-sold-api-analysis",
+      "origin": "https://github.com/The-Gig-Agency-Tech/ciq-creator-sold-api.git",
+      "stack": [
+        "python"
+      ],
+      "entrypoints": [
+        "README.md"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "redis",
+        "vercel"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "6bac6527eba31c1326615355eca89400c985df32"
+    },
+    {
+      "name": "creator-storefront-compass",
+      "origin": "git@github.com:acedge123/creator-storefront-compass.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws"
+      ],
+      "file_count_sampled": 104,
+      "fingerprint": "51f66cd6647529052eb4407cc826e2fa75a15468"
+    },
+    {
+      "name": "creatorgift-admin",
+      "origin": "https://github.com/The-Gig-Agency/creatorgift-admin",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "vercel"
+      ],
+      "file_count_sampled": 38,
+      "fingerprint": "b7dcccdd14180a9310887342fbd0e5c1c4f78f77"
+    },
+    {
+      "name": "creatorgift-admin-analysis",
+      "origin": "https://github.com/The-Gig-Agency/creatorgift-admin.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "vercel"
+      ],
+      "file_count_sampled": 39,
+      "fingerprint": "3047b84cf28375cca6596349ca0a9c3652ca4590"
+    },
+    {
+      "name": "creatorgift-backend",
+      "origin": "https://github.com/The-Gig-Agency/creatorgift-backend",
+      "stack": [
+        "node"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "redis",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "de27ba9821529e5f9ce98c6727d34883a81d0db9"
+    },
+    {
+      "name": "creatorgift-backend-analysis",
+      "origin": "https://github.com/The-Gig-Agency-Tech/creatorgift-backend.git",
+      "stack": [
+        "node"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "redis",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "a7af5d2025ba94b23a5e5384125477f22be7f343"
+    },
+    {
+      "name": "creatorgift-onboarding-app",
+      "origin": "https://github.com/The-Gig-Agency-Tech/creatorgift-onboarding-app",
+      "stack": [
+        "node",
+        "docker"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "server"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "vercel"
+      ],
+      "file_count_sampled": 105,
+      "fingerprint": "23dd675ce41d50af91eb34b8388cdd14db458617"
+    },
+    {
+      "name": "creatoriq-invoice-hub",
+      "origin": "https://github.com/The-Gig-Agency/creatoriq-invoice-hub.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "supabase",
+        "vercel"
+      ],
+      "file_count_sampled": 89,
+      "fingerprint": "89f9a863c2f3c3bd1c2ab0d9063b9adbd2652c1e"
+    },
+    {
+      "name": "debt-freedom-pathway-landing",
+      "origin": "git@github.com:acedge123/debt-freedom-pathway-landing.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "redis",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 182,
+      "fingerprint": "d590132a63333b49837c23a5e04fb4f71823aa13"
+    },
+    {
+      "name": "engineering-hubcast",
+      "origin": "git@github.com:acedge123/engineering-hubcast.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "redis"
+      ],
+      "file_count_sampled": 77,
+      "fingerprint": "30db6435470602c269b4a4851c6756d8fcbec9ba"
+    },
+    {
+      "name": "forecast-flex-wizard",
+      "origin": "git@github.com:acedge123/forecast-flex-wizard.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 134,
+      "fingerprint": "0c872a553c03eeb37ff5dc08ae2a5cf32e677edf"
+    },
+    {
+      "name": "four-visions-big-commerce",
+      "origin": "https://github.com/The-Gig-Agency/four-visions-big-commerce.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "redis",
+        "stripe",
+        "supabase",
+        "upstash",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "054b2985f7e800e8002e95cc8543ee99f5743cd5"
+    },
+    {
+      "name": "gig-whisperer-sheet",
+      "origin": "git@github.com:acedge123/gig-whisperer-sheet.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "creatoriq",
+        "stripe",
+        "supabase",
+        "vercel"
+      ],
+      "file_count_sampled": 78,
+      "fingerprint": "bbaea2fa149bba3e3386ba7fd70e87be82e54e75"
+    },
+    {
+      "name": "hfc-scoring-engine",
+      "origin": "https://github.com/The-Gig-Agency-Tech/hfc-scoring-engine",
+      "stack": [
+        "python",
+        "docker"
+      ],
+      "entrypoints": [
+        "README.md",
+        "api"
+      ],
+      "integrations": [
+        "aws",
+        "redis",
+        "vercel"
+      ],
+      "file_count_sampled": 130,
+      "fingerprint": "b5262abbe9310c4a735df7bac45873cb21b0848d"
+    },
+    {
+      "name": "html-to-visualize-food",
+      "origin": "git@github.com:acedge123/html-to-visualize-food.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "openai",
+        "supabase"
+      ],
+      "file_count_sampled": 152,
+      "fingerprint": "fb5e9d7b0dffc8f66502307fd940f382b8d8d1c7"
+    },
+    {
+      "name": "influencer-iq-flow-analysis",
+      "origin": "git@github.com:acedge123/influencer-iq-flow.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "creatoriq",
+        "openai",
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "5c7c0800a8016b978008f032cafd01ee1112e3c6"
+    },
+    {
+      "name": "kitchen-capital-connect",
+      "origin": "git@github.com:acedge123/kitchen-capital-connect.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 122,
+      "fingerprint": "52cf5fce2b34f2aaaf5e40e61af9909becc56350"
+    },
+    {
+      "name": "lead-scoring-documentation",
+      "origin": "git@github.com:acedge123/lead-scoring-documentation.git",
+      "stack": [
+        "node",
+        "vite",
+        "docker"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "backend"
+      ],
+      "integrations": [
+        "aws",
+        "redis",
+        "vercel"
+      ],
+      "file_count_sampled": 144,
+      "fingerprint": "750858e9b9b7952c91a2abecfd6a75ebd4c1ee67"
+    },
+    {
+      "name": "lifetrack",
+      "origin": "git@github.com:acedge123/lifetrack.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 95,
+      "fingerprint": "4f1f7d784fb8a19db5a2b95ab4b8bcc06c2c6342"
+    },
+    {
+      "name": "linkcreator-magic",
+      "origin": "git@github.com:acedge123/linkcreator-magic.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 78,
+      "fingerprint": "9bb057c1420b67f4d1834b098a28a73b28d25774"
+    },
+    {
+      "name": "live-nation-demo",
+      "origin": "https://github.com/acedge123/live-nation-demo",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "creatoriq",
+        "supabase"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "39a431a1f9fd3e11a1f67345c8bc29ad07602676"
+    },
+    {
+      "name": "loan-chat-wizard-api",
+      "origin": "git@github.com:acedge123/loan-chat-wizard-api.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "openai",
+        "supabase"
+      ],
+      "file_count_sampled": 76,
+      "fingerprint": "9abbcb0a7d3afb456c0bf847a6050c80c0a82cb5"
+    },
+    {
+      "name": "lovable-audit",
+      "origin": "https://github.com/acedge123/content-licensing-hub.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "creatoriq",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 94,
+      "fingerprint": "cc105629212dfc26b0866d13b1718af26d06d9b0"
+    },
+    {
+      "name": "mom-walk-connect",
+      "origin": "git@github.com:The-Gig-Agency/mom-walk-connect.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "c7a74eafe19f0df11efd4172ba0f80a04cbb259c"
+    },
+    {
+      "name": "new-api-project",
+      "origin": "git@github.com:acedge123/api-docs-template.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "openai",
+        "supabase"
+      ],
+      "file_count_sampled": 80,
+      "fingerprint": "f6718887f61272498800999741666576472932a0"
+    },
+    {
+      "name": "new-test-al",
+      "origin": "git@github.com:acedge123/new-test-al.git",
+      "stack": [],
+      "entrypoints": [
+        "README.md"
+      ],
+      "integrations": [],
+      "file_count_sampled": 2,
+      "fingerprint": "6680a11fd76c646001cd87750b15240cb1e2954b"
+    },
+    {
+      "name": "NLWeb",
+      "origin": "git@github.com:acedge123/NLWeb.git",
+      "stack": [],
+      "entrypoints": [
+        "README.md"
+      ],
+      "integrations": [
+        "aws",
+        "openai"
+      ],
+      "file_count_sampled": 116,
+      "fingerprint": "82c98f86c1d6034ea2f7dd9c7d3103f4a819e8f9"
+    },
+    {
+      "name": "pathfinder-financial-insights",
+      "origin": "git@github.com:acedge123/pathfinder-financial-insights.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 175,
+      "fingerprint": "40d6b64c7863ec8af876aa86dae692fd19b780b3"
+    },
+    {
+      "name": "perception-love-website",
+      "origin": "git@github.com:acedge123/perception-love-website.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [],
+      "file_count_sampled": 75,
+      "fingerprint": "077d10eca3e0b5f5e0df076a41d89fef4b9c91fa"
+    },
+    {
+      "name": "quiz-product-tinker",
+      "origin": "git@github.com:acedge123/quiz-product-tinker.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 92,
+      "fingerprint": "0e486c5d2d5ee6f7fc9f76fcd32b82c38f201d77"
+    },
+    {
+      "name": "scoring-engine",
+      "origin": "https://github.com/acedge123/api-docs-template.git",
+      "stack": [
+        "docker"
+      ],
+      "entrypoints": [
+        "README.md",
+        "backend"
+      ],
+      "integrations": [
+        "aws",
+        "redis",
+        "vercel"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "6f1fd525ff333650f1ef521ac00bc0d42a59bc73"
+    },
+    {
+      "name": "suna",
+      "origin": "git@github.com:acedge123/suna.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "backend"
+      ],
+      "integrations": [
+        "aws",
+        "openai",
+        "redis",
+        "stripe",
+        "supabase",
+        "upstash",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "692dc25ffce465aee5bbdc338b9e507303f860c4"
+    },
+    {
+      "name": "suna-kortix",
+      "origin": "https://github.com/Kortix-ai/Suna.git",
+      "stack": [],
+      "entrypoints": [
+        "README.md",
+        "backend"
+      ],
+      "integrations": [
+        "aws",
+        "openai",
+        "redis",
+        "stripe",
+        "supabase",
+        "upstash",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "b3c9099f3933b0e92c816b6ec84c2da8e4945412"
+    },
+    {
+      "name": "sunafusion-agent-shell",
+      "origin": "git@github.com:acedge123/sunafusion-agent-shell.git",
+      "stack": [
+        "node",
+        "vite"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "backend"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "openai",
+        "redis",
+        "stripe",
+        "supabase",
+        "upstash",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 145,
+      "fingerprint": "28d90aad55b86eee5b92a7016d7512645e55031e"
+    },
+    {
+      "name": "temp-creator-repo",
+      "origin": "https://github.com/acedge123/creator-licensing-hub.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "redis",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "b7355363ff671b34c94053bc9f4fbb0480d7278b"
+    },
+    {
+      "name": "temp-wp-repo",
+      "origin": "https://github.com/The-Gig-Agency/tga-wp.git",
+      "stack": [
+        "node"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "stripe"
+      ],
+      "file_count_sampled": 9,
+      "fingerprint": "f32ebd9eef98c3b1c17167b8d4d9bf4e42976749"
+    },
+    {
+      "name": "text-safety-watchdog",
+      "origin": "https://github.com/acedge123/text-safety-watchdog",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "openai",
+        "supabase",
+        "vercel"
+      ],
+      "file_count_sampled": 128,
+      "fingerprint": "27815461c4f38b5dacbd6c3dda9c886522cdf7b0"
+    },
+    {
+      "name": "textweaver-gigcraft",
+      "origin": "https://github.com/acedge123/textweaver-gigcraft.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "creatoriq",
+        "openai",
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 95,
+      "fingerprint": "d629a039538286ac81f422dc04a01919589b2efa"
+    },
+    {
+      "name": "tga-crm",
+      "origin": "git@github.com:acedge123/tga-crm.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "creatoriq",
+        "openai",
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "a25fda445d88c1588caa1066b8e8f5eb0cfbd073"
+    },
+    {
+      "name": "voice-agent-ciq-agent",
+      "origin": "git@github.com:acedge123/voice-agent-ciq-agent.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml"
+      ],
+      "integrations": [
+        "creatoriq",
+        "supabase"
+      ],
+      "file_count_sampled": 93,
+      "fingerprint": "1067d40a131e7479349ff003dac7ec935e0a3cb2"
+    }
+  ]
+}
