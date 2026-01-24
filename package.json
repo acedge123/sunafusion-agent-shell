@@ -8,7 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "repo-map:scan": "node tools/scan-repos.mjs",
+    "repo-map:load": "node tools/load-repo-map-to-supabase.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
