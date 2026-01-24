@@ -1,6 +1,6 @@
 # Repo Inventory
 
-Generated: 2026-01-24T21:42:40.019Z
+Generated: 2026-01-24T21:53:51.945Z
 
 ## ads-gpt-starter
 - Origin: git@github.com:acedge123/ads-gpt-starter.git
@@ -286,8 +286,8 @@ Generated: 2026-01-24T21:42:40.019Z
 
 ## sunafusion-agent-shell
 - Origin: git@github.com:acedge123/sunafusion-agent-shell.git
-- Stack: node, vite
-- Entrypoints: README.md, package.json, backend
+- Stack: node, vite, supabase
+- Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations, backend
 - Integrations: aws, creatoriq, openai, redis, stripe, supabase, upstash, vercel, webhook
 
 ## temp-creator-repo

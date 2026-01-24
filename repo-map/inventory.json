@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-01-24T21:42:40.017Z",
+  "generated_at": "2026-01-24T21:53:51.943Z",
   "repos": [
     {
       "name": "ads-gpt-starter",
@@ -931,11 +931,15 @@
       "origin": "git@github.com:acedge123/sunafusion-agent-shell.git",
       "stack": [
         "node",
-        "vite"
+        "vite",
+        "supabase"
       ],
       "entrypoints": [
         "README.md",
         "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations",
         "backend"
       ],
       "integrations": [
@@ -949,8 +953,8 @@
         "vercel",
         "webhook"
       ],
-      "file_count_sampled": 145,
-      "fingerprint": "28d90aad55b86eee5b92a7016d7512645e55031e"
+      "file_count_sampled": 200,
+      "fingerprint": "47486ba2cbd973c07e9ff1bf1825345a2189adb5"
     },
     {
       "name": "temp-creator-repo",
