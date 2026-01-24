@@ -146,6 +146,7 @@ const Chat = () => {
 
   const handleEdgeAgent = async (query: string) => {
     // Convert previous messages to the format expected by the agent
+    // Use current messages state, filtering out welcome message
     const conversationHistory = messages
       .filter(msg => msg.id !== "welcome-message") // Skip the welcome message
       .map(msg => ({
@@ -226,10 +227,12 @@ const Chat = () => {
 
   const handleBackendAgent = async (query: string) => {
     // Start backend agent
-    const { agent_run_id } = await startBackendAgent(query, {
+    const response = await startBackendAgent(query, {
       stream: true,
       reasoning_effort: 'medium'
     })
+
+    const { agent_run_id } = response
 
     // Create a placeholder assistant message that we'll update as we stream
     const assistantMessageId = uuidv4()
@@ -241,31 +244,33 @@ const Chat = () => {
     }
     setMessages(prev => [...prev, assistantMessage])
 
-    // Stream responses
-    let accumulatedContent = ""
-    
+    // Stream responses - use functional updates to avoid stale closures
     await streamBackendAgent(
       agent_run_id,
       (streamMessage) => {
         const normalized = normalizeBackendResponse(streamMessage)
         if (normalized && normalized.content) {
-          accumulatedContent += normalized.content
-          
-          // Update the message in place
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId
-              ? { ...msg, content: accumulatedContent }
-              : msg
-          ))
+          // Use functional update to accumulate content safely
+          setMessages(prev => prev.map(msg => {
+            if (msg.id === assistantMessageId) {
+              // Accumulate content from previous state
+              const currentContent = msg.content || ""
+              return { ...msg, content: currentContent + normalized.content }
+            }
+            return msg
+          }))
         }
       },
       (error) => {
         console.error("Backend agent stream error:", error)
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId
-            ? { ...msg, content: msg.content || "Error: " + error.message }
-            : msg
-        ))
+        setMessages(prev => prev.map(msg => {
+          if (msg.id === assistantMessageId) {
+            const currentContent = msg.content || ""
+            const errorText = `\n\n[Error: ${error.message}]`
+            return { ...msg, content: currentContent + errorText }
+          }
+          return msg
+        }))
       },
       () => {
         // Stream complete
@@ -347,7 +352,10 @@ const Chat = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setRunMode('heavy')}
+                onClick={() => {
+                  setRunMode('heavy')
+                  setShowHeavyTaskAdvisory(false)
+                }}
                 className="ml-2 h-7"
               >
                 Switch

@@ -15,8 +15,8 @@ export interface BackendAgentStartRequest {
 }
 
 export interface BackendAgentResponse {
+  thread_id: string;
   agent_run_id: string;
-  status: string;
 }
 
 export interface StreamMessage {
@@ -60,8 +60,20 @@ export async function startBackendAgent(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `Backend agent failed: ${response.statusText}`);
+    let errorDetail = `Backend agent failed: ${response.statusText}`;
+    try {
+      const error = await response.json();
+      errorDetail = error.detail || error.message || errorDetail;
+    } catch {
+      // Response is not JSON, try to get text
+      try {
+        const text = await response.text();
+        if (text) errorDetail = text;
+      } catch {
+        // Ignore, use default error message
+      }
+    }
+    throw new Error(errorDetail);
   }
 
   return await response.json();
@@ -130,8 +142,13 @@ export async function streamBackendAgent(
       }
     }
   } catch (error) {
-    onError?.(error instanceof Error ? error : new Error(String(error)));
-    throw error;
+    const err = error instanceof Error ? error : new Error(String(error));
+    onError?.(err);
+    // Don't re-throw if onError is provided - let the caller handle it
+    // Only throw if no error handler was provided
+    if (!onError) {
+      throw err;
+    }
   }
 }
 
