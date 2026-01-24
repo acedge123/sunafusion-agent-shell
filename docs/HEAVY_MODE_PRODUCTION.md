@@ -1,5 +1,19 @@
 # Heavy Mode Production Setup
 
+## Feature Flag
+
+Heavy Mode is **disabled by default** and hidden behind a feature flag.
+
+To enable Heavy Mode:
+```bash
+VITE_ENABLE_HEAVY_MODE=true
+```
+
+When disabled:
+- Heavy Mode toggle is hidden
+- All requests use Quick Mode (Edge unified-agent)
+- No backend API calls are made
+
 ## Backend Deployment
 
 **Current Setup:** Backend is deployed on **Fly.io** (`backend-production-ogog`)

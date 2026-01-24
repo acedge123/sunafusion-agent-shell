@@ -16,6 +16,9 @@ import { startBackendAgent, streamBackendAgent, normalizeBackendResponse } from 
 
 type RunMode = 'quick' | 'heavy'
 
+// Feature flag: Enable Heavy Mode (requires backend deployment)
+const HEAVY_MODE_ENABLED = import.meta.env.VITE_ENABLE_HEAVY_MODE === 'true'
+
 const Chat = () => {
   const [searchParams] = useSearchParams()
   const [messages, setMessages] = useState<Message[]>([])
@@ -91,9 +94,9 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Check for heavy task advisory when input changes
+  // Check for heavy task advisory when input changes (only if Heavy Mode is enabled)
   useEffect(() => {
-    if (input.trim() && runMode === 'quick') {
+    if (HEAVY_MODE_ENABLED && input.trim() && runMode === 'quick') {
       const suggestion = getHeavyTaskSuggestion(input)
       setShowHeavyTaskAdvisory(!!suggestion)
     } else {
@@ -118,7 +121,7 @@ const Chat = () => {
     setIsProcessing(true)
 
     try {
-      if (runMode === 'heavy') {
+      if (HEAVY_MODE_ENABLED && runMode === 'heavy') {
         // Backend agentpress path
         await handleBackendAgent(currentInput)
       } else {
@@ -352,57 +355,61 @@ const Chat = () => {
       </div>
       
       <div className="border-t p-4 bg-background">
-        {/* Run Mode Toggle */}
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="run-mode"
-              checked={runMode === 'heavy'}
-              onCheckedChange={(checked) => setRunMode(checked ? 'heavy' : 'quick')}
-              disabled={isProcessing}
-            />
-            <Label htmlFor="run-mode" className="text-sm font-medium cursor-pointer">
-              {runMode === 'quick' ? (
-                <span className="flex items-center gap-1">
-                  <Zap className="h-3 w-3" />
-                  Quick Mode
-                </span>
-              ) : (
-                <span className="flex items-center gap-1">
-                  <Bot className="h-3 w-3" />
-                  Heavy Mode
-                </span>
-              )}
-            </Label>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {runMode === 'quick' 
-              ? "Fast responses with Edge function" 
-              : "Full agent with sandbox & tools"}
-          </span>
-        </div>
-
-        {/* Heavy Task Advisory Banner */}
-        {showHeavyTaskAdvisory && (
-          <Alert className="mb-3 border-amber-200 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="flex items-center justify-between">
-              <span className="text-sm text-amber-800">
-                {getHeavyTaskSuggestion(input)}
+        {/* Run Mode Toggle - Only show if Heavy Mode is enabled */}
+        {HEAVY_MODE_ENABLED && (
+          <>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="run-mode"
+                  checked={runMode === 'heavy'}
+                  onCheckedChange={(checked) => setRunMode(checked ? 'heavy' : 'quick')}
+                  disabled={isProcessing}
+                />
+                <Label htmlFor="run-mode" className="text-sm font-medium cursor-pointer">
+                  {runMode === 'quick' ? (
+                    <span className="flex items-center gap-1">
+                      <Zap className="h-3 w-3" />
+                      Quick Mode
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <Bot className="h-3 w-3" />
+                      Heavy Mode
+                    </span>
+                  )}
+                </Label>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {runMode === 'quick' 
+                  ? "Fast responses with Edge function" 
+                  : "Full agent with sandbox & tools"}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setRunMode('heavy')
-                  setShowHeavyTaskAdvisory(false)
-                }}
-                className="ml-2 h-7"
-              >
-                Switch
-              </Button>
-            </AlertDescription>
-          </Alert>
+            </div>
+
+            {/* Heavy Task Advisory Banner */}
+            {showHeavyTaskAdvisory && (
+              <Alert className="mb-3 border-amber-200 bg-amber-50">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="flex items-center justify-between">
+                  <span className="text-sm text-amber-800">
+                    {getHeavyTaskSuggestion(input)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setRunMode('heavy')
+                      setShowHeavyTaskAdvisory(false)
+                    }}
+                    className="ml-2 h-7"
+                  >
+                    Switch
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
         )}
 
         <div className="flex gap-2">
@@ -416,7 +423,7 @@ const Chat = () => {
             rows={3}
           />
           <div className="flex flex-col gap-2">
-            {runMode === 'heavy' && activeAgentRunId && (
+            {HEAVY_MODE_ENABLED && runMode === 'heavy' && activeAgentRunId && (
               <Button
                 variant="destructive"
                 size="sm"
