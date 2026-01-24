@@ -3,17 +3,26 @@ import { useState, useEffect, useRef } from "react"
 import { useSearchParams, Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Send, Bot } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Loader2, Send, Bot, Zap, AlertCircle } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import ChatContainer, { Message } from "@/components/chat/ChatContainer"
 import { v4 as uuidv4 } from "uuid"
+import { detectHeavyTask, getHeavyTaskSuggestion } from "@/utils/heavyTaskDetector"
+import { startBackendAgent, streamBackendAgent, normalizeBackendResponse } from "@/services/api/backendAgentService"
+
+type RunMode = 'quick' | 'heavy'
 
 const Chat = () => {
   const [searchParams] = useSearchParams()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
+  const [runMode, setRunMode] = useState<RunMode>('quick')
+  const [showHeavyTaskAdvisory, setShowHeavyTaskAdvisory] = useState(false)
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -81,6 +90,16 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // Check for heavy task advisory when input changes
+  useEffect(() => {
+    if (input.trim() && runMode === 'quick') {
+      const suggestion = getHeavyTaskSuggestion(input)
+      setShowHeavyTaskAdvisory(!!suggestion)
+    } else {
+      setShowHeavyTaskAdvisory(false)
+    }
+  }, [input, runMode])
+
   const handleSendMessage = async () => {
     if (!input.trim() || isProcessing) return
 
@@ -92,92 +111,19 @@ const Chat = () => {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const currentInput = input
     setInput("")
+    setShowHeavyTaskAdvisory(false)
     setIsProcessing(true)
 
     try {
-      // Convert previous messages to the format expected by the agent
-      const conversationHistory = messages
-        .filter(msg => msg.id !== "welcome-message") // Skip the welcome message
-        .map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }))
-
-      // Get the current session for the auth token
-      const { data: sessionData } = await supabase.auth.getSession()
-      const authToken = sessionData?.session?.access_token
-      const providerToken = sessionData?.session?.provider_token
-      
-      // If no provider token in session, try to get from database
-      let storedToken = null;
-      if (!providerToken && sessionData?.session?.user) {
-        try {
-          const { data: tokenData } = await supabase
-            .from('google_drive_access')
-            .select('access_token')
-            .eq('user_id', sessionData.session.user.id)
-            .maybeSingle();
-            
-          storedToken = tokenData?.access_token;
-          console.log("Chat: Retrieved stored token from database:", !!storedToken);
-        } catch (dbError) {
-          console.error("Chat: Error retrieving token from database:", dbError);
-        }
+      if (runMode === 'heavy') {
+        // Backend agentpress path
+        await handleBackendAgent(currentInput)
+      } else {
+        // Edge unified-agent path (quick mode)
+        await handleEdgeAgent(currentInput)
       }
-
-      const response = await supabase.functions.invoke('unified-agent', {
-        body: {
-          query: input,
-          conversation_history: conversationHistory,
-          include_web: true,
-          include_drive: true,
-          provider_token: providerToken || storedToken, // Use either provider token or stored token
-          debug_token_info: {
-            hasProviderToken: !!providerToken,
-            hasStoredToken: !!storedToken,
-            userHasSession: !!sessionData?.session
-          }
-        },
-        headers: authToken ? {
-          Authorization: `Bearer ${authToken}`
-        } : undefined
-      })
-
-      if (response.error) throw response.error
-      
-      // If we have a provider token and it worked, store it for future use
-      if (providerToken && sessionData?.session?.user?.id) {
-        try {
-          const { error: upsertError } = await supabase
-            .from('google_drive_access')
-            .upsert({
-              user_id: sessionData.session.user.id,
-              access_token: providerToken,
-              token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'user_id'
-            });
-              
-          if (upsertError) {
-            console.error("Error storing Google Drive token:", upsertError);
-          } else {
-            console.log("Successfully stored Google Drive token for future use");
-          }
-        } catch (storeError) {
-          console.error("Error in token storage:", storeError);
-        }
-      }
-
-      const assistantMessage: Message = {
-        id: uuidv4(),
-        content: response.data.answer,
-        role: "assistant",
-        timestamp: new Date()
-      }
-
-      setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
       toast({
         variant: "destructive",
@@ -196,6 +142,136 @@ const Chat = () => {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const handleEdgeAgent = async (query: string) => {
+    // Convert previous messages to the format expected by the agent
+    const conversationHistory = messages
+      .filter(msg => msg.id !== "welcome-message") // Skip the welcome message
+      .map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+
+    // Get the current session for the auth token
+    const { data: sessionData } = await supabase.auth.getSession()
+    const authToken = sessionData?.session?.access_token
+    const providerToken = sessionData?.session?.provider_token
+    
+    // If no provider token in session, try to get from database
+    let storedToken = null;
+    if (!providerToken && sessionData?.session?.user) {
+      try {
+        const { data: tokenData } = await supabase
+          .from('google_drive_access')
+          .select('access_token')
+          .eq('user_id', sessionData.session.user.id)
+          .maybeSingle();
+          
+        storedToken = tokenData?.access_token;
+        console.log("Chat: Retrieved stored token from database:", !!storedToken);
+      } catch (dbError) {
+        console.error("Chat: Error retrieving token from database:", dbError);
+      }
+    }
+
+    const response = await supabase.functions.invoke('unified-agent', {
+      body: {
+        query,
+        conversation_history: conversationHistory,
+        include_web: true,
+        include_drive: true,
+        provider_token: providerToken || storedToken,
+        debug_token_info: {
+          hasProviderToken: !!providerToken,
+          hasStoredToken: !!storedToken,
+          userHasSession: !!sessionData?.session
+        }
+      },
+      headers: authToken ? {
+        Authorization: `Bearer ${authToken}`
+      } : undefined
+    })
+
+    if (response.error) throw response.error
+    
+    // Store provider token if available
+    if (providerToken && sessionData?.session?.user?.id) {
+      try {
+        await supabase
+          .from('google_drive_access')
+          .upsert({
+            user_id: sessionData.session.user.id,
+            access_token: providerToken,
+            token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
+      } catch (storeError) {
+        console.error("Error in token storage:", storeError);
+      }
+    }
+
+    // Normalize Edge response to Message format
+    const assistantMessage: Message = {
+      id: uuidv4(),
+      content: response.data.answer || response.data.message || "No response received",
+      role: "assistant",
+      timestamp: new Date()
+    }
+
+    setMessages(prev => [...prev, assistantMessage])
+  }
+
+  const handleBackendAgent = async (query: string) => {
+    // Start backend agent
+    const { agent_run_id } = await startBackendAgent(query, {
+      stream: true,
+      reasoning_effort: 'medium'
+    })
+
+    // Create a placeholder assistant message that we'll update as we stream
+    const assistantMessageId = uuidv4()
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      content: "",
+      role: "assistant",
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, assistantMessage])
+
+    // Stream responses
+    let accumulatedContent = ""
+    
+    await streamBackendAgent(
+      agent_run_id,
+      (streamMessage) => {
+        const normalized = normalizeBackendResponse(streamMessage)
+        if (normalized && normalized.content) {
+          accumulatedContent += normalized.content
+          
+          // Update the message in place
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId
+              ? { ...msg, content: accumulatedContent }
+              : msg
+          ))
+        }
+      },
+      (error) => {
+        console.error("Backend agent stream error:", error)
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId
+            ? { ...msg, content: msg.content || "Error: " + error.message }
+            : msg
+        ))
+      },
+      () => {
+        // Stream complete
+        console.log("Backend agent stream completed")
+      }
+    )
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -230,12 +306,62 @@ const Chat = () => {
       </div>
       
       <div className="border-t p-4 bg-background">
+        {/* Run Mode Toggle */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="run-mode"
+              checked={runMode === 'heavy'}
+              onCheckedChange={(checked) => setRunMode(checked ? 'heavy' : 'quick')}
+              disabled={isProcessing}
+            />
+            <Label htmlFor="run-mode" className="text-sm font-medium cursor-pointer">
+              {runMode === 'quick' ? (
+                <span className="flex items-center gap-1">
+                  <Zap className="h-3 w-3" />
+                  Quick Mode
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <Bot className="h-3 w-3" />
+                  Heavy Mode
+                </span>
+              )}
+            </Label>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {runMode === 'quick' 
+              ? "Fast responses with Edge function" 
+              : "Full agent with sandbox & tools"}
+          </span>
+        </div>
+
+        {/* Heavy Task Advisory Banner */}
+        {showHeavyTaskAdvisory && (
+          <Alert className="mb-3 border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="flex items-center justify-between">
+              <span className="text-sm text-amber-800">
+                {getHeavyTaskSuggestion(input)}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRunMode('heavy')}
+                className="ml-2 h-7"
+              >
+                Switch
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex gap-2">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question..."
+            placeholder={runMode === 'quick' ? "Ask a question..." : "Describe your task..."}
             disabled={isProcessing}
             className="resize-none"
             rows={3}
