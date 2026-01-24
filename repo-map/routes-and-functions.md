@@ -2,7 +2,7 @@
 
 
 
-Generated: 2026-01-24T21:53:51.948Z
+Generated: 2026-01-24T21:57:14.843Z
 
 
 
@@ -46,6 +46,7 @@ Generated: 2026-01-24T21:53:51.948Z
 
 ## influencer-iq-flow-analysis
 - Origin: git@github.com:acedge123/influencer-iq-flow.git
+- Status: `analysis-copy`
 - Supabase Edge Functions: add-publisher-to-campaign, add-publisher-to-list, add-publisher-to-onesheet, add-workflow, bulk-add-publishers-to-list, create-affiliate-link, create-campaign, create-list, create-onesheet, create-shopify-draft-order, create-user-with-role, create-webhook-subscription, creator-iq-graphql, creator-iq-webhook, delete-webhook-subscription, detect-api-patterns, fetch-ciq-media, fetch-creator-iq-docs, generate-insights, generate-static-landing-page, get-brand-campaign-publishers, get-brand-campaigns, get-bulk-upload-progress, get-campaign-publishers, get-campaigns, get-creator-connect-report, get-creator-iq-subscriptions, get-email-templates, get-list, get-lists, get-onesheet, get-onesheets, get-publisher-contact, get-publisher-details, get-publishers, get-publishers-by-workflow, get-transaction-history, get-users-with-roles, get-workflows, openai-agent-analysis, populate-comprehensive-knowledge, populate-webhook-knowledge, process-internal-events, refresh-ciq-media, remove-publisher-from-campaign, remove-publisher-from-list, run-workflow, search-cached-publishers, search-shopify-products, send-bulk-publisher-message, send-campaign-template-message, send-meta-custom-audience, send-meta-offline-conversions, send-publisher-message, setup-admin-role, setup-publisher-campaign-webhook, simple-test, sync-campaign-publishers, sync-lists, sync-onesheets, test-creator-iq-api, test-public-webhook, update-publisher-status, update-user-role, validate-shopify-token, workflow-webhook-bridge
 
 ## kitchen-capital-connect
@@ -74,6 +75,8 @@ Generated: 2026-01-24T21:53:51.948Z
 
 ## temp-creator-repo
 - Origin: https://github.com/acedge123/creator-licensing-hub.git
+- ⚠️  Alias of: `creator-licensing-hub` (duplicate functions may be listed in source repo)
+- Status: `duplicate`
 - Supabase Edge Functions: admin-metrics, analytics, apply-watermark, bigcommerce-integration, fix-missing-variants, make-integration, send-email, track-referral
 
 ## text-safety-watchdog

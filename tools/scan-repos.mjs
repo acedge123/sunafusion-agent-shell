@@ -222,8 +222,22 @@ function findAppRoutes(apiDir) {
   return [...new Set(routes)].sort();
 }
 
+function loadOverrides() {
+  const overridesPath = path.join(OUT_DIR, "overrides.json");
+  try {
+    if (fs.existsSync(overridesPath)) {
+      return JSON.parse(fs.readFileSync(overridesPath, "utf8"));
+    }
+  } catch (e) {
+    console.warn(`⚠️  Could not load overrides.json: ${e.message}`);
+  }
+  return {};
+}
+
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
+
+  const overrides = loadOverrides();
 
   const repoDirs = fs.readdirSync(WORKSPACE_REPOS_DIR, { withFileTypes: true })
     .filter(d => d.isDirectory())
@@ -249,12 +263,16 @@ function main() {
     const supabaseFunctions = findSupabaseFunctions(repoDir);
     const apiRoutes = findAPIRoutes(repoDir);
     
+    // Merge override information
+    const override = overrides[name] || {};
+    
     if (supabaseFunctions.length > 0 || apiRoutes.pages.length > 0 || apiRoutes.app.length > 0) {
       routesAndFunctions.push({
         name,
         origin,
         supabaseFunctions,
-        apiRoutes
+        apiRoutes,
+        override
       });
     }
 
@@ -265,7 +283,8 @@ function main() {
       entrypoints,
       integrations: [...integrationSet].sort(),
       file_count_sampled: Math.min(files.length, 200),
-      fingerprint: sha1(JSON.stringify({ origin, stack, entrypoints, integrations:[...integrationSet] }))
+      fingerprint: sha1(JSON.stringify({ origin, stack, entrypoints, integrations:[...integrationSet] })),
+      override
     });
   }
 
@@ -279,13 +298,21 @@ function main() {
     ``,
     `Generated: ${new Date().toISOString()}`,
     ``,
-    ...inventory.map(r =>
-      `## ${r.name}\n` +
-      `- Origin: ${r.origin || "unknown"}\n` +
-      `- Stack: ${r.stack.join(", ") || "unknown"}\n` +
-      `- Entrypoints: ${r.entrypoints.join(", ") || "—"}\n` +
-      `- Integrations: ${r.integrations.join(", ") || "—"}\n`
-    )
+    ...inventory.map(r => {
+      const parts = [];
+      parts.push(`## ${r.name}`);
+      parts.push(`- Origin: ${r.origin || "unknown"}`);
+      if (r.override?.alias_of) {
+        parts.push(`- ⚠️  Alias of: \`${r.override.alias_of}\``);
+      }
+      if (r.override?.status) {
+        parts.push(`- Status: \`${r.override.status}\``);
+      }
+      parts.push(`- Stack: ${r.stack.join(", ") || "unknown"}`);
+      parts.push(`- Entrypoints: ${r.entrypoints.join(", ") || "—"}`);
+      parts.push(`- Integrations: ${r.integrations.join(", ") || "—"}`);
+      return parts.join("\n");
+    })
   ].join("\n");
 
   fs.writeFileSync(path.join(OUT_DIR, "inventory.md"), md);
@@ -303,6 +330,12 @@ function main() {
       const parts = [];
       parts.push(`## ${r.name}`);
       if (r.origin) parts.push(`- Origin: ${r.origin}`);
+      if (r.override?.alias_of) {
+        parts.push(`- ⚠️  Alias of: \`${r.override.alias_of}\` (duplicate functions may be listed in source repo)`);
+      }
+      if (r.override?.status) {
+        parts.push(`- Status: \`${r.override.status}\``);
+      }
       
       if (r.supabaseFunctions.length > 0) {
         parts.push(`- Supabase Edge Functions: ${r.supabaseFunctions.join(", ")}`);
