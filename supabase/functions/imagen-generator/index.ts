@@ -1,5 +1,5 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { errMsg } from "../_shared/error.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -133,7 +133,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
-        details: error.message 
+        details: errMsg(error)
       }),
       { 
         status: 500,

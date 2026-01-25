@@ -1,7 +1,7 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
+import { errMsg } from "../_shared/error.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,7 +69,7 @@ async function validateGoogleToken(token: string): Promise<{ isValid: boolean, s
     
     // Check for required scopes
     const hasAllRequiredScopes = REQUIRED_SCOPES.every(requiredScope => 
-      scopes.some(scope => scope.includes(requiredScope))
+      scopes.some((scope: string) => scope.includes(requiredScope))
     )
     
     console.log(`Token validation: isValid=${hasAllRequiredScopes}, scopes=${scopes.join(',')}`)
@@ -228,7 +228,7 @@ serve(async (req) => {
     console.error(`[${requestId}] Error in drive-ai-assistant function:`, error);
     return new Response(
       JSON.stringify({ 
-        error: error.message || "Failed to analyze file",
+        error: errMsg(error, "Failed to analyze file"),
         request_id: requestId
       }),
       { 

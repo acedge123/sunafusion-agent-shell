@@ -4,17 +4,18 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { tools, type ToolCall, type ToolResult } from "./toolRegistry.ts";
 import { executeTool } from "./toolExecutor.ts";
 import { buildContextFromResults } from "../utils/contextBuilder.ts";
+import { errMsg } from "../../_shared/error.ts";
 
 export interface IterativeTaskConfig {
   query: string;
-  initialResults: any[];
-  conversationHistory?: any[];
+  initialResults: unknown[];
+  conversationHistory?: unknown[];
   maxIterations?: number;
   reasoningLevel?: string;
-  previousState?: any;
+  previousState?: unknown;
 }
 
-export interface TaskResult {
+export interface IterativeTaskResult {
   answer: string;
   reasoning: string;
   steps: Array<{
@@ -25,10 +26,10 @@ export interface TaskResult {
   }>;
   tools_used: string[];
   iterations_used: number;
-  total_data_fetched: any;
+  total_data_fetched: unknown;
 }
 
-export async function runIterativeTask(config: IterativeTaskConfig): Promise<TaskResult> {
+export async function runIterativeTask(config: IterativeTaskConfig): Promise<IterativeTaskResult> {
   const {
     query,
     initialResults,
@@ -64,12 +65,17 @@ export async function runIterativeTask(config: IterativeTaskConfig): Promise<Tas
 
   // Build initial context
   let currentContext = buildContextFromResults(initialResults, previousState);
-  const allData: any[] = [...initialResults];
-  const steps: any[] = [];
+  const allData: unknown[] = [...initialResults];
+  const steps: Array<{
+    iteration: number;
+    action: string;
+    tool_calls: string[];
+    result: string;
+  }> = [];
   const toolsUsed = new Set<string>();
 
   // Prepare conversation messages
-  const messages: any[] = [
+  const messages: Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string; name?: string }> = [
     {
       role: "system",
       content: `You are an advanced AI agent with iterative tool-calling capabilities. You can call tools multiple times to gather complete information before answering.
@@ -93,7 +99,15 @@ Available tools: ${tools.map(t => t.function.name).join(", ")}`
 
   // Add conversation history
   if (conversationHistory.length > 0) {
-    messages.push(...conversationHistory);
+    for (const msg of conversationHistory) {
+      const typedMsg = msg as Record<string, unknown>;
+      if (typedMsg.role && typedMsg.content) {
+        messages.push({
+          role: typedMsg.role as string,
+          content: typedMsg.content as string
+        });
+      }
+    }
   }
 
   // Add the user query
@@ -177,7 +191,8 @@ Please analyze the information and use tools as needed to complete this task. Pa
           const result = await executeTool(toolName, toolArgs, context);
 
           // Store the result data
-          if (result.data) {
+          const resultRecord = result as Record<string, unknown>;
+          if (resultRecord.data) {
             allData.push(result);
           }
 
@@ -234,8 +249,8 @@ Please analyze the information and use tools as needed to complete this task. Pa
       console.error(`Error in iteration ${iteration}:`, error);
       
       return {
-        answer: `Error during task execution: ${error.message}`,
-        reasoning: `Failed at iteration ${iteration}: ${error.message}`,
+        answer: `Error during task execution: ${errMsg(error)}`,
+        reasoning: `Failed at iteration ${iteration}: ${errMsg(error)}`,
         steps: steps,
         tools_used: Array.from(toolsUsed),
         iterations_used: iteration,
@@ -258,7 +273,7 @@ Please analyze the information and use tools as needed to complete this task. Pa
   };
 }
 
-function extractPaginationInfo(context: string): any {
+function extractPaginationInfo(context: string): Record<string, unknown> | null {
   // Extract pagination information from context
   const pageMatch = context.match(/page (\d+) of (\d+)/i);
   const itemsMatch = context.match(/(\d+) of (\d+) (?:total )?(?:items|campaigns|publishers|lists)/i);
