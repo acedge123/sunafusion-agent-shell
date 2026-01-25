@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 /**
- * Merge domain summaries from DOMAIN_SUMMARIES.md into inventory.json
+ * Merge domain summaries from MASTER_DOMAIN_SUMMARY.md into inventory.json
+ * 
+ * MASTER_DOMAIN_SUMMARY.md contains richer summaries with:
+ * - System Role
+ * - Primary flows
+ * - Upstream/downstream dependencies
+ * - Shared tables
+ * - Change impact warnings
+ * - Refactor Risk
+ * 
  * Use this when you can't run a full repo scan but want to update domain summaries.
  */
 import fs from "fs";
@@ -9,29 +18,40 @@ import path from "path";
 const REPO_MAP_DIR = path.resolve(process.cwd(), "repo-map");
 
 function loadDomainSummaries() {
-  const summariesPath = path.join(REPO_MAP_DIR, "DOMAIN_SUMMARIES.md");
+  // Use MASTER_DOMAIN_SUMMARY.md for richer summaries with System Role, Refactor Risk, etc.
+  const summariesPath = path.join(REPO_MAP_DIR, "MASTER_DOMAIN_SUMMARY.md");
   if (!fs.existsSync(summariesPath)) {
-    console.error("❌ DOMAIN_SUMMARIES.md not found");
+    console.error("❌ MASTER_DOMAIN_SUMMARY.md not found");
     process.exit(1);
   }
   
   const content = fs.readFileSync(summariesPath, "utf8");
   const summaries = new Map();
   
-  // Parse markdown sections
-  const sections = content.split(/^## /m).slice(1);
+  // Parse markdown sections - look for ### headers for repo names
+  const sections = content.split(/^### /m).slice(1);
   
   for (const section of sections) {
     const lines = section.split('\n');
     const repoName = lines[0].trim();
     if (!repoName) continue;
     
-    // Extract summary content (everything after the repo name)
-    const summaryText = section.substring(repoName.length).trim();
-    summaries.set(repoName, summaryText);
+    // Extract summary content (everything after the repo name until next major section)
+    // Stop at --- (section divider) or next ## header
+    let summaryLines = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('---') || line.startsWith('## ')) break;
+      summaryLines.push(line);
+    }
+    
+    const summaryText = summaryLines.join('\n').trim();
+    if (summaryText) {
+      summaries.set(repoName, summaryText);
+    }
   }
   
-  console.log(`📖 Loaded ${summaries.size} domain summaries from DOMAIN_SUMMARIES.md`);
+  console.log(`📖 Loaded ${summaries.size} domain summaries from MASTER_DOMAIN_SUMMARY.md`);
   return summaries;
 }
 
