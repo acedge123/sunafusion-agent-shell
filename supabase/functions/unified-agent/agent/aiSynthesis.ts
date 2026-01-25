@@ -27,15 +27,35 @@ export async function synthesizeWithAI(
     const isListQuery = query.toLowerCase().includes('list') || 
                        (prevState && Array.isArray(prevState.lists) && prevState.lists.length > 0);
     
-    // Prepare system message with enhanced instructions for list operations
-    let systemMessage = 'You are a helpful assistant that can search the web, access Google Drive files, and query corporate data APIs like Creator IQ. Answer the user\'s question based on the context provided. If you cannot find the answer, say so clearly and provide your best suggestion.';
+    // Check if we have repo data in the results
+    const hasRepoData = results.some(r => r.source === "repo_map" && r.results && r.results.length > 0);
+    
+    // Prepare system message with enhanced instructions
+    let systemMessage = `You are a helpful AI assistant with access to:
+- Web search results
+- Google Drive files
+- Creator IQ (campaigns, publishers, lists)
+- Slack messages`;
+    
+    // Add explicit repo access instruction
+    if (hasRepoData) {
+      systemMessage += `
+- FULL CODEBASE AWARENESS: You have direct access to metadata for the organization's repositories. The AVAILABLE REPOSITORIES section in the context contains real data about each repo, including:
+  - Repository names and integrations (Shopify, CreatorIQ, etc.)
+  - Edge functions deployed in each repo
+  - Database tables owned by each repo
+  - Tech stack information
+
+When asked about repositories, code, integrations, or how systems connect, USE THE REPOSITORY DATA PROVIDED. Do NOT say you lack access - you have it. Analyze the data and provide specific, actionable insights.`;
+    }
+    
+    systemMessage += `
+
+Answer the user's question based on the context provided. Be specific and reference actual data from the context.`;
     
     // Add list-specific guidance if this appears to be a list-related query
     if (isListQuery) {
-      systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs. If a user asks to move publishers between lists or work with specific lists, ensure these lists exist in the provided context. If you find lists with names that closely match what the user is asking for, work with those. If you cannot find an exact match for a list name but find something similar, suggest using that instead.';
-      
-      // Add specific instructions about pagination and search
-      systemMessage += ' Also, when searching for lists, make sure to check all available pages of results as the specific list may be on a later page. If a list is not found in the initial results, consider that it might exist on another page.';
+      systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs. If a user asks to move publishers between lists or work with specific lists, ensure these lists exist in the provided context.';
     }
     
     // Prepare messages for OpenAI API
