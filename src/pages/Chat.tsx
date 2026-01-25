@@ -362,12 +362,12 @@ const Chat = () => {
       <div className="flex-1 overflow-y-auto p-4">
         <OperatorButtons onSelectQuery={(query) => setInput(query)} />
         <ChatContainer messages={messages} />
+        <div ref={messagesEndRef} />
         {lastSourceData && (
           <div className="mt-4">
             <SourcePanel sourceData={lastSourceData} />
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
       
       <div className="border-t p-4 bg-background">
