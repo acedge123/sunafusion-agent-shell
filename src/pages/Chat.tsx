@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react"
 import { useSearchParams, Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -6,98 +5,97 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Send, Bot, Zap, AlertCircle } from "lucide-react"
+import { Loader2, Send, Bot, Zap, AlertCircle, Trash2, Plus } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import ChatContainer, { Message } from "@/components/chat/ChatContainer"
 import SourcePanel from "@/components/chat/SourcePanel"
 import OperatorButtons from "@/components/chat/OperatorButtons"
 import { v4 as uuidv4 } from "uuid"
-import { detectHeavyTask, getHeavyTaskSuggestion } from "@/utils/heavyTaskDetector"
+import { getHeavyTaskSuggestion } from "@/utils/heavyTaskDetector"
 import { startBackendAgent, streamBackendAgent, normalizeBackendResponse } from "@/services/api/backendAgentService"
+import { useChatHistory } from "@/hooks/useChatHistory"
 
 type RunMode = 'quick' | 'heavy'
 
 // Feature flag: Enable Heavy Mode (requires backend deployment)
 const HEAVY_MODE_ENABLED = import.meta.env.VITE_ENABLE_HEAVY_MODE === 'true'
 
+const WELCOME_MESSAGE = "Hello! I'm your AI assistant with access to your Google Drive files and web search. How can I help you today?"
+
 const Chat = () => {
   const [searchParams] = useSearchParams()
-  const [messages, setMessages] = useState<Message[]>([])
+  const {
+    messages: chatMessages,
+    isLoading: isLoadingHistory,
+    isAuthenticated,
+    addMessage,
+    finalizeAssistantMessage,
+    startNewConversation,
+    clearHistory
+  } = useChatHistory()
+  
+  // Local messages state for UI (includes welcome message and handles non-authenticated users)
+  const [localMessages, setLocalMessages] = useState<Message[]>([
+    {
+      id: "welcome-message",
+      content: WELCOME_MESSAGE,
+      role: "assistant",
+      timestamp: new Date()
+    }
+  ])
+  
+  // Merge persisted messages with welcome message
+  const messages: Message[] = isAuthenticated && chatMessages.length > 0
+    ? chatMessages.map(m => ({
+        id: m.id,
+        content: m.content,
+        role: m.role,
+        timestamp: m.timestamp
+      }))
+    : localMessages
+  
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [runMode, setRunMode] = useState<RunMode>('quick')
   const [showHeavyTaskAdvisory, setShowHeavyTaskAdvisory] = useState(false)
   const [activeAgentRunId, setActiveAgentRunId] = useState<string | null>(null)
   const [lastSourceData, setLastSourceData] = useState<any>(null)
+  const [streamingContent, setStreamingContent] = useState<string>("")
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Handle URL params for query/result
   useEffect(() => {
-    // Check if we have a query and result from URL params
     const query = searchParams.get("query")
     const resultParam = searchParams.get("result")
 
-    if (query && resultParam) {
+    if (query && resultParam && !isLoadingHistory) {
       try {
         const result = JSON.parse(decodeURIComponent(resultParam))
         
-        // Add the query as a user message
-        const userMessage: Message = {
-          id: uuidv4(),
-          content: query,
-          role: "user",
-          timestamp: new Date()
+        // Add messages from URL params
+        if (isAuthenticated) {
+          addMessage({ content: query, role: "user" })
+          addMessage({ content: result.answer, role: "assistant" })
+        } else {
+          setLocalMessages(prev => [
+            ...prev,
+            { id: uuidv4(), content: query, role: "user", timestamp: new Date() },
+            { id: uuidv4(), content: result.answer, role: "assistant", timestamp: new Date() }
+          ])
         }
-        
-        // Add the answer as an assistant message
-        const assistantMessage: Message = {
-          id: uuidv4(),
-          content: result.answer,
-          role: "assistant",
-          timestamp: new Date()
-        }
-        
-        setMessages([
-          {
-            id: "welcome-message",
-            content: "Hello! I'm your AI assistant with access to your Google Drive files and web search. How can I help you today?",
-            role: "assistant",
-            timestamp: new Date()
-          },
-          userMessage,
-          assistantMessage
-        ])
       } catch (error) {
         console.error("Failed to parse result:", error)
-        setMessages([
-          {
-            id: "welcome-message",
-            content: "Hello! I'm your AI assistant with access to your Google Drive files and web search. How can I help you today?",
-            role: "assistant",
-            timestamp: new Date()
-          }
-        ])
       }
-    } else {
-      // No query/result, just show welcome message
-      setMessages([
-        {
-          id: "welcome-message",
-          content: "Hello! I'm your AI assistant with access to your Google Drive files and web search. How can I help you today?",
-          role: "assistant",
-          timestamp: new Date()
-        }
-      ])
     }
-  }, [searchParams])
+  }, [searchParams, isLoadingHistory, isAuthenticated, addMessage])
 
   useEffect(() => {
-    // Scroll to bottom when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }, [messages, streamingContent])
 
-  // Check for heavy task advisory when input changes (only if Heavy Mode is enabled)
   useEffect(() => {
     if (HEAVY_MODE_ENABLED && input.trim() && runMode === 'quick') {
       const suggestion = getHeavyTaskSuggestion(input)
@@ -110,25 +108,27 @@ const Chat = () => {
   const handleSendMessage = async () => {
     if (!input.trim() || isProcessing) return
 
-    const userMessage: Message = {
-      id: uuidv4(),
-      content: input,
-      role: "user",
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, userMessage])
     const currentInput = input
     setInput("")
     setShowHeavyTaskAdvisory(false)
     setIsProcessing(true)
 
+    // Add user message
+    if (isAuthenticated) {
+      await addMessage({ content: currentInput, role: "user" })
+    } else {
+      setLocalMessages(prev => [...prev, {
+        id: uuidv4(),
+        content: currentInput,
+        role: "user",
+        timestamp: new Date()
+      }])
+    }
+
     try {
       if (HEAVY_MODE_ENABLED && runMode === 'heavy') {
-        // Backend agentpress path
         await handleBackendAgent(currentInput)
       } else {
-        // Edge unified-agent path (quick mode)
         await handleEdgeAgent(currentInput)
       }
     } catch (error) {
@@ -138,48 +138,45 @@ const Chat = () => {
         description: error instanceof Error ? error.message : "An unexpected error occurred"
       })
       
-      const errorMessage: Message = {
-        id: uuidv4(),
-        content: "Sorry, I encountered an error while processing your request. Please try again.",
-        role: "assistant",
-        timestamp: new Date()
+      const errorContent = "Sorry, I encountered an error while processing your request. Please try again."
+      if (isAuthenticated) {
+        await addMessage({ content: errorContent, role: "assistant" })
+      } else {
+        setLocalMessages(prev => [...prev, {
+          id: uuidv4(),
+          content: errorContent,
+          role: "assistant",
+          timestamp: new Date()
+        }])
       }
-      
-      setMessages(prev => [...prev, errorMessage])
     } finally {
       setIsProcessing(false)
+      setStreamingContent("")
+      setStreamingMessageId(null)
     }
   }
 
   const handleEdgeAgent = async (query: string) => {
-    // Convert previous messages to the format expected by the agent
-    // Use current messages state, filtering out welcome message
+    // Build conversation history from current messages
     const conversationHistory = messages
-      .filter(msg => msg.id !== "welcome-message") // Skip the welcome message
-      .map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }))
+      .filter(msg => msg.id !== "welcome-message")
+      .map(msg => ({ role: msg.role, content: msg.content }))
 
-    // Get the current session for the auth token
     const { data: sessionData } = await supabase.auth.getSession()
     const authToken = sessionData?.session?.access_token
     const providerToken = sessionData?.session?.provider_token
     
-    // If no provider token in session, try to get from database
-    let storedToken = null;
+    let storedToken = null
     if (!providerToken && sessionData?.session?.user) {
       try {
         const { data: tokenData } = await supabase
           .from('google_drive_access')
           .select('access_token')
           .eq('user_id', sessionData.session.user.id)
-          .maybeSingle();
-          
-        storedToken = tokenData?.access_token;
-        console.log("Chat: Retrieved stored token from database:", !!storedToken);
+          .maybeSingle()
+        storedToken = tokenData?.access_token
       } catch (dbError) {
-        console.error("Chat: Error retrieving token from database:", dbError);
+        console.error("Error retrieving token from database:", dbError)
       }
     }
 
@@ -196,9 +193,7 @@ const Chat = () => {
           userHasSession: !!sessionData?.session
         }
       },
-      headers: authToken ? {
-        Authorization: `Bearer ${authToken}`
-      } : undefined
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
     })
 
     if (response.error) throw response.error
@@ -213,84 +208,93 @@ const Chat = () => {
             access_token: providerToken,
             token_expires_at: new Date(Date.now() + 3600 * 1000).toISOString(),
             updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id'
-          });
+          }, { onConflict: 'user_id' })
       } catch (storeError) {
-        console.error("Error in token storage:", storeError);
+        console.error("Error in token storage:", storeError)
       }
     }
 
-    // Store source data if present
+    // Store source data
     if (response.data.source_data) {
       setLastSourceData(response.data.source_data)
     } else {
       setLastSourceData(null)
     }
 
-    // Normalize Edge response to Message format
-    const assistantMessage: Message = {
-      id: uuidv4(),
-      content: response.data.answer || response.data.message || "No response received",
-      role: "assistant",
-      timestamp: new Date()
+    const assistantContent = response.data.answer || response.data.message || "No response received"
+    
+    if (isAuthenticated) {
+      await addMessage({ 
+        content: assistantContent, 
+        role: "assistant",
+        sourceData: response.data.source_data 
+      })
+    } else {
+      setLocalMessages(prev => [...prev, {
+        id: uuidv4(),
+        content: assistantContent,
+        role: "assistant",
+        timestamp: new Date()
+      }])
     }
-
-    setMessages(prev => [...prev, assistantMessage])
   }
 
   const handleBackendAgent = async (query: string) => {
-    // Start backend agent
     const response = await startBackendAgent(query, {
       stream: true,
       reasoning_effort: 'medium'
     })
 
     const { agent_run_id } = response
-    setActiveAgentRunId(agent_run_id)  // Track active run for stop button
+    setActiveAgentRunId(agent_run_id)
 
-    // Create a placeholder assistant message that we'll update as we stream
     const assistantMessageId = uuidv4()
-    const assistantMessage: Message = {
-      id: assistantMessageId,
-      content: "",
-      role: "assistant",
-      timestamp: new Date()
-    }
-    setMessages(prev => [...prev, assistantMessage])
+    setStreamingMessageId(assistantMessageId)
+    setStreamingContent("")
 
-    // Stream responses - use functional updates to avoid stale closures
+    // Add placeholder message for local display
+    if (!isAuthenticated) {
+      setLocalMessages(prev => [...prev, {
+        id: assistantMessageId,
+        content: "",
+        role: "assistant",
+        timestamp: new Date()
+      }])
+    }
+
+    let accumulatedContent = ""
+
     await streamBackendAgent(
       agent_run_id,
       (streamMessage) => {
         const normalized = normalizeBackendResponse(streamMessage)
         if (normalized && normalized.content) {
-          // Use functional update to accumulate content safely
-          setMessages(prev => prev.map(msg => {
-            if (msg.id === assistantMessageId) {
-              // Accumulate content from previous state
-              const currentContent = msg.content || ""
-              return { ...msg, content: currentContent + normalized.content }
-            }
-            return msg
-          }))
+          accumulatedContent += normalized.content
+          setStreamingContent(accumulatedContent)
+          
+          // Update local messages for non-authenticated users
+          if (!isAuthenticated) {
+            setLocalMessages(prev => prev.map(msg => 
+              msg.id === assistantMessageId 
+                ? { ...msg, content: accumulatedContent }
+                : msg
+            ))
+          }
         }
       },
       (error) => {
         console.error("Backend agent stream error:", error)
-        setMessages(prev => prev.map(msg => {
-          if (msg.id === assistantMessageId) {
-            const currentContent = msg.content || ""
-            const errorText = `\n\n[Error: ${error.message}]`
-            return { ...msg, content: currentContent + errorText }
-          }
-          return msg
-        }))
+        accumulatedContent += `\n\n[Error: ${error.message}]`
+        setStreamingContent(accumulatedContent)
       },
-      () => {
-        // Stream complete
-        console.log("Backend agent stream completed")
-        setActiveAgentRunId(null)  // Clear active run
+      async () => {
+        // Stream complete - persist the message
+        if (isAuthenticated && accumulatedContent) {
+          await addMessage({ content: accumulatedContent, role: "assistant" })
+        }
+        setActiveAgentRunId(null)
+        setStreamingContent("")
+        setStreamingMessageId(null)
       }
     )
   }
@@ -302,27 +306,18 @@ const Chat = () => {
       const { data: sessionData } = await supabase.auth.getSession()
       const authToken = sessionData?.session?.access_token
 
-      if (!authToken) {
-        throw new Error("Authentication required")
-      }
+      if (!authToken) throw new Error("Authentication required")
 
       const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000'
       const response = await fetch(`${BACKEND_API_URL}/api/agent-run/${activeAgentRunId}/stop`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        }
+        headers: { 'Authorization': `Bearer ${authToken}` }
       })
 
-      if (!response.ok) {
-        throw new Error(`Failed to stop agent: ${response.statusText}`)
-      }
+      if (!response.ok) throw new Error(`Failed to stop agent: ${response.statusText}`)
 
       setActiveAgentRunId(null)
-      toast({
-        title: "Agent stopped",
-        description: "The agent run has been stopped successfully."
-      })
+      toast({ title: "Agent stopped", description: "The agent run has been stopped successfully." })
     } catch (error) {
       console.error("Error stopping agent:", error)
       toast({
@@ -333,11 +328,52 @@ const Chat = () => {
     }
   }
 
+  const handleNewConversation = () => {
+    if (isAuthenticated) {
+      startNewConversation()
+    } else {
+      setLocalMessages([{
+        id: "welcome-message",
+        content: WELCOME_MESSAGE,
+        role: "assistant",
+        timestamp: new Date()
+      }])
+    }
+    setLastSourceData(null)
+  }
+
+  const handleClearHistory = async () => {
+    if (isAuthenticated) {
+      await clearHistory()
+      toast({ title: "History cleared", description: "All chat history has been deleted." })
+    }
+    setLocalMessages([{
+      id: "welcome-message",
+      content: WELCOME_MESSAGE,
+      role: "assistant",
+      timestamp: new Date()
+    }])
+    setLastSourceData(null)
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
     }
+  }
+
+  // Combine persisted messages with streaming content for display
+  const displayMessages = streamingMessageId && isAuthenticated && streamingContent
+    ? [...messages, { id: streamingMessageId, content: streamingContent, role: "assistant" as const, timestamp: new Date() }]
+    : messages
+
+  if (isLoadingHistory) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
@@ -348,20 +384,31 @@ const Chat = () => {
             <h1 className="text-xl font-bold">TheGig.Agency Assistant</h1>
             <p className="text-muted-foreground text-sm">
               Ask me anything about your Google Drive files or general questions
+              {isAuthenticated && <span className="ml-2 text-xs">(chat history saved)</span>}
             </p>
           </div>
-          <Button asChild variant="outline" className="ml-2">
-            <Link to="/agent" className="flex items-center gap-2">
-              <Bot className="h-4 w-4" />
-              Switch to Agent Mode
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleNewConversation} title="New conversation">
+              <Plus className="h-4 w-4" />
+            </Button>
+            {isAuthenticated && (
+              <Button variant="outline" size="sm" onClick={handleClearHistory} title="Clear all history">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <Button asChild variant="outline" className="ml-2">
+              <Link to="/agent" className="flex items-center gap-2">
+                <Bot className="h-4 w-4" />
+                Switch to Agent Mode
+              </Link>
+            </Button>
+          </div>
         </div>
       </header>
       
       <div className="flex-1 overflow-y-auto p-4">
         <OperatorButtons onSelectQuery={(query) => setInput(query)} />
-        <ChatContainer messages={messages} />
+        <ChatContainer messages={displayMessages} />
         <div ref={messagesEndRef} />
         {lastSourceData && (
           <div className="mt-4">
@@ -371,7 +418,6 @@ const Chat = () => {
       </div>
       
       <div className="border-t p-4 bg-background">
-        {/* Run Mode Toggle - Only show if Heavy Mode is enabled */}
         {HEAVY_MODE_ENABLED && (
           <>
             <div className="flex items-center gap-3 mb-3">
@@ -403,7 +449,6 @@ const Chat = () => {
               </span>
             </div>
 
-            {/* Heavy Task Advisory Banner */}
             {showHeavyTaskAdvisory && (
               <Alert className="mb-3 border-amber-200 bg-amber-50">
                 <AlertCircle className="h-4 w-4 text-amber-600" />
