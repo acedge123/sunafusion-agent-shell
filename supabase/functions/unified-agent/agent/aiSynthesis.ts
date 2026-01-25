@@ -42,50 +42,71 @@ export async function synthesizeWithAI(
     const repoCount = hasRepoData ? repoResult.results.length : 0;
     
     // Build strict system message
-    let systemMessage = `You are an INTERNAL SYSTEM OPERATOR for this organization's codebase. You have access to:
+    let systemMessage: string;
+    
+    // CRITICAL: Enforce strict grounding for repo questions
+    if (isRepoQuestion && hasRepoData) {
+      // Extract repo names for explicit grounding
+      const repoNames = repoResult.results.slice(0, 10).map((r: Record<string, unknown>) => r.repo_name).join(', ');
+      
+      systemMessage = `You are a FACTUAL DATABASE QUERY INTERFACE. You ONLY report facts from the provided data.
+
+CRITICAL CONSTRAINT: You are FORBIDDEN from providing general definitions, industry explanations, or conceptual overviews.
+
+You have access to REAL METADATA for ${repoCount} repositories. Some examples: ${repoNames}
+
+WHEN THE USER ASKS ABOUT REPOS, CODE, OR SYSTEMS:
+1. FIRST: Identify which repos in the AVAILABLE REPOSITORIES section match their query
+2. SECOND: List ONLY the concrete facts from that data:
+   - Repo name
+   - Edge functions (by name)
+   - Database tables (by name)  
+   - Integrations (by name)
+3. THIRD: If asked about purpose, infer ONLY from the function/table names - do not explain industry concepts
+
+FORBIDDEN RESPONSES:
+- "Creator licensing is a marketing strategy that allows brands to..."
+- "The term X refers to content creators who..."
+- Any definition or explanation not derived from repo_map data
+
+REQUIRED RESPONSE FORMAT:
+\`\`\`
+Repos matching "[query term]":
+
+1. [repo_name]
+   - Edge functions: [list from data]
+   - Tables: [list from data]
+   - Integrations: [list from data]
+
+2. [another_repo if relevant]
+   ...
+\`\`\`
+
+If no repos match, say: "No repos found matching [X]. Here are available repos: ..."`;
+    } else if (isRepoQuestion && !hasRepoData) {
+      systemMessage = `You are a FACTUAL DATABASE QUERY INTERFACE. 
+      
+The user is asking about repositories/code, but the repo_map search returned no results.
+
+REQUIRED RESPONSE:
+"I searched the repo_map but found no repositories matching '[user query term]'. 
+To help you, I need more context - are you looking for a specific repo name, an integration, or a feature?"
+
+DO NOT provide general definitions or industry explanations.`;
+    } else {
+      // Non-repo questions - standard helpful mode
+      systemMessage = `You are a helpful AI assistant with access to:
 - Web search results (external info)
 - Google Drive files (documents)
 - Creator IQ API (campaigns, publishers, lists)
 - Slack messages
-- Repository metadata (${repoCount} repos loaded)`;
+- Repository metadata (${repoCount} repos available)
 
-    // CRITICAL: Enforce strict grounding for repo questions
-    if (isRepoQuestion && hasRepoData) {
-      systemMessage += `
-
-## STRICT GROUNDING RULES (YOU MUST FOLLOW THESE):
-1. You have REAL DATA about ${repoCount} repositories in the AVAILABLE REPOSITORIES section
-2. Answer ONLY using facts from the retrieved repo_map data
-3. DO NOT explain general industry concepts or definitions
-4. DO NOT speculate about what systems "might" do
-5. Cite specific repos, edge functions, tables, and integrations BY NAME from the data
-6. If something is NOT in the repo_map results, say "not found in repo data"
-7. If the user's question is ambiguous (e.g., "licensed creator"), first clarify what repos match, then describe their actual purpose based on the data
-
-## ANSWER FORMAT FOR REPO QUESTIONS:
-- Start with the specific repo(s) that match
-- List concrete facts: edge functions, tables, integrations
-- Show relationships to other repos if relevant
-- Be terse and factual, not explanatory`;
-    } else if (isRepoQuestion && !hasRepoData) {
-      // No repo data but asking about repos - be explicit
-      systemMessage += `
-
-## IMPORTANT: 
-The user is asking about repositories/code, but no matching repo data was found.
-- Say explicitly: "I don't see repos matching [X] in the repo_map data"
-- List what repos ARE available if relevant
-- Ask for clarification if the question is ambiguous
-- DO NOT invent or speculate about repos that aren't in the data`;
-    }
-    
-    systemMessage += `
-
-Answer the user's question based ONLY on the context provided. Be specific and cite actual data.`;
-    
-    // Add list-specific guidance if this appears to be a list-related query
-    if (isListQuery) {
-      systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs.';
+Answer the user's question based on the context provided. Be specific and cite actual data.`;
+      
+      if (isListQuery) {
+        systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs.';
+      }
     }
     
     // Prepare messages for OpenAI API
@@ -127,7 +148,7 @@ Answer the user's question based ONLY on the context provided. Be specific and c
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages,
-        temperature: 0.5
+        temperature: isRepoQuestion ? 0.1 : 0.5 // Very low temp for factual repo queries
       })
     });
     
