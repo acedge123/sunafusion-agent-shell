@@ -29,8 +29,16 @@ export async function synthesizeWithAI(
     
     // Detect if this is a repo/codebase question
     const queryLower = query.toLowerCase();
-    const isRepoQuestion = [
-      'repo', 'repository', 'codebase', 'code', 'function', 'edge function',
+    
+    // Meta questions = asking about the codebase in general, not a specific repo
+    const isMetaQuestion = [
+      'understand', 'know about', 'tell me about', 'overview', 'summary',
+      'what repos', 'all repos', 'our repos', 'the repos', 'list repos',
+      'codebase', 'our code', 'the code', 'systems we have', 'what do we have'
+    ].some(phrase => queryLower.includes(phrase));
+    
+    const isRepoQuestion = isMetaQuestion || [
+      'repo', 'repository', 'function', 'edge function',
       'integration', 'table', 'schema', 'where is', 'what handles', 'which repo',
       'how does', 'what owns', 'licensing', 'creator', 'hub', 'marketplace',
       'supabase', 'stack', 'architecture', 'system'
@@ -52,7 +60,24 @@ export async function synthesizeWithAI(
       // Extract repo names for explicit grounding
       const repoNames = repoResult.results.slice(0, 10).map((r: Record<string, unknown>) => r.repo_name).join(', ');
       
-      systemMessage = `${coreInstruction}
+      // Different prompt for meta questions vs specific searches
+      if (isMetaQuestion) {
+        systemMessage = `${coreInstruction}
+
+You are a CODEBASE NAVIGATOR. The user wants an overview of the organization's repositories.
+
+You have access to REAL METADATA for ${repoCount} repositories.
+
+FOR META/OVERVIEW QUESTIONS ("do you understand the codebase", "tell me about the repos", etc.):
+1. Confirm: "Yes, I have metadata for ${repoCount} repositories."
+2. Give a quick categorized summary (group by purpose if apparent from names)
+3. Offer to dive deeper into any specific area
+
+Keep it brief - a few bullet points or a short list. Don't dump everything.
+
+Available repos include: ${repoNames}`;
+      } else {
+        systemMessage = `${coreInstruction}
 
 You are a FACTUAL DATABASE QUERY INTERFACE. You ONLY report facts from the provided data.
 
@@ -60,7 +85,7 @@ CRITICAL CONSTRAINT: You are FORBIDDEN from providing general definitions, indus
 
 You have access to REAL METADATA for ${repoCount} repositories. Some examples: ${repoNames}
 
-WHEN THE USER ASKS ABOUT REPOS, CODE, OR SYSTEMS:
+WHEN THE USER ASKS ABOUT SPECIFIC REPOS, CODE, OR SYSTEMS:
 1. FIRST: Identify which repos in the AVAILABLE REPOSITORIES section match their query
 2. SECOND: List ONLY the concrete facts from that data:
    - Repo name
@@ -74,20 +99,8 @@ FORBIDDEN RESPONSES:
 - "The term X refers to content creators who..."
 - Any definition or explanation not derived from repo_map data
 
-REQUIRED RESPONSE FORMAT:
-\`\`\`
-Repos matching "[query term]":
-
-1. [repo_name]
-   - Edge functions: [list from data]
-   - Tables: [list from data]
-   - Integrations: [list from data]
-
-2. [another_repo if relevant]
-   ...
-\`\`\`
-
-If no repos match, say: "No repos found matching [X]. Here are available repos: ..."`;
+Be terse. List facts. No fluff.`;
+      }
     } else if (isRepoQuestion && !hasRepoData) {
       systemMessage = `${coreInstruction}
 
