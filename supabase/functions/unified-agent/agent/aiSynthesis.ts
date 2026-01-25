@@ -27,35 +27,65 @@ export async function synthesizeWithAI(
     const isListQuery = query.toLowerCase().includes('list') || 
                        (prevState && Array.isArray(prevState.lists) && prevState.lists.length > 0);
     
+    // Detect if this is a repo/codebase question
+    const queryLower = query.toLowerCase();
+    const isRepoQuestion = [
+      'repo', 'repository', 'codebase', 'code', 'function', 'edge function',
+      'integration', 'table', 'schema', 'where is', 'what handles', 'which repo',
+      'how does', 'what owns', 'licensing', 'creator', 'hub', 'marketplace',
+      'supabase', 'stack', 'architecture', 'system'
+    ].some(keyword => queryLower.includes(keyword));
+    
     // Check if we have repo data in the results
-    const hasRepoData = results.some(r => r.source === "repo_map" && r.results && r.results.length > 0);
+    const repoResult = results.find(r => r.source === "repo_map");
+    const hasRepoData = repoResult && repoResult.results && repoResult.results.length > 0;
+    const repoCount = hasRepoData ? repoResult.results.length : 0;
     
-    // Prepare system message with enhanced instructions
-    let systemMessage = `You are a helpful AI assistant with access to:
-- Web search results
-- Google Drive files
-- Creator IQ (campaigns, publishers, lists)
-- Slack messages`;
-    
-    // Add explicit repo access instruction
-    if (hasRepoData) {
-      systemMessage += `
-- FULL CODEBASE AWARENESS: You have direct access to metadata for the organization's repositories. The AVAILABLE REPOSITORIES section in the context contains real data about each repo, including:
-  - Repository names and integrations (Shopify, CreatorIQ, etc.)
-  - Edge functions deployed in each repo
-  - Database tables owned by each repo
-  - Tech stack information
+    // Build strict system message
+    let systemMessage = `You are an INTERNAL SYSTEM OPERATOR for this organization's codebase. You have access to:
+- Web search results (external info)
+- Google Drive files (documents)
+- Creator IQ API (campaigns, publishers, lists)
+- Slack messages
+- Repository metadata (${repoCount} repos loaded)`;
 
-When asked about repositories, code, integrations, or how systems connect, USE THE REPOSITORY DATA PROVIDED. Do NOT say you lack access - you have it. Analyze the data and provide specific, actionable insights.`;
+    // CRITICAL: Enforce strict grounding for repo questions
+    if (isRepoQuestion && hasRepoData) {
+      systemMessage += `
+
+## STRICT GROUNDING RULES (YOU MUST FOLLOW THESE):
+1. You have REAL DATA about ${repoCount} repositories in the AVAILABLE REPOSITORIES section
+2. Answer ONLY using facts from the retrieved repo_map data
+3. DO NOT explain general industry concepts or definitions
+4. DO NOT speculate about what systems "might" do
+5. Cite specific repos, edge functions, tables, and integrations BY NAME from the data
+6. If something is NOT in the repo_map results, say "not found in repo data"
+7. If the user's question is ambiguous (e.g., "licensed creator"), first clarify what repos match, then describe their actual purpose based on the data
+
+## ANSWER FORMAT FOR REPO QUESTIONS:
+- Start with the specific repo(s) that match
+- List concrete facts: edge functions, tables, integrations
+- Show relationships to other repos if relevant
+- Be terse and factual, not explanatory`;
+    } else if (isRepoQuestion && !hasRepoData) {
+      // No repo data but asking about repos - be explicit
+      systemMessage += `
+
+## IMPORTANT: 
+The user is asking about repositories/code, but no matching repo data was found.
+- Say explicitly: "I don't see repos matching [X] in the repo_map data"
+- List what repos ARE available if relevant
+- Ask for clarification if the question is ambiguous
+- DO NOT invent or speculate about repos that aren't in the data`;
     }
     
     systemMessage += `
 
-Answer the user's question based on the context provided. Be specific and reference actual data from the context.`;
+Answer the user's question based ONLY on the context provided. Be specific and cite actual data.`;
     
     // Add list-specific guidance if this appears to be a list-related query
     if (isListQuery) {
-      systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs. If a user asks to move publishers between lists or work with specific lists, ensure these lists exist in the provided context.';
+      systemMessage += ' When working with lists in Creator IQ, pay special attention to list names and IDs.';
     }
     
     // Prepare messages for OpenAI API
