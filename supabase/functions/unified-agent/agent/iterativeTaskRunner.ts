@@ -1,18 +1,19 @@
 // Iterative Task Runner - Implements the iterative loop with tool calling
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { tools, type ToolCall, type ToolResult } from "./toolRegistry.ts";
+import { tools, type ToolResult } from "./toolRegistry.ts";
 import { executeTool } from "./toolExecutor.ts";
 import { buildContextFromResults } from "../utils/contextBuilder.ts";
 import { errMsg } from "../../_shared/error.ts";
+import type { AgentResult } from "../../_shared/types.ts";
 
 export interface IterativeTaskConfig {
   query: string;
-  initialResults: unknown[];
+  initialResults: AgentResult[];
   conversationHistory?: unknown[];
   maxIterations?: number;
   reasoningLevel?: string;
-  previousState?: unknown;
+  previousState?: Record<string, unknown> | null;
 }
 
 export interface IterativeTaskResult {
@@ -65,7 +66,7 @@ export async function runIterativeTask(config: IterativeTaskConfig): Promise<Ite
 
   // Build initial context
   let currentContext = buildContextFromResults(initialResults, previousState);
-  const allData: unknown[] = [...initialResults];
+  const allData: AgentResult[] = [...initialResults];
   const steps: Array<{
     iteration: number;
     action: string;
@@ -193,7 +194,7 @@ Please analyze the information and use tools as needed to complete this task. Pa
           // Store the result data
           const resultRecord = result as Record<string, unknown>;
           if (resultRecord.data) {
-            allData.push(result);
+            allData.push(result as AgentResult);
           }
 
           // Add tool result to messages

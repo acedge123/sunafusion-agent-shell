@@ -7,8 +7,24 @@ import { searchWeb } from "./sources/webSearch.ts";
 import { determineCreatorIQEndpoints, buildCreatorIQPayload, queryCreatorIQEndpoint } from "./sources/creatorIQ.ts";
 import { parseStructuredResponse, getAgentResponse, runAgentTask } from "./agent/taskRunner.ts";
 import { synthesizeWithAI } from "./agent/aiSynthesis.ts";
-import { buildContextFromResults } from "./utils/contextBuilder.ts";
 import { searchSlack } from "./slack-tool.ts";
+
+// Helper to safely extract error message
+function errMsg(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
+}
+
+// AgentResult type for type safety
+type AgentResult =
+  | { source: "memory"; results: unknown[] }
+  | { source: "google_drive"; results?: unknown[]; error?: string; details?: string }
+  | { source: "file_analysis"; results: unknown[] }
+  | { source: "web_search"; results?: unknown[]; error?: string }
+  | { source: "slack"; results?: unknown[]; error?: string; details?: string }
+  | { source: "creator_iq"; results?: unknown[]; error?: string; details?: string; state?: unknown }
+  | { source: "repo_map"; results?: unknown[]; error?: string };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -55,7 +71,7 @@ serve(async (req) => {
     }
 
     // Initialize results array BEFORE any usage
-    const results: Array<{ source: string; results?: unknown[]; error?: string; details?: string; state?: unknown }> = [];
+    const results: AgentResult[] = [];
     // Extract the Authorization header
     const authHeader = req.headers.get('Authorization');
     let userId = null;
@@ -116,7 +132,18 @@ serve(async (req) => {
     // (memories already added above)
     
     // Initialize state data to be saved later
-    const stateData = {
+    const stateData: {
+      userId: string | null;
+      stateKey: string | null;
+      previousState: unknown;
+      newData: {
+        campaigns: Array<{ id: string; name: string; status?: string; publishersCount?: number }>;
+        publishers: Array<{ id: string; name: string; status?: string; campaignId?: string; listId?: string }>;
+        lists: Array<{ id: string; name: string; description?: string; publishersCount?: number }>;
+        operationResults?: Array<{ successful: boolean; type: string; details: string; timestamp: string; id?: string; name?: string }>;
+      };
+      queryContext: string;
+    } = {
       userId,
       stateKey: state_key,
       previousState: previous_state,
@@ -180,7 +207,7 @@ serve(async (req) => {
               analysisResults.push({
                 file_id: file.id,
                 file_name: file.name,
-                analysis: `Error analyzing file: ${error.message || "Unknown error"}`
+                analysis: `Error analyzing file: ${errMsg(error)}`
               });
             }
           }
@@ -196,7 +223,7 @@ serve(async (req) => {
         console.error("Google Drive search error:", error);
         results.push({
           source: "google_drive",
-          error: error.message || "Failed to search Google Drive",
+          error: errMsg(error) || "Failed to search Google Drive",
           details: typeof error === 'object' ? JSON.stringify(error) : 'No details available'
         });
       }
@@ -219,7 +246,7 @@ serve(async (req) => {
         console.error("Web search error:", error);
         results.push({
           source: "web_search",
-          error: error.message || "Failed to search the web"
+          error: errMsg(error) || "Failed to search the web"
         });
       }
     }
@@ -230,23 +257,31 @@ serve(async (req) => {
         console.log(`Starting Slack search ${userId ? `for user: ${userId}` : '(no user ID)'}`);
         
         // Search Slack for messages related to the query
-        const slackResults = await searchSlack(userId, query, supabase);
-        console.log(`Slack search returned ${slackResults.length} results`);
-        
-        if (slackResults.length === 0) {
-          console.log("No Slack results returned - this could indicate no matching messages or a permission issue");
+        if (!userId) {
+          console.log("No user ID provided for Slack search, skipping");
+          results.push({
+            source: "slack",
+            error: "User authentication required for Slack search"
+          });
+        } else {
+          const slackResults = await searchSlack(userId, query, supabase);
+          console.log(`Slack search returned ${slackResults.length} results`);
+          
+          if (slackResults.length === 0) {
+            console.log("No Slack results returned - this could indicate no matching messages or a permission issue");
+          }
+          
+          results.push({
+            source: "slack",
+            results: slackResults
+          });
         }
-        
-        results.push({
-          source: "slack",
-          results: slackResults
-        });
         
       } catch (error) {
         console.error("Slack search error:", error);
         results.push({
           source: "slack",
-          error: error.message || "Failed to search Slack",
+          error: errMsg(error) || "Failed to search Slack",
           details: typeof error === 'object' ? JSON.stringify(error) : 'No details available'
         });
       }
@@ -388,7 +423,7 @@ serve(async (req) => {
               return {
                 endpoint: endpoint.route,
                 name: endpoint.name,
-                error: endpointError.message || "Unknown error"
+                error: errMsg(endpointError) || "Unknown error"
               };
             }
           })
@@ -410,7 +445,7 @@ serve(async (req) => {
         console.error("Creator IQ search error:", error);
         results.push({
           source: "creator_iq",
-          error: error.message || "Failed to search Creator IQ",
+          error: errMsg(error) || "Failed to search Creator IQ",
           details: typeof error === 'object' ? JSON.stringify(error) : 'No details available'
         });
       }
@@ -449,7 +484,7 @@ serve(async (req) => {
         console.error("Iterative agent task execution error:", error);
         return new Response(
           JSON.stringify({ 
-            error: error.message || 'Failed to execute iterative agent task',
+            error: errMsg(error) || 'Failed to execute iterative agent task',
             sources: results 
           }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -484,7 +519,7 @@ serve(async (req) => {
         console.error("Simple agent task execution error:", error);
         return new Response(
           JSON.stringify({ 
-            error: error.message || 'Failed to execute agent task',
+            error: errMsg(error) || 'Failed to execute agent task',
             sources: results 
           }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -619,7 +654,8 @@ serve(async (req) => {
 
     // For non-task mode, just synthesize with AI as before
     console.log("Synthesizing results with OpenAI");
-    const answer = await synthesizeWithAI(query, results, conversation_history, previous_state);
+    const previousStateRecord = previous_state as Record<string, unknown> | null;
+    const answer = await synthesizeWithAI(query, results, conversation_history, previousStateRecord);
     
     // Extract and store memory if appropriate (lightweight facts layer)
     if (userId && answer) {
@@ -654,32 +690,39 @@ serve(async (req) => {
                          sourceData.functions_mentioned.length > 0;
 
     // Process and store any write operation results
-    const creatorIQResults = results.find(r => r.source === "creator_iq");
-    if (creatorIQResults && creatorIQResults.results) {
+    const creatorIQResult = results.find(r => r.source === "creator_iq");
+    if (creatorIQResult && creatorIQResult.results) {
       // Look for write operation results
-      const writeOperationResults = creatorIQResults.results
-        .filter(result => 
-          result.data && 
-          (result.data.operation || 
-           (result.data.List && result.data.List.Id) ||
-           (result.data.success === true))
-        )
-        .map(result => {
+      const writeOperationResults = creatorIQResult.results
+        .filter((resultItem) => {
+          const res = resultItem as Record<string, unknown>;
+          const data = res.data as Record<string, unknown> | undefined;
+          return data && 
+            (data.operation || 
+             (data.List && (data.List as Record<string, unknown>).Id) ||
+             (data.success === true));
+        })
+        .map((resultItem) => {
+          const res = resultItem as Record<string, unknown>;
+          const data = res.data as Record<string, unknown>;
+          
           // Extract operation result
-          if (result.data.operation) {
+          if (data.operation) {
+            const op = data.operation as Record<string, unknown>;
             return {
-              successful: result.data.operation.successful === true,
-              type: result.data.operation.type || result.name || 'Unknown operation',
-              details: result.data.operation.details || '',
-              timestamp: result.data.operation.timestamp || new Date().toISOString()
+              successful: op.successful === true,
+              type: String(op.type || res.name || 'Unknown operation'),
+              details: String(op.details || ''),
+              timestamp: String(op.timestamp || new Date().toISOString())
             };
           } 
           // For list creation
-          else if (result.data.List && result.data.List.Id) {
+          else if (data.List && (data.List as Record<string, unknown>).Id) {
+            const list = data.List as Record<string, unknown>;
             const newList = {
-              id: result.data.List.Id,
-              name: result.data.List.Name || 'New List',
-              description: result.data.List.Description || '',
+              id: String(list.Id),
+              name: String(list.Name || 'New List'),
+              description: String(list.Description || ''),
               publishersCount: 0
             };
             
@@ -699,11 +742,11 @@ serve(async (req) => {
             };
           }
           // Generic success
-          else if (result.data.success === true) {
+          else if (data.success === true) {
             return {
               successful: true,
-              type: result.name || 'Operation',
-              details: result.data.message || 'Operation completed successfully',
+              type: String(res.name || 'Operation'),
+              details: String(data.message || 'Operation completed successfully'),
               timestamp: new Date().toISOString()
             };
           }
@@ -718,12 +761,15 @@ serve(async (req) => {
         
         // Add to state data
         if (stateData) {
-          stateData.newData.operationResults = writeOperationResults;
+          stateData.newData.operationResults = writeOperationResults as Array<{ successful: boolean; type: string; details: string; timestamp: string; id?: string; name?: string }>;
         }
         
         // Also add to the results to be returned
-        if (creatorIQResults.state && creatorIQResults.state.data) {
-          creatorIQResults.state.data.operationResults = writeOperationResults;
+        if (creatorIQResult.state) {
+          const stateObj = creatorIQResult.state as Record<string, unknown>;
+          if (stateObj.data) {
+            (stateObj.data as Record<string, unknown>).operationResults = writeOperationResults;
+          }
         }
       }
     }
@@ -807,8 +853,7 @@ serve(async (req) => {
       } catch (stateError) {
         console.error("Error in state storage:", {
           error: stateError,
-          message: stateError.message,
-          stack: stateError.stack
+          message: errMsg(stateError)
         });
       }
     } else {
@@ -834,7 +879,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in unified-agent:", error);
     return new Response(
-      JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
+      JSON.stringify({ error: errMsg(error) || 'An unexpected error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
