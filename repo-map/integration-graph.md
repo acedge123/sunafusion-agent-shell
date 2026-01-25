@@ -2,7 +2,7 @@
 
 
 
-Generated: 2026-01-24T21:59:12.826Z
+Generated: 2026-01-25T01:45:59.166Z
 
 
 
@@ -69,6 +69,12 @@ Strategic map showing relationships between repositories based on:
 - **Shared APIs:** openai, stripe
 - **Shared Integrations:** aws, redis, supabase, vercel, webhook
 
+### `ciq-automations` ↔ `sunafusion-agent-shell`
+- **Shared Tables:** `agent_memories`
+  - ⚠️  Schema changes require coordination
+- **Shared APIs:** creatoriq, openai
+- **Shared Integrations:** aws, supabase, webhook
+
 ### `debt-freedom-pathway-landing` ↔ `sunafusion-agent-shell`
 - **Shared Tables:** `leads`
   - ⚠️  Schema changes require coordination
@@ -99,11 +105,13 @@ Strategic map showing relationships between repositories based on:
   - ⚠️  Schema changes require coordination
 - **Shared Integrations:** supabase, vercel, webhook
 
-### `ciq-automations` ↔ `creator-licensing-hub`
+### `influencer-iq-flow-analysis` ↔ `sunafusion-agent-shell`
+- **Shared Tables:** `agent_memories`
+  - ⚠️  Schema changes require coordination
 - **Shared APIs:** creatoriq, openai
-- **Shared Integrations:** aws, supabase, webhook
+- **Shared Integrations:** supabase, webhook
 
-### `ciq-automations` ↔ `sunafusion-agent-shell`
+### `ciq-automations` ↔ `creator-licensing-hub`
 - **Shared APIs:** creatoriq, openai
 - **Shared Integrations:** aws, supabase, webhook
 
@@ -240,10 +248,6 @@ Strategic map showing relationships between repositories based on:
 ### `gig-whisperer-sheet` ↔ `sunafusion-agent-shell`
 - **Shared APIs:** creatoriq, stripe
 - **Shared Integrations:** supabase, vercel
-
-### `influencer-iq-flow-analysis` ↔ `sunafusion-agent-shell`
-- **Shared APIs:** creatoriq, openai
-- **Shared Integrations:** supabase, webhook
 
 ### `influencer-iq-flow-analysis` ↔ `textweaver-gigcraft`
 - **Shared APIs:** creatoriq, openai

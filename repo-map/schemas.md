@@ -2,7 +2,7 @@
 
 
 
-Generated: 2026-01-24T21:59:12.822Z
+Generated: 2026-01-25T01:45:59.162Z
 
 
 
@@ -44,7 +44,7 @@ This document maps database tables to their owning repositories.
 
 ### `agent_memories`
 - **Owner:** `ciq-automations`
-- **Also used by:** `influencer-iq-flow-analysis`
+- **Also used by:** `influencer-iq-flow-analysis`, `sunafusion-agent-shell`
 - ⚠️  **Shared table** - changes should be coordinated
 
 ### `agent_sessions`
@@ -496,6 +496,9 @@ This document maps database tables to their owning repositories.
 ### `refersion_conversions`
 - **Owner:** `four-visions-big-commerce`
 
+### `repo_map`
+- **Owner:** `sunafusion-agent-shell`
+
 ### `response_sessions`
 - **Owner:** `client-survey-hub`
 
@@ -657,6 +660,7 @@ This document maps database tables to their owning repositories.
 
 ## influencer-iq-flow-analysis
 - Origin: git@github.com:acedge123/influencer-iq-flow.git
+- ⚠️  Alias of: `ciq-automations`
 - Status: `analysis-copy`
 - **Owns 21 table(s):** `agent_memories`, `agent_sessions`, `agent_tasks`, `agent_tool_executions`, `api_call_logs`, `api_patterns`, `brands`, `bulk_upload_progress`, `cached_lists`, `ciq_media_cache`, `creator_connect_profiles`, `developer_insights`, `ecommerce_clients`, `email_templates`, `knowledge_base`, `knowledge_extraction_jobs`, `landing_page_templates`, `meta_audience_memberships`, `meta_custom_audiences`, `meta_offline_conversions`, `webhook_publisher_preferences`
 
@@ -686,7 +690,7 @@ This document maps database tables to their owning repositories.
 
 ## sunafusion-agent-shell
 - Origin: git@github.com:acedge123/sunafusion-agent-shell.git
-- **Owns 3 table(s):** `creator_iq_state`, `leads`, `slack_access`
+- **Owns 5 table(s):** `agent_memories`, `creator_iq_state`, `leads`, `repo_map`, `slack_access`
 
 ## temp-creator-repo
 - Origin: https://github.com/acedge123/creator-licensing-hub.git

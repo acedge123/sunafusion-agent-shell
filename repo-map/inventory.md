@@ -1,6 +1,6 @@
 # Repo Inventory
 
-Generated: 2026-01-24T21:59:12.820Z
+Generated: 2026-01-25T01:45:59.160Z
 
 ## ads-gpt-starter
 - Origin: git@github.com:acedge123/ads-gpt-starter.git
@@ -149,6 +149,7 @@ Generated: 2026-01-24T21:59:12.820Z
 - Integrations: aws, openai, supabase
 ## influencer-iq-flow-analysis
 - Origin: git@github.com:acedge123/influencer-iq-flow.git
+- ⚠️  Alias of: `ciq-automations`
 - Status: `analysis-copy`
 - Stack: node, vite, supabase
 - Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations

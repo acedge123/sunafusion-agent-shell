@@ -286,10 +286,36 @@ function loadOverrides() {
   return {};
 }
 
+function loadDomainSummaries() {
+  const summariesPath = path.join(OUT_DIR, "DOMAIN_SUMMARIES.md");
+  if (!fs.existsSync(summariesPath)) {
+    return new Map();
+  }
+  
+  const content = fs.readFileSync(summariesPath, "utf8");
+  const summaries = new Map();
+  
+  // Parse markdown sections
+  const sections = content.split(/^## /m).slice(1);
+  
+  for (const section of sections) {
+    const lines = section.split('\n');
+    const repoName = lines[0].trim();
+    if (!repoName) continue;
+    
+    // Extract summary content (everything after the repo name)
+    const summaryText = section.substring(repoName.length).trim();
+    summaries.set(repoName, summaryText);
+  }
+  
+  return summaries;
+}
+
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   const overrides = loadOverrides();
+  const domainSummaries = loadDomainSummaries();
 
   const repoDirs = fs.readdirSync(WORKSPACE_REPOS_DIR, { withFileTypes: true })
     .filter(d => d.isDirectory())
@@ -355,6 +381,9 @@ function main() {
       });
     }
 
+    // Get domain summary if available
+    const domainSummary = domainSummaries.get(name) || null;
+    
     inventory.push({
       name,
       origin,
@@ -363,7 +392,8 @@ function main() {
       integrations: [...integrationSet].sort(),
       file_count_sampled: Math.min(files.length, 200),
       fingerprint: sha1(JSON.stringify({ origin, stack, entrypoints, integrations:[...integrationSet] })),
-      override
+      override,
+      domain_summary: domainSummary
     });
   }
 

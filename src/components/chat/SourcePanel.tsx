@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 
 interface SourceData {
-  repos_mentioned?: Array<{ name: string; origin: string }>
+  repos_mentioned?: Array<{ name: string; origin: string; domain_summary?: string }>
   tables_mentioned?: Array<{ table: string; owner_repo: string }>
   functions_mentioned?: Array<{ function: string; repo: string; type: 'edge' | 'api' }>
   sql_query?: string | null
@@ -67,20 +67,27 @@ export default function SourcePanel({ sourceData }: SourcePanelProps) {
             {sourceData.repos_mentioned && sourceData.repos_mentioned.length > 0 && (
               <div>
                 <h4 className="text-xs font-semibold text-muted-foreground mb-2">Repositories</h4>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {sourceData.repos_mentioned.map((repo, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-sm">
-                      <span className="font-mono">{repo.name}</span>
-                      {repo.origin && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openRepo(repo.origin)}
-                          className="h-6 px-2"
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Open
-                        </Button>
+                    <div key={idx} className="text-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-mono font-semibold">{repo.name}</span>
+                        {repo.origin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openRepo(repo.origin)}
+                            className="h-6 px-2"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Open
+                          </Button>
+                        )}
+                      </div>
+                      {repo.domain_summary && (
+                        <div className="text-xs text-muted-foreground mt-1 pl-2 border-l-2 border-muted">
+                          {repo.domain_summary.split('\n').slice(0, 3).join(' ').substring(0, 200)}...
+                        </div>
                       )}
                     </div>
                   ))}

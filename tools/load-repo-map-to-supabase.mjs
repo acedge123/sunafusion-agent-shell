@@ -98,7 +98,7 @@ schemaSections.forEach(section => {
   }
 });
 
-// Build full text search content
+// Build full text search content (includes domain_summary)
 function buildSearchText(repo) {
   const parts = [];
   parts.push(repo.name);
@@ -123,6 +123,13 @@ function buildSearchText(repo) {
   }
   if (repo.override?.alias_of) {
     parts.push(repo.override.alias_of);
+  }
+  
+  // Include domain_summary in search text (for meta/exploratory queries)
+  if (repo.domain_summary) {
+    // Extract key phrases from domain summary (first 500 chars for search)
+    const summaryText = repo.domain_summary.substring(0, 500);
+    parts.push(summaryText);
   }
   
   return parts.join(' ');
@@ -169,6 +176,7 @@ async function loadRepoMap() {
       table_owner: isTableOwner,
       shared_tables: sharedTables,
       override: repo.override || {},
+      domain_summary: repo.domain_summary || null,
       full_text_search: buildSearchText(repo),
       metadata: {
         entrypoints: repo.entrypoints || [],

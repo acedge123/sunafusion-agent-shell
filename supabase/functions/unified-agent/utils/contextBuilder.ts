@@ -152,7 +152,7 @@ export function buildContextFromResults(results, previousState = null) {
         reposByCategory[primaryIntegration].push(repo);
       });
       
-      // Display repos grouped by category
+      // Display repos grouped by category (includes domain_summary for meta/exploratory questions)
       for (const [category, categoryRepos] of Object.entries(reposByCategory)) {
         context += `[${category.toUpperCase()}]\n`;
         categoryRepos.forEach((repo: any) => {
@@ -165,6 +165,10 @@ export function buildContextFromResults(results, previousState = null) {
           }
           if (repo.tables && repo.tables.length > 0) {
             context += ` | Tables: ${repo.tables.slice(0, 3).join(', ')}${repo.tables.length > 3 ? '...' : ''}`;
+          }
+          // Include domain summary if available (for meta/exploratory questions)
+          if (repo.domain_summary) {
+            context += `\n    Summary: ${repo.domain_summary.split('\n').slice(0, 2).join(' ').substring(0, 150)}...`;
           }
           context += "\n";
         });

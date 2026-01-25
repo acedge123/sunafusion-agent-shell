@@ -495,7 +495,7 @@ serve(async (req) => {
     // 5. ALWAYS fetch repo-map context for full codebase awareness
     // Structured source data for UI
     const sourceData = {
-      repos_mentioned: [] as Array<{ name: string; origin: string }>,
+      repos_mentioned: [] as Array<{ name: string; origin: string; domain_summary?: string }>,
       tables_mentioned: [] as Array<{ table: string; owner_repo: string }>,
       functions_mentioned: [] as Array<{ function: string; repo: string; type: 'edge' | 'api' }>,
       sql_query: null as string | null
@@ -504,10 +504,10 @@ serve(async (req) => {
     try {
       console.log("Fetching repo-map context for agent codebase awareness...");
       
-      // 1. Always get a summary of all repositories for context
+      // 1. Always get a summary of all repositories for context (includes domain_summary)
       const { data: allRepos, error: allReposError } = await supabase
         .from('repo_map')
-        .select('repo_name, origin, integrations, supabase_functions, stack, tables')
+        .select('repo_name, origin, integrations, supabase_functions, stack, tables, domain_summary')
         .order('repo_name');
       
       if (!allReposError && allRepos && allRepos.length > 0) {
@@ -518,7 +518,8 @@ serve(async (req) => {
           if (r.repo_name) {
             sourceData.repos_mentioned.push({
               name: r.repo_name,
-              origin: r.origin || ''
+              origin: r.origin || '',
+              domain_summary: r.domain_summary || undefined
             });
           }
           
@@ -555,7 +556,7 @@ serve(async (req) => {
           new Map(sourceData.functions_mentioned.map(f => [f.function, f])).values()
         );
         
-        // Add all repos to results for context building
+        // Add all repos to results for context building (includes domain_summary)
         results.push({
           source: "repo_map",
           results: allRepos.map((r: any) => ({
@@ -564,7 +565,8 @@ serve(async (req) => {
             integrations: r.integrations || [],
             supabase_functions: r.supabase_functions || [],
             stack: r.stack || [],
-            tables: r.tables || []
+            tables: r.tables || [],
+            domain_summary: r.domain_summary || null
           }))
         });
       } else if (allReposError) {
@@ -585,16 +587,19 @@ serve(async (req) => {
         if (!repoMapError && repoMapResults && repoMapResults.length > 0) {
           console.log(`Found ${repoMapResults.length} relevance-scored repo-map results`);
           
-          // Merge relevance scores into the existing repo_map results
+          // Merge relevance scores and domain_summary into the existing repo_map results
           const existingRepoMapResult = results.find(r => r.source === "repo_map");
           if (existingRepoMapResult && existingRepoMapResult.results) {
-            // Add relevance scores to matching repos
+            // Add relevance scores and domain_summary to matching repos
             for (const scored of repoMapResults) {
               const existing = (existingRepoMapResult.results as any[]).find(
                 (r: any) => r.repo_name === scored.repo_name
               );
               if (existing) {
                 existing.relevance = scored.relevance;
+                if (scored.domain_summary) {
+                  existing.domain_summary = scored.domain_summary;
+                }
               }
             }
             

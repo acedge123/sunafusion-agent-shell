@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-01-24T21:59:12.827Z",
+  "generated_at": "2026-01-25T01:45:59.168Z",
   "nodes": [
     {
       "id": "ads-gpt-starter",
@@ -697,6 +697,23 @@
       ]
     },
     {
+      "id": "ciq-automations--sunafusion-agent-shell",
+      "source": "ciq-automations",
+      "target": "sunafusion-agent-shell",
+      "sharedTables": [
+        "agent_memories"
+      ],
+      "sharedIntegrations": [
+        "aws",
+        "supabase",
+        "webhook"
+      ],
+      "sharedAPIs": [
+        "creatoriq",
+        "openai"
+      ]
+    },
+    {
       "id": "debt-freedom-pathway-landing--sunafusion-agent-shell",
       "source": "debt-freedom-pathway-landing",
       "target": "sunafusion-agent-shell",
@@ -808,12 +825,13 @@
       "sharedAPIs": []
     },
     {
-      "id": "ciq-automations--creator-licensing-hub",
-      "source": "ciq-automations",
-      "target": "creator-licensing-hub",
-      "sharedTables": [],
+      "id": "influencer-iq-flow-analysis--sunafusion-agent-shell",
+      "source": "influencer-iq-flow-analysis",
+      "target": "sunafusion-agent-shell",
+      "sharedTables": [
+        "agent_memories"
+      ],
       "sharedIntegrations": [
-        "aws",
         "supabase",
         "webhook"
       ],
@@ -823,9 +841,9 @@
       ]
     },
     {
-      "id": "ciq-automations--sunafusion-agent-shell",
+      "id": "ciq-automations--creator-licensing-hub",
       "source": "ciq-automations",
-      "target": "sunafusion-agent-shell",
+      "target": "creator-licensing-hub",
       "sharedTables": [],
       "sharedIntegrations": [
         "aws",
@@ -1305,20 +1323,6 @@
       "sharedAPIs": [
         "creatoriq",
         "stripe"
-      ]
-    },
-    {
-      "id": "influencer-iq-flow-analysis--sunafusion-agent-shell",
-      "source": "influencer-iq-flow-analysis",
-      "target": "sunafusion-agent-shell",
-      "sharedTables": [],
-      "sharedIntegrations": [
-        "supabase",
-        "webhook"
-      ],
-      "sharedAPIs": [
-        "creatoriq",
-        "openai"
       ]
     },
     {

@@ -59,13 +59,14 @@ CREATE TRIGGER update_repo_map_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_repo_map_updated_at();
 
--- Helper function for text search
+-- Helper function for text search (includes domain_summary in search)
 CREATE OR REPLACE FUNCTION search_repo_map(query TEXT)
 RETURNS TABLE (
   repo_name TEXT,
   origin TEXT,
   integrations TEXT[],
   supabase_functions TEXT[],
+  domain_summary TEXT,
   relevance REAL
 ) AS $$
 BEGIN
@@ -75,6 +76,7 @@ BEGIN
     rm.origin,
     rm.integrations,
     rm.supabase_functions,
+    rm.domain_summary,
     ts_rank(to_tsvector('english', rm.full_text_search), plainto_tsquery('english', query)) as relevance
   FROM public.repo_map rm
   WHERE to_tsvector('english', rm.full_text_search) @@ plainto_tsquery('english', query)
