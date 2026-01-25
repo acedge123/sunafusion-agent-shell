@@ -258,6 +258,7 @@ export type Database = {
           api_routes_app: string[] | null
           api_routes_pages: string[] | null
           created_at: string
+          domain_summary: string | null
           full_text_search: string | null
           generated_at: string | null
           id: string
@@ -277,6 +278,7 @@ export type Database = {
           api_routes_app?: string[] | null
           api_routes_pages?: string[] | null
           created_at?: string
+          domain_summary?: string | null
           full_text_search?: string | null
           generated_at?: string | null
           id?: string
@@ -296,6 +298,7 @@ export type Database = {
           api_routes_app?: string[] | null
           api_routes_pages?: string[] | null
           created_at?: string
+          domain_summary?: string | null
           full_text_search?: string | null
           generated_at?: string | null
           id?: string
