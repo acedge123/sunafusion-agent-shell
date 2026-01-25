@@ -492,16 +492,7 @@ serve(async (req) => {
       }
     }
     
-    // 5. Search repo-map if query appears to be about repositories/codebase
-    const repoMapKeywords = [
-      'which repo', 'where is', 'which function', 'which table', 
-      'webhook', 'webhooks', 'creatoriq', 'shopify', 'bigcommerce',
-      'slack', 'gmail', 'api route', 'edge function', 'supabase function',
-      'migration', 'schema', 'database table', 'integration'
-    ];
-    const queryLower = query.toLowerCase();
-    const isRepoMapQuery = repoMapKeywords.some(keyword => queryLower.includes(keyword));
-    
+    // 5. ALWAYS fetch repo-map context for full codebase awareness
     // Structured source data for UI
     const sourceData = {
       repos_mentioned: [] as Array<{ name: string; origin: string }>,
@@ -510,94 +501,114 @@ serve(async (req) => {
       sql_query: null as string | null
     };
     
-    if (isRepoMapQuery) {
-      try {
-        console.log("Detected repo-map query, searching repository mapping...");
+    try {
+      console.log("Fetching repo-map context for agent codebase awareness...");
+      
+      // 1. Always get a summary of all repositories for context
+      const { data: allRepos, error: allReposError } = await supabase
+        .from('repo_map')
+        .select('repo_name, origin, integrations, supabase_functions, stack, tables')
+        .order('repo_name');
+      
+      if (!allReposError && allRepos && allRepos.length > 0) {
+        console.log(`Loaded ${allRepos.length} repositories for agent context`);
+        
+        // Build structured source data from all repos
+        for (const r of allRepos) {
+          if (r.repo_name) {
+            sourceData.repos_mentioned.push({
+              name: r.repo_name,
+              origin: r.origin || ''
+            });
+          }
+          
+          // Tables
+          if (r.tables && Array.isArray(r.tables)) {
+            for (const table of r.tables) {
+              sourceData.tables_mentioned.push({
+                table: table,
+                owner_repo: r.repo_name || ''
+              });
+            }
+          }
+          
+          // Functions
+          if (r.supabase_functions && Array.isArray(r.supabase_functions)) {
+            for (const fn of r.supabase_functions) {
+              sourceData.functions_mentioned.push({
+                function: fn,
+                repo: r.repo_name || '',
+                type: 'edge' as const
+              });
+            }
+          }
+        }
+        
+        // Deduplicate
+        sourceData.repos_mentioned = Array.from(
+          new Map(sourceData.repos_mentioned.map(r => [r.name, r])).values()
+        );
+        sourceData.tables_mentioned = Array.from(
+          new Map(sourceData.tables_mentioned.map(t => [t.table, t])).values()
+        );
+        sourceData.functions_mentioned = Array.from(
+          new Map(sourceData.functions_mentioned.map(f => [f.function, f])).values()
+        );
+        
+        // Add all repos to results for context building
+        results.push({
+          source: "repo_map",
+          results: allRepos.map((r: any) => ({
+            repo_name: r.repo_name,
+            origin: r.origin,
+            integrations: r.integrations || [],
+            supabase_functions: r.supabase_functions || [],
+            stack: r.stack || [],
+            tables: r.tables || []
+          }))
+        });
+      } else if (allReposError) {
+        console.error("Error fetching all repos:", allReposError);
+      }
+      
+      // 2. Additionally run relevance-scored search for code-specific queries
+      const queryLower = query.toLowerCase();
+      const codeKeywords = ['repo', 'function', 'table', 'integration', 'webhook', 'api', 'code', 'codebase', 'which', 'where'];
+      const isCodeQuery = codeKeywords.some(k => queryLower.includes(k));
+      
+      if (isCodeQuery) {
+        console.log("Running relevance-scored repo-map search for code query...");
         const { data: repoMapResults, error: repoMapError } = await supabase.rpc('search_repo_map', {
           query: query
         });
         
         if (!repoMapError && repoMapResults && repoMapResults.length > 0) {
-          console.log(`Found ${repoMapResults.length} repo-map results`);
+          console.log(`Found ${repoMapResults.length} relevance-scored repo-map results`);
           
-          // Extract structured source data
-          for (const r of repoMapResults) {
-            // Repos
-            if (r.repo_name) {
-              sourceData.repos_mentioned.push({
-                name: r.repo_name,
-                origin: r.origin || ''
-              });
-            }
-            
-            // Tables
-            if (r.tables && Array.isArray(r.tables)) {
-              for (const table of r.tables) {
-                sourceData.tables_mentioned.push({
-                  table: table,
-                  owner_repo: r.repo_name || ''
-                });
+          // Merge relevance scores into the existing repo_map results
+          const existingRepoMapResult = results.find(r => r.source === "repo_map");
+          if (existingRepoMapResult && existingRepoMapResult.results) {
+            // Add relevance scores to matching repos
+            for (const scored of repoMapResults) {
+              const existing = (existingRepoMapResult.results as any[]).find(
+                (r: any) => r.repo_name === scored.repo_name
+              );
+              if (existing) {
+                existing.relevance = scored.relevance;
               }
             }
             
-            // Functions
-            if (r.supabase_functions && Array.isArray(r.supabase_functions)) {
-              for (const fn of r.supabase_functions) {
-                sourceData.functions_mentioned.push({
-                  function: fn,
-                  repo: r.repo_name || '',
-                  type: 'edge' as const
-                });
-              }
-            }
-            
-            if (r.api_routes_pages && Array.isArray(r.api_routes_pages)) {
-              for (const route of r.api_routes_pages) {
-                sourceData.functions_mentioned.push({
-                  function: route,
-                  repo: r.repo_name || '',
-                  type: 'api' as const
-                });
-              }
-            }
-            
-            if (r.api_routes_app && Array.isArray(r.api_routes_app)) {
-              for (const route of r.api_routes_app) {
-                sourceData.functions_mentioned.push({
-                  function: route,
-                  repo: r.repo_name || '',
-                  type: 'api' as const
-                });
-              }
-            }
+            // Sort by relevance (highest first) for better context
+            (existingRepoMapResult.results as any[]).sort((a: any, b: any) => 
+              (b.relevance || 0) - (a.relevance || 0)
+            );
           }
-          
-          // Deduplicate
-          sourceData.repos_mentioned = Array.from(
-            new Map(sourceData.repos_mentioned.map(r => [r.name, r])).values()
-          );
-          sourceData.tables_mentioned = Array.from(
-            new Map(sourceData.tables_mentioned.map(t => [t.table, t])).values()
-          );
-          sourceData.functions_mentioned = Array.from(
-            new Map(sourceData.functions_mentioned.map(f => [f.function, f])).values()
-          );
-          
-          results.push({
-            source: "repo_map",
-            results: repoMapResults.map((r: any) => ({
-              repo_name: r.repo_name,
-              origin: r.origin,
-              integrations: r.integrations,
-              supabase_functions: r.supabase_functions,
-              relevance: r.relevance
-            }))
-          });
         } else if (repoMapError) {
-          console.error("Repo-map search error:", repoMapError);
+          console.error("Repo-map relevance search error:", repoMapError);
         }
-      } catch (error) {
-        console.error("Error searching repo-map:", error);
+      }
+    } catch (error) {
+      console.error("Error fetching repo-map context:", error);
         // Continue without repo-map results
       }
     }

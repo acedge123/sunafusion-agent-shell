@@ -132,29 +132,46 @@ export function buildContextFromResults(results, previousState = null) {
       context += "\n";
     }
     
-    // Process repo-map results
+    // Process repo-map results - ALWAYS show repository awareness
     const repoMapResults = results.find(r => r.source === "repo_map");
     if (repoMapResults && repoMapResults.results && repoMapResults.results.length > 0) {
-      context += "REPOSITORY MAPPING RESULTS:\n";
-      context += "Information about repositories, functions, tables, and integrations:\n\n";
+      const repos = repoMapResults.results;
+      context += `AVAILABLE REPOSITORIES (${repos.length} total):\n`;
+      context += "You have full awareness of the codebase. Here are the repositories:\n\n";
       
-      repoMapResults.results.forEach((repo, index) => {
-        context += `[${index + 1}] Repository: ${repo.repo_name}\n`;
-        if (repo.origin) {
-          context += `  Origin: ${repo.origin}\n`;
+      // Group repos by primary integration/stack for better organization
+      const reposByCategory: Record<string, any[]> = {};
+      
+      repos.forEach((repo: any) => {
+        const primaryIntegration = (repo.integrations && repo.integrations[0]) || 
+                                    (repo.stack && repo.stack[0]) || 
+                                    'general';
+        if (!reposByCategory[primaryIntegration]) {
+          reposByCategory[primaryIntegration] = [];
         }
-        if (repo.integrations && repo.integrations.length > 0) {
-          context += `  Integrations: ${repo.integrations.join(", ")}\n`;
-        }
-        if (repo.supabase_functions && repo.supabase_functions.length > 0) {
-          context += `  Supabase Edge Functions: ${repo.supabase_functions.join(", ")}\n`;
-        }
-        if (repo.relevance) {
-          context += `  Relevance: ${(repo.relevance * 100).toFixed(1)}%\n`;
-        }
-        context += "\n";
+        reposByCategory[primaryIntegration].push(repo);
       });
-      context += "\n";
+      
+      // Display repos grouped by category
+      for (const [category, categoryRepos] of Object.entries(reposByCategory)) {
+        context += `[${category.toUpperCase()}]\n`;
+        categoryRepos.forEach((repo: any) => {
+          context += `  - ${repo.repo_name}`;
+          if (repo.relevance && repo.relevance > 0) {
+            context += ` (relevance: ${(repo.relevance * 100).toFixed(0)}%)`;
+          }
+          if (repo.supabase_functions && repo.supabase_functions.length > 0) {
+            context += ` | Edge functions: ${repo.supabase_functions.join(', ')}`;
+          }
+          if (repo.tables && repo.tables.length > 0) {
+            context += ` | Tables: ${repo.tables.slice(0, 3).join(', ')}${repo.tables.length > 3 ? '...' : ''}`;
+          }
+          context += "\n";
+        });
+        context += "\n";
+      }
+      
+      context += "Use this repository information to answer questions about the codebase accurately.\n\n";
     }
     
     // Process Creator IQ results
