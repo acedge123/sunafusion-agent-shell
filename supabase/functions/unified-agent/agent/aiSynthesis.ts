@@ -1,6 +1,13 @@
+import { errMsg } from "../../_shared/error.ts";
+import type { AgentResult } from "../../_shared/types.ts";
 
 // Function to synthesize results with OpenAI
-export async function synthesizeWithAI(query, results, conversation_history, previous_state = null) {
+export async function synthesizeWithAI(
+  query: string, 
+  results: AgentResult[], 
+  conversation_history: unknown[], 
+  previous_state: unknown = null
+): Promise<string> {
   try {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
@@ -16,8 +23,9 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
     const context = buildContextFromResults(results, previous_state);
     
     // Check if we have list-related operations in the query
+    const prevState = previous_state as Record<string, unknown> | null;
     const isListQuery = query.toLowerCase().includes('list') || 
-                       (previous_state && previous_state.lists && previous_state.lists.length > 0);
+                       (prevState && Array.isArray(prevState.lists) && prevState.lists.length > 0);
     
     // Prepare system message with enhanced instructions for list operations
     let systemMessage = 'You are a helpful assistant that can search the web, access Google Drive files, and query corporate data APIs like Creator IQ. Answer the user\'s question based on the context provided. If you cannot find the answer, say so clearly and provide your best suggestion.';
@@ -31,7 +39,7 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
     }
     
     // Prepare messages for OpenAI API
-    const messages = [
+    const messages: Array<{ role: string; content: string }> = [
       {
         role: 'system',
         content: systemMessage
@@ -39,12 +47,15 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
     ];
     
     // Add conversation history if available
-    if (conversation_history && conversation_history.length > 0) {
+    if (conversation_history && Array.isArray(conversation_history) && conversation_history.length > 0) {
       for (const msg of conversation_history) {
-        messages.push({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content
-        });
+        const typedMsg = msg as Record<string, unknown>;
+        if (typeof typedMsg.role === 'string' && typeof typedMsg.content === 'string') {
+          messages.push({
+            role: typedMsg.role === 'user' ? 'user' : 'assistant',
+            content: typedMsg.content
+          });
+        }
       }
     }
     
@@ -64,7 +75,7 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // Use a more powerful model
+        model: 'gpt-4o-mini',
         messages,
         temperature: 0.5
       })
@@ -81,6 +92,6 @@ export async function synthesizeWithAI(query, results, conversation_history, pre
     return answer;
   } catch (error) {
     console.error("Error in synthesizeWithAI:", error);
-    return `I encountered an error while trying to process your request: ${error.message}. Please try again or contact support if the issue persists.`;
+    return `I encountered an error while trying to process your request: ${errMsg(error)}. Please try again or contact support if the issue persists.`;
   }
 }

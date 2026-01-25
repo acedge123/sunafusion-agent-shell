@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { errMsg } from "../_shared/error.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,7 +46,6 @@ serve(async (req) => {
     console.log(`Deleted ${oldRunsCount} old completed agent_runs`)
 
     // 3. Optional: Summarize/prune very old messages (older than 90 days)
-    // This is conservative - only messages that are not part of active threads
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
@@ -54,13 +54,14 @@ serve(async (req) => {
       .from('threads')
       .select('thread_id')
       .lt('updated_at', ninetyDaysAgo.toISOString())
-      .limit(100) // Process in batches
+      .limit(100)
+
+    // Declare deletedMessagesCount OUTSIDE the if block
+    let deletedMessagesCount = 0
 
     if (oldThreads && oldThreads.length > 0) {
       const threadIds = oldThreads.map(t => t.thread_id)
       
-      // Keep only summary messages and the last 10 messages per old thread
-      // This is a simple approach - could be enhanced
       const { data: messagesToKeep } = await supabase
         .from('messages')
         .select('message_id')
@@ -71,7 +72,6 @@ serve(async (req) => {
 
       const keepIds = new Set(messagesToKeep?.map(m => m.message_id) || [])
       
-      // Delete old messages from these threads (except summaries and recent ones)
       const { data: deletedMessages } = await supabase
         .from('messages')
         .delete()
@@ -81,7 +81,7 @@ serve(async (req) => {
         .neq('type', 'summary')
         .select()
 
-      const deletedMessagesCount = deletedMessages?.length || 0
+      deletedMessagesCount = deletedMessages?.length || 0
       console.log(`Pruned ${deletedMessagesCount} old messages from inactive threads`)
     }
 
@@ -91,7 +91,7 @@ serve(async (req) => {
         cleaned: {
           expired_creator_iq_state: expiredCount,
           old_agent_runs: oldRunsCount,
-          old_messages: deletedMessagesCount || 0
+          old_messages: deletedMessagesCount
         },
         timestamp: new Date().toISOString()
       }),
@@ -102,7 +102,7 @@ serve(async (req) => {
     console.error('Cleanup error:', error)
     return new Response(
       JSON.stringify({ 
-        error: error.message || 'Cleanup failed',
+        error: errMsg(error, 'Cleanup failed'),
         timestamp: new Date().toISOString()
       }),
       { 

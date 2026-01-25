@@ -1,5 +1,5 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errMsg } from "../_shared/error.ts";
 
 // Define Slack API base URL
 const SLACK_API_BASE_URL = "https://slack.com/api";
@@ -33,7 +33,8 @@ serve(async (req) => {
 
     // Extract the Authorization header
     const authHeader = req.headers.get('Authorization');
-    let userId = null;
+    let userId: string | null = null;
+    let slackToken: string | undefined;
 
     // Only require authentication for actions that need it
     if (action !== 'exchangeCodeForToken') {
@@ -41,10 +42,10 @@ serve(async (req) => {
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.replace('Bearer ', '');
         const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-        if (!userError && userData.user) {
+        if (!userError && userData?.user) {
           userId = userData.user.id;
         } else {
-          console.log('Invalid user token in auth header:', userError?.message);
+          console.log('Invalid user token in auth header:', errMsg(userError, 'Unknown auth error'));
         }
       }
   
@@ -63,7 +64,7 @@ serve(async (req) => {
         throw new Error('Slack access token not found for user');
       }
   
-      var slackToken = tokenData.access_token;
+      slackToken = tokenData.access_token;
     }
 
     // Handle different Slack API actions
@@ -73,16 +74,16 @@ serve(async (req) => {
         result = await exchangeCodeForToken(requestData);
         break;
       case 'search':
-        result = await searchMessages(slackToken, requestData);
+        result = await searchMessages(slackToken!, requestData);
         break;
       case 'getChannels':
-        result = await getChannels(slackToken);
+        result = await getChannels(slackToken!);
         break;
       case 'getChannelHistory':
-        result = await getChannelHistory(slackToken, requestData);
+        result = await getChannelHistory(slackToken!, requestData);
         break;
       case 'getThreadReplies':
-        result = await getThreadReplies(slackToken, requestData);
+        result = await getThreadReplies(slackToken!, requestData);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -92,10 +93,10 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error(`Error in slack-data function: ${error.message}`);
+    console.error(`Error in slack-data function: ${errMsg(error)}`);
     return new Response(
       JSON.stringify({
-        error: error.message || 'An unexpected error occurred',
+        error: errMsg(error, 'An unexpected error occurred'),
       }),
       {
         status: 500,
@@ -106,7 +107,7 @@ serve(async (req) => {
 });
 
 // New function to exchange code for token
-async function exchangeCodeForToken(params: any) {
+async function exchangeCodeForToken(params: Record<string, unknown>) {
   const { code, redirectUri } = params;
   const clientId = "105581126916.8801648634339";
   const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET');
@@ -120,8 +121,8 @@ async function exchangeCodeForToken(params: any) {
   const formData = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
-    code: code,
-    redirect_uri: redirectUri
+    code: code as string,
+    redirect_uri: redirectUri as string
   });
 
   const response = await fetch(`${SLACK_API_BASE_URL}/oauth.v2.access`, {
@@ -149,17 +150,17 @@ async function exchangeCodeForToken(params: any) {
 }
 
 // Function to search Slack messages
-async function searchMessages(token: string, params: any) {
+async function searchMessages(token: string, params: Record<string, unknown>) {
   const { query, channels, limit = 20 } = params;
   
   const searchParams = new URLSearchParams({
-    query,
-    count: limit.toString(),
+    query: query as string,
+    count: (limit as number).toString(),
     sort: 'timestamp',
     sort_dir: 'desc',
   });
 
-  if (channels && channels.length > 0) {
+  if (channels && Array.isArray(channels) && channels.length > 0) {
     searchParams.append('channel', channels.join(','));
   }
 
@@ -177,12 +178,12 @@ async function searchMessages(token: string, params: any) {
   }
 
   // Process and format messages
-  const messages = data.messages.matches.map((match: any) => ({
+  const messages = data.messages.matches.map((match: Record<string, unknown>) => ({
     id: match.ts,
     text: match.text,
     user: match.user,
     ts: match.ts,
-    channel: match.channel.id,
+    channel: (match.channel as Record<string, unknown>).id,
     thread_ts: match.thread_ts,
   }));
 
@@ -205,7 +206,7 @@ async function getChannels(token: string) {
   }
 
   // Process and format channels
-  const channels = data.channels.map((channel: any) => ({
+  const channels = data.channels.map((channel: Record<string, unknown>) => ({
     id: channel.id,
     name: channel.name,
     is_private: channel.is_private,
@@ -217,12 +218,12 @@ async function getChannels(token: string) {
 }
 
 // Function to get channel history
-async function getChannelHistory(token: string, params: any) {
+async function getChannelHistory(token: string, params: Record<string, unknown>) {
   const { channelId, limit = 50 } = params;
   
   const searchParams = new URLSearchParams({
-    channel: channelId,
-    limit: limit.toString(),
+    channel: channelId as string,
+    limit: (limit as number).toString(),
   });
 
   const response = await fetch(`${SLACK_API_BASE_URL}/conversations.history?${searchParams}`, {
@@ -239,7 +240,7 @@ async function getChannelHistory(token: string, params: any) {
   }
 
   // Process and format messages
-  const messages = data.messages.map((message: any) => ({
+  const messages = data.messages.map((message: Record<string, unknown>) => ({
     id: message.ts,
     text: message.text,
     user: message.user,
@@ -252,12 +253,12 @@ async function getChannelHistory(token: string, params: any) {
 }
 
 // Function to get thread replies
-async function getThreadReplies(token: string, params: any) {
+async function getThreadReplies(token: string, params: Record<string, unknown>) {
   const { channelId, threadTs } = params;
   
   const searchParams = new URLSearchParams({
-    channel: channelId,
-    ts: threadTs,
+    channel: channelId as string,
+    ts: threadTs as string,
   });
 
   const response = await fetch(`${SLACK_API_BASE_URL}/conversations.replies?${searchParams}`, {
@@ -274,7 +275,7 @@ async function getThreadReplies(token: string, params: any) {
   }
 
   // Process and format messages
-  const messages = data.messages.map((message: any) => ({
+  const messages = data.messages.map((message: Record<string, unknown>) => ({
     id: message.ts,
     text: message.text,
     user: message.user,
@@ -314,7 +315,7 @@ function createClient(supabaseUrl: string, supabaseKey: string) {
       return {
         select: (columns: string) => {
           return {
-            eq: (column: string, value: any) => {
+            eq: (column: string, value: string) => {
               return {
                 maybeSingle: async () => {
                   try {

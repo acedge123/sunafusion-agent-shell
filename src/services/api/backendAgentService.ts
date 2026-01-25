@@ -2,6 +2,8 @@
  * Service for calling the backend agentpress API (heavy tasks)
  */
 
+import { supabase } from "@/integrations/supabase/client";
+
 const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000';
 
 export interface BackendAgentStartRequest {
@@ -70,10 +72,7 @@ export async function startBackendAgent(
   }
 
   // Search repo-map if query matches keywords (same as unified-agent)
-  // Dynamic import to avoid circular dependencies
-  const supabaseModule = await import("@/integrations/supabase/client");
-  const supabaseClient = supabaseModule.supabase || supabaseModule.default;
-  const repoMapResults = await searchRepoMapBeforeAgent(prompt, supabaseClient);
+  const repoMapResults = await searchRepoMapBeforeAgent(prompt, supabase);
   if (repoMapResults.length > 0) {
     console.log(`Found ${repoMapResults.length} repo-map results, adding to context`);
     // Prepend repo-map context to prompt

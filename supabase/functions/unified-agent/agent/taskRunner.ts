@@ -1,6 +1,21 @@
+/**
+ * @deprecated Use iterativeTaskRunner.ts instead - this uses legacy OpenAI endpoints
+ * Kept for reference only - should not be called in production
+ */
+
+import { errMsg } from "../../_shared/error.ts";
+import type { AgentResult, TaskResult } from "../../_shared/types.ts";
 
 // Function to execute an agent task with more advanced capabilities
-export async function runAgentTask(query, results, conversation_history = [], tools = [], allow_iterations = true, max_iterations = 3, reasoning_level = "medium") {
+export async function runAgentTask(
+  query: string, 
+  results: AgentResult[], 
+  conversation_history: unknown[] = [], 
+  tools: string[] = [], 
+  allow_iterations = true, 
+  max_iterations = 3, 
+  reasoning_level = "medium"
+): Promise<TaskResult> {
   try {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
@@ -40,7 +55,7 @@ export async function runAgentTask(query, results, conversation_history = [], to
   } catch (error) {
     console.error("Error in runAgentTask:", error);
     return {
-      answer: `I encountered an error while trying to process your task: ${error.message}. Please try again or contact support if the issue persists.`,
+      answer: `I encountered an error while trying to process your task: ${errMsg(error)}. Please try again or contact support if the issue persists.`,
       reasoning: "An error occurred during processing.",
       steps: [],
       tools_used: []
@@ -49,7 +64,12 @@ export async function runAgentTask(query, results, conversation_history = [], to
 }
 
 // Helper function to get an agent response from OpenAI
-export async function getAgentResponse(query, context, tools, reasoningPrompt) {
+export async function getAgentResponse(
+  query: string, 
+  context: string, 
+  tools: string[], 
+  reasoningPrompt: string
+): Promise<TaskResult> {
   try {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     console.log("Getting agent response from OpenAI");
@@ -112,9 +132,9 @@ Remember to format your response according to the instructions.`;
 }
 
 // Helper function to parse the structured response from the agent
-export function parseStructuredResponse(responseText) {
+export function parseStructuredResponse(responseText: string): TaskResult {
   // Default structure
-  const result = {
+  const result: TaskResult = {
     reasoning: "",
     steps: [],
     answer: "",
@@ -132,7 +152,7 @@ export function parseStructuredResponse(responseText) {
     const stepsMatch = responseText.match(/STEPS_TAKEN:(.*?)(?:ANSWER:|TOOLS_USED:|$)/s);
     if (stepsMatch) {
       const stepsText = stepsMatch[1].trim();
-      const stepLines = stepsText.split('\n').filter(line => line.trim());
+      const stepLines = stepsText.split('\n').filter((line: string) => line.trim());
       
       // Parse steps with numbers and descriptions
       for (const line of stepLines) {
@@ -166,8 +186,8 @@ export function parseStructuredResponse(responseText) {
       // Split by commas, newlines, or bullet points and clean up
       result.tools_used = toolsText
         .split(/[,\n•\-]+/)
-        .map(tool => tool.trim())
-        .filter(tool => tool.length > 0);
+        .map((tool: string) => tool.trim())
+        .filter((tool: string) => tool.length > 0);
     }
     
     return result;

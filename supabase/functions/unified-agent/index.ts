@@ -54,6 +54,8 @@ serve(async (req) => {
       throw new Error('Query is required');
     }
 
+    // Initialize results array BEFORE any usage
+    const results: Array<{ source: string; results?: unknown[]; error?: string; details?: string; state?: unknown }> = [];
     // Extract the Authorization header
     const authHeader = req.headers.get('Authorization');
     let userId = null;
@@ -309,13 +311,16 @@ serve(async (req) => {
               // Process results for state storage
               if (endpoint.route === "/campaigns" && result.data && result.data.CampaignCollection) {
                 const campaigns = result.data.CampaignCollection
-                  .filter(c => c.Campaign && c.Campaign.CampaignId && c.Campaign.CampaignName)
-                  .map(c => ({
-                    id: c.Campaign.CampaignId,
-                    name: c.Campaign.CampaignName,
-                    status: c.Campaign.CampaignStatus,
-                    publishersCount: c.Campaign.PublishersCount
-                  }));
+                  .filter((c: Record<string, unknown>) => c.Campaign && (c.Campaign as Record<string, unknown>).CampaignId && (c.Campaign as Record<string, unknown>).CampaignName)
+                  .map((c: Record<string, unknown>) => {
+                    const campaign = c.Campaign as Record<string, unknown>;
+                    return {
+                      id: campaign.CampaignId,
+                      name: campaign.CampaignName,
+                      status: campaign.CampaignStatus,
+                      publishersCount: campaign.PublishersCount
+                    };
+                  });
                   
                 stateData.newData.campaigns = campaigns;
                 console.log(`Processed ${campaigns.length} campaigns for state storage`);
@@ -324,12 +329,17 @@ serve(async (req) => {
               // Process publisher results
               if (endpoint.route.includes('/publishers') && result.data && result.data.PublisherCollection) {
                 const publishers = result.data.PublisherCollection
-                  .filter(p => p.Publisher && p.Publisher.Id)
-                  .map(p => ({
-                    id: p.Publisher.Id,
-                    name: p.Publisher.PublisherName || 'Unnamed',
-                    status: p.Publisher.Status
-                  }));
+                  .filter((p: Record<string, unknown>) => p.Publisher && (p.Publisher as Record<string, unknown>).Id)
+                  .map((p: Record<string, unknown>) => {
+                    const publisher = p.Publisher as Record<string, unknown>;
+                    return {
+                      id: publisher.Id,
+                      name: publisher.PublisherName || 'Unnamed',
+                      status: publisher.Status,
+                      campaignId: undefined as string | undefined,
+                      listId: undefined as string | undefined
+                    };
+                  });
                   
                 stateData.newData.publishers = publishers;
                 console.log(`Processed ${publishers.length} publishers for state storage`);

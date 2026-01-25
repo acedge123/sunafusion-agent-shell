@@ -1,12 +1,13 @@
 // Tool Executor - Executes tool calls and returns results
 
+import { errMsg } from "../../_shared/error.ts";
 import { determineCreatorIQEndpoints, buildCreatorIQPayload, queryCreatorIQEndpoint } from "../sources/creatorIQ.ts";
 
 export async function executeTool(
   toolName: string, 
-  args: any, 
-  context: any
-): Promise<any> {
+  args: Record<string, unknown>, 
+  context: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   console.log(`Executing tool: ${toolName} with args:`, args);
   
   try {
@@ -33,18 +34,22 @@ export async function executeTool(
     console.error(`Error executing tool ${toolName}:`, error);
     return {
       success: false,
-      error: error.message || "Tool execution failed"
+      error: errMsg(error, "Tool execution failed")
     };
   }
 }
 
-async function fetchMoreCreatorIQData(args: any, context: any): Promise<any> {
+async function fetchMoreCreatorIQData(
+  args: Record<string, unknown>, 
+  context: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   const { endpoint, page, campaign_id, list_id } = args;
   
   // Determine the current page from context if not specified
-  let targetPage = page;
-  if (!targetPage && context.pagination) {
-    targetPage = (context.pagination.current_page || 1) + 1;
+  let targetPage = page as number | undefined;
+  const pagination = context.pagination as Record<string, unknown> | undefined;
+  if (!targetPage && pagination) {
+    targetPage = ((pagination.current_page as number) || 1) + 1;
   }
   
   // Build the endpoint configuration
@@ -86,6 +91,7 @@ async function fetchMoreCreatorIQData(args: any, context: any): Promise<any> {
   console.log(`Fetching page ${payload.page} of ${endpoint}`);
   
   const result = await queryCreatorIQEndpoint(endpointConfig, payload);
+  const data = result.data as Record<string, unknown> | undefined;
   
   return {
     success: true,
@@ -93,14 +99,17 @@ async function fetchMoreCreatorIQData(args: any, context: any): Promise<any> {
     page: targetPage,
     data: result.data,
     pagination: {
-      current_page: result.data?.page || targetPage,
-      total_pages: result.data?.total_pages || 1,
-      total_items: result.data?.total || 0
+      current_page: data?.page || targetPage,
+      total_pages: data?.total_pages || 1,
+      total_items: data?.total || 0
     }
   };
 }
 
-async function searchCreatorIQ(args: any, context: any): Promise<any> {
+async function searchCreatorIQ(
+  args: Record<string, unknown>, 
+  context: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   const { query, endpoint, campaign_id, filters } = args;
   
   // Build the endpoint configuration
@@ -134,7 +143,7 @@ async function searchCreatorIQ(args: any, context: any): Promise<any> {
   }
   
   // Build payload with filters
-  const payload: any = {
+  const payload: Record<string, unknown> = {
     limit: 50
   };
   
@@ -142,13 +151,14 @@ async function searchCreatorIQ(args: any, context: any): Promise<any> {
     payload.search_term = query;
   }
   
-  if (filters) {
+  if (filters && typeof filters === 'object') {
     Object.assign(payload, filters);
   }
   
   console.log(`Searching ${endpoint} with payload:`, payload);
   
   const result = await queryCreatorIQEndpoint(endpointConfig, payload);
+  const data = result.data as Record<string, unknown> | undefined;
   
   return {
     success: true,
@@ -156,14 +166,17 @@ async function searchCreatorIQ(args: any, context: any): Promise<any> {
     query,
     data: result.data,
     pagination: {
-      current_page: result.data?.page || 1,
-      total_pages: result.data?.total_pages || 1,
-      total_items: result.data?.total || 0
+      current_page: data?.page || 1,
+      total_pages: data?.total_pages || 1,
+      total_items: data?.total || 0
     }
   };
 }
 
-async function createCreatorIQList(args: any, context: any): Promise<any> {
+async function createCreatorIQList(
+  args: Record<string, unknown>, 
+  context: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   const { name, description, publisher_ids } = args;
   
   const endpointConfig = {
@@ -178,25 +191,31 @@ async function createCreatorIQList(args: any, context: any): Promise<any> {
     Publishers: publisher_ids || []
   };
   
-  console.log(`Creating list "${name}" with ${publisher_ids?.length || 0} publishers`);
+  const publisherIdsArray = publisher_ids as unknown[] | undefined;
+  console.log(`Creating list "${name}" with ${publisherIdsArray?.length || 0} publishers`);
   
   const result = await queryCreatorIQEndpoint(endpointConfig, payload);
+  const data = result.data as Record<string, unknown> | undefined;
+  const list = data?.List as Record<string, unknown> | undefined;
   
   return {
-    success: result.data?.List?.Id ? true : false,
-    list_id: result.data?.List?.Id,
-    list_name: result.data?.List?.Name,
+    success: list?.Id ? true : false,
+    list_id: list?.Id,
+    list_name: list?.Name,
     data: result.data
   };
 }
 
-async function analyzeData(args: any, context: any): Promise<any> {
+async function analyzeData(
+  args: Record<string, unknown>, 
+  context: Record<string, unknown>
+): Promise<Record<string, unknown>> {
   const { analysis_type, criteria } = args;
   
   // This is a local analysis tool that works with data already in context
-  const allData = context.all_data || [];
+  const allData = (context.all_data || []) as Record<string, unknown>[];
   
-  let result;
+  let result: Record<string, unknown>;
   switch (analysis_type) {
     case "summarize":
       result = {
@@ -207,9 +226,10 @@ async function analyzeData(args: any, context: any): Promise<any> {
     
     case "filter":
       result = {
-        filtered_items: allData.filter(item => {
-          if (!criteria) return true;
-          return Object.entries(criteria).every(([key, value]) => item[key] === value);
+        filtered_items: allData.filter((item: Record<string, unknown>) => {
+          if (!criteria || typeof criteria !== 'object') return true;
+          const criteriaObj = criteria as Record<string, unknown>;
+          return Object.entries(criteriaObj).every(([key, value]) => item[key] === value);
         })
       };
       break;
