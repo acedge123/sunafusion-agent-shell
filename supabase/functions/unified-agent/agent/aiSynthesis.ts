@@ -41,6 +41,9 @@ export async function synthesizeWithAI(
     const hasRepoData = repoResult && repoResult.results && repoResult.results.length > 0;
     const repoCount = hasRepoData ? repoResult.results.length : 0;
     
+    // Core instruction for all responses
+    const coreInstruction = "Be brief. Be bright. And be gone.";
+    
     // Build strict system message
     let systemMessage: string;
     
@@ -49,7 +52,9 @@ export async function synthesizeWithAI(
       // Extract repo names for explicit grounding
       const repoNames = repoResult.results.slice(0, 10).map((r: Record<string, unknown>) => r.repo_name).join(', ');
       
-      systemMessage = `You are a FACTUAL DATABASE QUERY INTERFACE. You ONLY report facts from the provided data.
+      systemMessage = `${coreInstruction}
+
+You are a FACTUAL DATABASE QUERY INTERFACE. You ONLY report facts from the provided data.
 
 CRITICAL CONSTRAINT: You are FORBIDDEN from providing general definitions, industry explanations, or conceptual overviews.
 
@@ -84,7 +89,9 @@ Repos matching "[query term]":
 
 If no repos match, say: "No repos found matching [X]. Here are available repos: ..."`;
     } else if (isRepoQuestion && !hasRepoData) {
-      systemMessage = `You are a FACTUAL DATABASE QUERY INTERFACE. 
+      systemMessage = `${coreInstruction}
+
+You are a FACTUAL DATABASE QUERY INTERFACE. 
       
 The user is asking about repositories/code, but the repo_map search returned no results.
 
@@ -95,7 +102,9 @@ To help you, I need more context - are you looking for a specific repo name, an 
 DO NOT provide general definitions or industry explanations.`;
     } else {
       // Non-repo questions - standard helpful mode
-      systemMessage = `You are a helpful AI assistant with access to:
+      systemMessage = `${coreInstruction}
+
+You are a helpful AI assistant with access to:
 - Web search results (external info)
 - Google Drive files (documents)
 - Creator IQ API (campaigns, publishers, lists)
