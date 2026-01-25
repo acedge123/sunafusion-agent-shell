@@ -77,8 +77,41 @@ serve(async (req) => {
       console.log('No Authorization header provided');
     }
 
+    // Load user memories (durable facts/preferences) if authenticated
+    let userMemories: any[] = [];
+    if (userId) {
+      try {
+        const { data: memories, error: memError } = await supabase
+          .from('agent_memories')
+          .select('fact, tags, confidence')
+          .eq('user_id', userId)
+          .order('updated_at', { ascending: false })
+          .limit(10); // Load most recent 10 memories
+        
+        if (!memError && memories) {
+          userMemories = memories;
+          console.log(`Loaded ${memories.length} user memories`);
+          
+          // Add memories to results as context
+          if (memories.length > 0) {
+            results.push({
+              source: "memory",
+              results: memories.map(m => ({
+                fact: m.fact,
+                tags: m.tags,
+                confidence: m.confidence
+              }))
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error loading memories:", error);
+        // Don't fail the request if memory loading fails
+      }
+    }
+    
     // Initialize results array to store information from different sources
-    const results = [];
+    // (memories already added above)
     
     // Initialize state data to be saved later
     const stateData = {
@@ -459,6 +492,14 @@ serve(async (req) => {
     const queryLower = query.toLowerCase();
     const isRepoMapQuery = repoMapKeywords.some(keyword => queryLower.includes(keyword));
     
+    // Structured source data for UI
+    const sourceData = {
+      repos_mentioned: [] as Array<{ name: string; origin: string }>,
+      tables_mentioned: [] as Array<{ table: string; owner_repo: string }>,
+      functions_mentioned: [] as Array<{ function: string; repo: string; type: 'edge' | 'api' }>,
+      sql_query: null as string | null
+    };
+    
     if (isRepoMapQuery) {
       try {
         console.log("Detected repo-map query, searching repository mapping...");
@@ -468,6 +509,70 @@ serve(async (req) => {
         
         if (!repoMapError && repoMapResults && repoMapResults.length > 0) {
           console.log(`Found ${repoMapResults.length} repo-map results`);
+          
+          // Extract structured source data
+          for (const r of repoMapResults) {
+            // Repos
+            if (r.repo_name) {
+              sourceData.repos_mentioned.push({
+                name: r.repo_name,
+                origin: r.origin || ''
+              });
+            }
+            
+            // Tables
+            if (r.tables && Array.isArray(r.tables)) {
+              for (const table of r.tables) {
+                sourceData.tables_mentioned.push({
+                  table: table,
+                  owner_repo: r.repo_name || ''
+                });
+              }
+            }
+            
+            // Functions
+            if (r.supabase_functions && Array.isArray(r.supabase_functions)) {
+              for (const fn of r.supabase_functions) {
+                sourceData.functions_mentioned.push({
+                  function: fn,
+                  repo: r.repo_name || '',
+                  type: 'edge' as const
+                });
+              }
+            }
+            
+            if (r.api_routes_pages && Array.isArray(r.api_routes_pages)) {
+              for (const route of r.api_routes_pages) {
+                sourceData.functions_mentioned.push({
+                  function: route,
+                  repo: r.repo_name || '',
+                  type: 'api' as const
+                });
+              }
+            }
+            
+            if (r.api_routes_app && Array.isArray(r.api_routes_app)) {
+              for (const route of r.api_routes_app) {
+                sourceData.functions_mentioned.push({
+                  function: route,
+                  repo: r.repo_name || '',
+                  type: 'api' as const
+                });
+              }
+            }
+          }
+          
+          // Deduplicate
+          sourceData.repos_mentioned = Array.from(
+            new Map(sourceData.repos_mentioned.map(r => [r.name, r])).values()
+          );
+          sourceData.tables_mentioned = Array.from(
+            new Map(sourceData.tables_mentioned.map(t => [t.table, t])).values()
+          );
+          sourceData.functions_mentioned = Array.from(
+            new Map(sourceData.functions_mentioned.map(f => [f.function, f])).values()
+          );
+          
           results.push({
             source: "repo_map",
             results: repoMapResults.map((r: any) => ({
@@ -490,6 +595,38 @@ serve(async (req) => {
     // For non-task mode, just synthesize with AI as before
     console.log("Synthesizing results with OpenAI");
     const answer = await synthesizeWithAI(query, results, conversation_history, previous_state);
+    
+    // Extract and store memory if appropriate (lightweight facts layer)
+    if (userId && answer) {
+      try {
+        const { extractMemory } = await import('./utils/memoryExtractor.ts');
+        const memory = extractMemory(answer, query);
+        
+        if (memory) {
+          // Store memory asynchronously (don't block response)
+          supabase.from('agent_memories').insert({
+            user_id: userId,
+            fact: memory.fact,
+            tags: memory.tags,
+            confidence: memory.confidence
+          }).then(({ error }) => {
+            if (error) {
+              console.error("Error storing memory:", error);
+            } else {
+              console.log("Stored memory:", memory.fact.substring(0, 50));
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error in memory extraction:", error);
+        // Don't fail the request if memory extraction fails
+      }
+    }
+    
+    // Return structured source data if repo-map was used
+    const hasSourceData = sourceData.repos_mentioned.length > 0 || 
+                         sourceData.tables_mentioned.length > 0 || 
+                         sourceData.functions_mentioned.length > 0;
 
     // Process and store any write operation results
     const creatorIQResults = results.find(r => r.source === "creator_iq");
@@ -665,6 +802,7 @@ serve(async (req) => {
       JSON.stringify({
         answer,
         sources: results,
+        ...(hasSourceData && { source_data: sourceData })
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

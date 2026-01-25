@@ -10,6 +10,8 @@ import { Loader2, Send, Bot, Zap, AlertCircle } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import ChatContainer, { Message } from "@/components/chat/ChatContainer"
+import SourcePanel from "@/components/chat/SourcePanel"
+import OperatorButtons from "@/components/chat/OperatorButtons"
 import { v4 as uuidv4 } from "uuid"
 import { detectHeavyTask, getHeavyTaskSuggestion } from "@/utils/heavyTaskDetector"
 import { startBackendAgent, streamBackendAgent, normalizeBackendResponse } from "@/services/api/backendAgentService"
@@ -27,6 +29,7 @@ const Chat = () => {
   const [runMode, setRunMode] = useState<RunMode>('quick')
   const [showHeavyTaskAdvisory, setShowHeavyTaskAdvisory] = useState(false)
   const [activeAgentRunId, setActiveAgentRunId] = useState<string | null>(null)
+  const [lastSourceData, setLastSourceData] = useState<any>(null)
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -218,6 +221,13 @@ const Chat = () => {
       }
     }
 
+    // Store source data if present
+    if (response.data.source_data) {
+      setLastSourceData(response.data.source_data)
+    } else {
+      setLastSourceData(null)
+    }
+
     // Normalize Edge response to Message format
     const assistantMessage: Message = {
       id: uuidv4(),
@@ -350,7 +360,13 @@ const Chat = () => {
       </header>
       
       <div className="flex-1 overflow-y-auto p-4">
+        <OperatorButtons onSelectQuery={(query) => setInput(query)} />
         <ChatContainer messages={messages} />
+        {lastSourceData && (
+          <div className="mt-4">
+            <SourcePanel sourceData={lastSourceData} />
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
       

@@ -118,6 +118,20 @@ export function buildContextFromResults(results, previousState = null) {
       });
     }
     
+    // Process memory results (durable facts/preferences)
+    const memoryResults = results.find(r => r.source === "memory");
+    if (memoryResults && memoryResults.results && memoryResults.results.length > 0) {
+      context += "USER MEMORIES (Durable Facts & Preferences):\n";
+      memoryResults.results.forEach((memory, index) => {
+        context += `[${index + 1}] ${memory.fact}`;
+        if (memory.tags && memory.tags.length > 0) {
+          context += ` [Tags: ${memory.tags.join(', ')}]`;
+        }
+        context += "\n";
+      });
+      context += "\n";
+    }
+    
     // Process repo-map results
     const repoMapResults = results.find(r => r.source === "repo_map");
     if (repoMapResults && repoMapResults.results && repoMapResults.results.length > 0) {

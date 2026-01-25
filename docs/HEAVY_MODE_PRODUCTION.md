@@ -14,6 +14,8 @@ When disabled:
 - All requests use Quick Mode (Edge unified-agent)
 - No backend API calls are made
 
+**Note:** You already have a Fly.io deployment footprint (`backend-production-ogog.fly.dev`). When you're ready to re-enable Heavy Mode, confirm backend health and set the feature flag.
+
 ## Backend Deployment
 
 **Current Setup:** Backend is deployed on **Fly.io** (`backend-production-ogog`)
