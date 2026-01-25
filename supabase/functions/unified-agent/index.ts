@@ -609,8 +609,7 @@ serve(async (req) => {
       }
     } catch (error) {
       console.error("Error fetching repo-map context:", error);
-        // Continue without repo-map results
-      }
+      // Continue without repo-map results
     }
 
     // For non-task mode, just synthesize with AI as before
