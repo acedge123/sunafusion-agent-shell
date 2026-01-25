@@ -1,12 +1,13 @@
 import { errMsg } from "../../_shared/error.ts";
 import type { AgentResult } from "../../_shared/types.ts";
+import { buildContextFromResults } from "../utils/contextBuilder.ts";
 
 // Function to synthesize results with OpenAI
 export async function synthesizeWithAI(
   query: string, 
   results: AgentResult[], 
   conversation_history: unknown[], 
-  previous_state: unknown = null
+  previous_state: Record<string, unknown> | null = null
 ): Promise<string> {
   try {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -16,16 +17,12 @@ export async function synthesizeWithAI(
     
     console.log("Preparing context for AI synthesis");
     
-    // Import the context builder
-    const { buildContextFromResults } = await import('../utils/contextBuilder.ts');
-    
     // Prepare context from results
     const context = buildContextFromResults(results, previous_state);
     
     // Check if we have list-related operations in the query
-    const prevState = previous_state as Record<string, unknown> | null;
     const isListQuery = query.toLowerCase().includes('list') || 
-                       (prevState && Array.isArray(prevState.lists) && prevState.lists.length > 0);
+                       (previous_state && Array.isArray(previous_state.lists) && previous_state.lists.length > 0);
     
     // Detect if this is a repo/codebase question
     const queryLower = query.toLowerCase();
@@ -58,7 +55,7 @@ export async function synthesizeWithAI(
     // CRITICAL: Enforce strict grounding for repo questions
     if (isRepoQuestion && hasRepoData) {
       // Extract repo names for explicit grounding
-      const repoNames = repoResult.results.slice(0, 10).map((r: Record<string, unknown>) => r.repo_name).join(', ');
+      const repoNames = repoResult.results!.slice(0, 10).map((r) => (r as Record<string, unknown>).repo_name).join(', ');
       
       // Different prompt for meta questions vs specific searches
       if (isMetaQuestion) {

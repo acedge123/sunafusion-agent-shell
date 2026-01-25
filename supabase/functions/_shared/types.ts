@@ -8,7 +8,8 @@ export type AgentResult =
   | { source: "file_analysis"; results: unknown[] }
   | { source: "web_search"; results?: unknown[]; error?: string }
   | { source: "slack"; results?: unknown[]; error?: string; details?: string }
-  | { source: "creator_iq"; results?: unknown[]; error?: string; details?: string; state?: unknown };
+  | { source: "creator_iq"; results?: unknown[]; error?: string; details?: string; state?: unknown }
+  | { source: "repo_map"; results?: unknown[]; error?: string };
 
 /**
  * Pagination info extracted from context

@@ -1,5 +1,7 @@
+import type { AgentResult } from "../../_shared/types.ts";
+
 // Helper function to build context from results
-export function buildContextFromResults(results, previousState = null) {
+export function buildContextFromResults(results: AgentResult[], previousState: Record<string, unknown> | null = null): string {
   try {
     let context = "--- CONTEXT START ---\n\n";
     
@@ -19,9 +21,10 @@ export function buildContextFromResults(results, previousState = null) {
       context += "PREVIOUS CONTEXT:\n";
       
       // Add campaign information
-      if (previousState.campaigns && previousState.campaigns.length > 0) {
+      const campaigns = previousState.campaigns as Array<{ name: string; id: string; publishersCount?: number }> | undefined;
+      if (campaigns && campaigns.length > 0) {
         context += "Previously identified campaigns:\n";
-        previousState.campaigns.forEach((campaign, idx) => {
+        campaigns.forEach((campaign, idx) => {
           context += `[${idx + 1}] ${campaign.name} (ID: ${campaign.id})`;
           if (campaign.publishersCount !== undefined) {
             context += ` with ${campaign.publishersCount} publishers`;
@@ -32,26 +35,28 @@ export function buildContextFromResults(results, previousState = null) {
       }
       
       // Add publisher information if available
-      if (previousState.publishers && previousState.publishers.length > 0) {
+      const publishers = previousState.publishers as Array<{ name?: string; id: string }> | undefined;
+      if (publishers && publishers.length > 0) {
         context += "Previously identified publishers:\n";
-        context += `Total: ${previousState.publishers.length} publishers\n\n`;
+        context += `Total: ${publishers.length} publishers\n\n`;
         
         // Add some sample publisher information
-        const samplePublishers = previousState.publishers.slice(0, 5);
+        const samplePublishers = publishers.slice(0, 5);
         samplePublishers.forEach((publisher, idx) => {
           context += `  Publisher ${idx + 1}: ${publisher.name || 'Unnamed'} (ID: ${publisher.id})\n`;
         });
         
-        if (previousState.publishers.length > 5) {
-          context += `  ... and ${previousState.publishers.length - 5} more publishers\n`;
+        if (publishers.length > 5) {
+          context += `  ... and ${publishers.length - 5} more publishers\n`;
         }
         context += "\n";
       }
       
       // Add list information if available with more details
-      if (previousState.lists && previousState.lists.length > 0) {
+      const lists = previousState.lists as Array<{ name: string; id: string; publisherCount?: number }> | undefined;
+      if (lists && lists.length > 0) {
         context += "Previously identified lists:\n";
-        previousState.lists.forEach((list, idx) => {
+        lists.forEach((list, idx) => {
           context += `[${idx + 1}] List: "${list.name}" (ID: ${list.id})`;
           if (list.publisherCount !== undefined) {
             context += ` with ${list.publisherCount} publishers`;
@@ -62,9 +67,10 @@ export function buildContextFromResults(results, previousState = null) {
       }
       
       // Add operation results if available
-      if (previousState.operationResults && previousState.operationResults.length > 0) {
+      const operationResults = previousState.operationResults as Array<{ type: string; details: string; successful: boolean }> | undefined;
+      if (operationResults && operationResults.length > 0) {
         context += "Previously completed operations:\n";
-        previousState.operationResults.forEach((operation, idx) => {
+        operationResults.forEach((operation, idx) => {
           context += `[${idx + 1}] ${operation.type}: ${operation.details} (${operation.successful ? 'Success' : 'Failed'})\n`;
         });
         context += "\n";
@@ -76,9 +82,10 @@ export function buildContextFromResults(results, previousState = null) {
     if (webResults && webResults.results && webResults.results.length > 0) {
       context += "WEB SEARCH RESULTS:\n";
       webResults.results.forEach((result, index) => {
-        context += `[${index + 1}] Title: ${result.title}\n`;
-        context += `URL: ${result.url}\n`;
-        context += `Content: ${result.content}\n\n`;
+        const res = result as Record<string, unknown>;
+        context += `[${index + 1}] Title: ${res.title}\n`;
+        context += `URL: ${res.url}\n`;
+        context += `Content: ${res.content}\n\n`;
       });
     }
     
@@ -87,7 +94,8 @@ export function buildContextFromResults(results, previousState = null) {
     if (driveResults && driveResults.results && driveResults.results.length > 0) {
       context += "GOOGLE DRIVE RESULTS:\n";
       driveResults.results.forEach((file, index) => {
-        context += `[${index + 1}] ${file.name} (${file.mimeType})\n`;
+        const f = file as Record<string, unknown>;
+        context += `[${index + 1}] ${f.name} (${f.mimeType})\n`;
       });
       context += "\n";
     }
@@ -97,11 +105,15 @@ export function buildContextFromResults(results, previousState = null) {
     if (analysisResults && analysisResults.results && analysisResults.results.length > 0) {
       context += "FILE ANALYSIS RESULTS:\n";
       analysisResults.results.forEach((analysis, index) => {
-        context += `[${index + 1}] File: ${analysis.file_name}\n`;
-        if (typeof analysis.analysis === 'string') {
-          context += `Content: ${analysis.analysis.substring(0, 500)}...\n\n`;
-        } else if (analysis.analysis && analysis.analysis.content) {
-          context += `Content: ${analysis.analysis.content.substring(0, 500)}...\n\n`;
+        const a = analysis as Record<string, unknown>;
+        context += `[${index + 1}] File: ${a.file_name}\n`;
+        if (typeof a.analysis === 'string') {
+          context += `Content: ${a.analysis.substring(0, 500)}...\n\n`;
+        } else if (a.analysis && typeof a.analysis === 'object') {
+          const analysisObj = a.analysis as Record<string, unknown>;
+          if (analysisObj.content && typeof analysisObj.content === 'string') {
+            context += `Content: ${analysisObj.content.substring(0, 500)}...\n\n`;
+          }
         }
       });
     }
@@ -111,9 +123,10 @@ export function buildContextFromResults(results, previousState = null) {
     if (slackResults && slackResults.results && slackResults.results.length > 0) {
       context += "SLACK MESSAGES:\n";
       slackResults.results.forEach((message, index) => {
-        context += `[${index + 1}] From: ${message.user || 'Unknown'}\n`;
-        context += `Message: ${message.text}\n`;
-        if (message.timestamp) context += `Time: ${new Date(message.timestamp * 1000).toISOString()}\n`;
+        const msg = message as Record<string, unknown>;
+        context += `[${index + 1}] From: ${msg.user || 'Unknown'}\n`;
+        context += `Message: ${msg.text}\n`;
+        if (msg.timestamp) context += `Time: ${new Date((msg.timestamp as number) * 1000).toISOString()}\n`;
         context += "\n";
       });
     }
@@ -123,9 +136,10 @@ export function buildContextFromResults(results, previousState = null) {
     if (memoryResults && memoryResults.results && memoryResults.results.length > 0) {
       context += "USER MEMORIES (Durable Facts & Preferences):\n";
       memoryResults.results.forEach((memory, index) => {
-        context += `[${index + 1}] ${memory.fact}`;
-        if (memory.tags && memory.tags.length > 0) {
-          context += ` [Tags: ${memory.tags.join(', ')}]`;
+        const mem = memory as Record<string, unknown>;
+        context += `[${index + 1}] ${mem.fact}`;
+        if (mem.tags && Array.isArray(mem.tags) && mem.tags.length > 0) {
+          context += ` [Tags: ${mem.tags.join(', ')}]`;
         }
         context += "\n";
       });
@@ -140,11 +154,14 @@ export function buildContextFromResults(results, previousState = null) {
       context += "You have full awareness of the codebase. Here are the repositories:\n\n";
       
       // Group repos by primary integration/stack for better organization
-      const reposByCategory: Record<string, any[]> = {};
+      const reposByCategory: Record<string, unknown[]> = {};
       
-      repos.forEach((repo: any) => {
-        const primaryIntegration = (repo.integrations && repo.integrations[0]) || 
-                                    (repo.stack && repo.stack[0]) || 
+      repos.forEach((repo) => {
+        const r = repo as Record<string, unknown>;
+        const integrations = r.integrations as string[] | undefined;
+        const stack = r.stack as string[] | undefined;
+        const primaryIntegration = (integrations && integrations[0]) || 
+                                    (stack && stack[0]) || 
                                     'general';
         if (!reposByCategory[primaryIntegration]) {
           reposByCategory[primaryIntegration] = [];
@@ -155,20 +172,23 @@ export function buildContextFromResults(results, previousState = null) {
       // Display repos grouped by category (includes domain_summary for meta/exploratory questions)
       for (const [category, categoryRepos] of Object.entries(reposByCategory)) {
         context += `[${category.toUpperCase()}]\n`;
-        categoryRepos.forEach((repo: any) => {
-          context += `  - ${repo.repo_name}`;
-          if (repo.relevance && repo.relevance > 0) {
-            context += ` (relevance: ${(repo.relevance * 100).toFixed(0)}%)`;
+        categoryRepos.forEach((repo) => {
+          const r = repo as Record<string, unknown>;
+          context += `  - ${r.repo_name}`;
+          if (r.relevance && (r.relevance as number) > 0) {
+            context += ` (relevance: ${((r.relevance as number) * 100).toFixed(0)}%)`;
           }
-          if (repo.supabase_functions && repo.supabase_functions.length > 0) {
-            context += ` | Edge functions: ${repo.supabase_functions.join(', ')}`;
+          const supabaseFunctions = r.supabase_functions as string[] | undefined;
+          if (supabaseFunctions && supabaseFunctions.length > 0) {
+            context += ` | Edge functions: ${supabaseFunctions.join(', ')}`;
           }
-          if (repo.tables && repo.tables.length > 0) {
-            context += ` | Tables: ${repo.tables.slice(0, 3).join(', ')}${repo.tables.length > 3 ? '...' : ''}`;
+          const tables = r.tables as string[] | undefined;
+          if (tables && tables.length > 0) {
+            context += ` | Tables: ${tables.slice(0, 3).join(', ')}${tables.length > 3 ? '...' : ''}`;
           }
           // Include domain summary if available (for meta/exploratory questions)
-          if (repo.domain_summary) {
-            context += `\n    Summary: ${repo.domain_summary.split('\n').slice(0, 2).join(' ').substring(0, 150)}...`;
+          if (r.domain_summary && typeof r.domain_summary === 'string') {
+            context += `\n    Summary: ${r.domain_summary.split('\n').slice(0, 2).join(' ').substring(0, 150)}...`;
           }
           context += "\n";
         });
@@ -184,20 +204,24 @@ export function buildContextFromResults(results, previousState = null) {
       context += "CREATOR IQ DATA:\n";
       
       creatorIQResults.results.forEach((result, index) => {
-        context += `[${index + 1}] Endpoint: ${result.name || result.endpoint}\n`;
+        const res = result as Record<string, unknown>;
+        context += `[${index + 1}] Endpoint: ${res.name || res.endpoint}\n`;
+        
+        const data = res.data as Record<string, unknown> | undefined;
         
         // Handle campaign data
-        if (result.data && result.data.CampaignCollection) {
-          context += `Found ${result.data.CampaignCollection.length} campaigns`;
-          if (result.data.filtered_by) {
-            context += ` matching "${result.data.filtered_by}"`;
+        if (data && data.CampaignCollection) {
+          const campaigns = data.CampaignCollection as Array<Record<string, unknown>>;
+          context += `Found ${campaigns.length} campaigns`;
+          if (data.filtered_by) {
+            context += ` matching "${data.filtered_by}"`;
           }
           context += `\n`;
           
           // Add campaign details
-          result.data.CampaignCollection.forEach((campaign, cIdx) => {
+          campaigns.forEach((campaign, cIdx) => {
             if (campaign.Campaign) {
-              const c = campaign.Campaign;
+              const c = campaign.Campaign as Record<string, unknown>;
               context += `  Campaign ${cIdx + 1}: ${c.CampaignName || 'Unnamed'} (ID: ${c.CampaignId})\n`;
               if (c.CampaignStatus) context += `    Status: ${c.CampaignStatus}\n`;
               if (c.StartDate) context += `    Start: ${c.StartDate}\n`;
@@ -209,57 +233,60 @@ export function buildContextFromResults(results, previousState = null) {
         }
         
         // Handle publisher data - enhanced for campaign context
-        if (result.data && result.data.PublisherCollection) {
+        if (data && data.PublisherCollection) {
+          const publishers = data.PublisherCollection as Array<Record<string, unknown>>;
           // If we have campaign context for these publishers, include it
-          if (result.data.campaignName) {
-            context += `Found ${result.data.PublisherCollection.length} publishers for campaign "${result.data.campaignName}"\n`;
-            context += `Total publishers in campaign: ${result.data.publishersCount || result.data.PublisherCollection.length}\n`;
+          if (data.campaignName) {
+            context += `Found ${publishers.length} publishers for campaign "${data.campaignName}"\n`;
+            context += `Total publishers in campaign: ${data.publishersCount || publishers.length}\n`;
           } else {
-            context += `Found ${result.data.PublisherCollection.length} publishers\n`;
+            context += `Found ${publishers.length} publishers\n`;
           }
           
           // Add publisher details
-          result.data.PublisherCollection.slice(0, 5).forEach((publisher, pIdx) => {
+          publishers.slice(0, 5).forEach((publisher, pIdx) => {
             if (publisher.Publisher) {
-              const p = publisher.Publisher;
+              const p = publisher.Publisher as Record<string, unknown>;
               context += `  Publisher ${pIdx + 1}: ${p.PublisherName || 'Unnamed'} (ID: ${p.Id})\n`;
               if (p.Status) context += `    Status: ${p.Status}\n`;
               if (p.TotalSubscribers) context += `    Subscribers: ${p.TotalSubscribers}\n`;
             }
           });
-          if (result.data.PublisherCollection.length > 5) {
-            context += `  ... and ${result.data.PublisherCollection.length - 5} more publishers\n`;
+          if (publishers.length > 5) {
+            context += `  ... and ${publishers.length - 5} more publishers\n`;
           }
           context += "\n";
         }
         
         // Handle lists data with pagination information and more detail
-        if (result.data && result.data.ListsCollection) {
-          const totalLists = result.data.total || result.data.ListsCollection.length;
-          const currentPage = result.data.page || 1;
-          const totalPages = result.data.total_pages || 1;
+        if (data && data.ListsCollection) {
+          const lists = data.ListsCollection as Array<Record<string, unknown>>;
+          const totalLists = data.total || lists.length;
+          const currentPage = data.page || 1;
+          const totalPages = data.total_pages || 1;
           
           context += `Found ${totalLists} lists (page ${currentPage} of ${totalPages})\n`;
           
-          if (result.data.ListsCollection.length === 0) {
+          if (lists.length === 0) {
             context += "No lists found on this page. You can create a new list using the create list operation.\n";
           } else {
             // Add list details with publisher information
-            result.data.ListsCollection.forEach((list, lIdx) => {
+            lists.forEach((list, lIdx) => {
               if (list.List) {
-                const l = list.List;
+                const l = list.List as Record<string, unknown>;
                 context += `  List ${lIdx + 1}: "${l.Name || 'Unnamed'}" (ID: ${l.Id})\n`;
                 if (l.Description) context += `    Description: ${l.Description}\n`;
                 
                 // Enhanced publisher information
                 if (l.Publishers) {
-                  context += `    Publishers: ${l.Publishers.length}\n`;
+                  const pubs = l.Publishers as Array<Record<string, unknown>>;
+                  context += `    Publishers: ${pubs.length}\n`;
                   
                   // Add publisher IDs if available
-                  if (l.Publishers.length > 0) {
-                    context += `    Publisher IDs: ${l.Publishers.slice(0, 10).map(p => p.Id || p.id).join(", ")}`;
-                    if (l.Publishers.length > 10) {
-                      context += ` and ${l.Publishers.length - 10} more`;
+                  if (pubs.length > 0) {
+                    context += `    Publisher IDs: ${pubs.slice(0, 10).map(p => p.Id || p.id).join(", ")}`;
+                    if (pubs.length > 10) {
+                      context += ` and ${pubs.length - 10} more`;
                     }
                     context += "\n";
                   }
@@ -268,7 +295,7 @@ export function buildContextFromResults(results, previousState = null) {
             });
             
             // Add pagination guidance
-            if (totalPages > 1) {
+            if ((totalPages as number) > 1) {
               context += `  This is page ${currentPage} of ${totalPages}. There are ${totalLists} total lists.\n`;
               context += `  You can view other pages by specifying page number in your query.\n`;
             }
@@ -277,14 +304,15 @@ export function buildContextFromResults(results, previousState = null) {
         }
         
         // Add write operation results
-        if (result.data && result.data.operation) {
-          const op = result.data.operation;
+        if (data && data.operation) {
+          const op = data.operation as Record<string, unknown>;
           context += `WRITE OPERATION RESULT: ${op.type}\n`;
           context += `  Status: ${op.successful ? 'SUCCESS' : 'FAILED'}\n`;
           context += `  Details: ${op.details || 'No details provided'}\n`;
-          if (result.data.List) {
-            context += `  Created/Modified list ID: ${result.data.List.Id}\n`;
-            context += `  Created/Modified list name: ${result.data.List.Name}\n`;
+          if (data.List) {
+            const list = data.List as Record<string, unknown>;
+            context += `  Created/Modified list ID: ${list.Id}\n`;
+            context += `  Created/Modified list name: ${list.Name}\n`;
           }
           context += "\n";
         }
