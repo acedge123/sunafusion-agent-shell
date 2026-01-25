@@ -186,9 +186,17 @@ export function buildContextFromResults(results: AgentResult[], previousState: R
           if (tables && tables.length > 0) {
             context += ` | Tables: ${tables.slice(0, 3).join(', ')}${tables.length > 3 ? '...' : ''}`;
           }
-          // Include domain summary if available (for meta/exploratory questions)
+          // Include domain summary - full for high-relevance, truncated for others
           if (r.domain_summary && typeof r.domain_summary === 'string') {
-            context += `\n    Summary: ${r.domain_summary.split('\n').slice(0, 2).join(' ').substring(0, 150)}...`;
+            const relevance = r.relevance as number | undefined;
+            if (relevance && relevance > 0.1) {
+              // High relevance - show FULL domain summary
+              context += `\n    Domain Summary:\n${r.domain_summary.split('\n').map((line: string) => '      ' + line).join('\n')}`;
+            } else {
+              // Low relevance - show first line only (save context space)
+              const firstLine = r.domain_summary.split('\n')[0];
+              context += `\n    Summary: ${firstLine.substring(0, 200)}`;
+            }
           }
           context += "\n";
         });
