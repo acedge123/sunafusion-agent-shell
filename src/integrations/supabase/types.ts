@@ -223,6 +223,66 @@ export type Database = {
         }
         Relationships: []
       }
+      repo_map: {
+        Row: {
+          api_routes_app: string[] | null
+          api_routes_pages: string[] | null
+          created_at: string
+          full_text_search: string | null
+          generated_at: string | null
+          id: string
+          integrations: string[] | null
+          metadata: Json | null
+          origin: string | null
+          override: Json | null
+          repo_name: string
+          shared_tables: string[] | null
+          stack: string[] | null
+          supabase_functions: string[] | null
+          table_owner: boolean | null
+          tables: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          api_routes_app?: string[] | null
+          api_routes_pages?: string[] | null
+          created_at?: string
+          full_text_search?: string | null
+          generated_at?: string | null
+          id?: string
+          integrations?: string[] | null
+          metadata?: Json | null
+          origin?: string | null
+          override?: Json | null
+          repo_name: string
+          shared_tables?: string[] | null
+          stack?: string[] | null
+          supabase_functions?: string[] | null
+          table_owner?: boolean | null
+          tables?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          api_routes_app?: string[] | null
+          api_routes_pages?: string[] | null
+          created_at?: string
+          full_text_search?: string | null
+          generated_at?: string | null
+          id?: string
+          integrations?: string[] | null
+          metadata?: Json | null
+          origin?: string | null
+          override?: Json | null
+          repo_name?: string
+          shared_tables?: string[] | null
+          stack?: string[] | null
+          supabase_functions?: string[] | null
+          table_owner?: boolean | null
+          tables?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       slack_access: {
         Row: {
           access_token: string
@@ -259,6 +319,18 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_creator_iq_state: { Args: never; Returns: undefined }
+      count_repo_map: { Args: never; Returns: number }
+      search_repo_map: {
+        Args: { query: string }
+        Returns: {
+          integrations: string[]
+          origin: string
+          relevance: number
+          repo_name: string
+          supabase_functions: string[]
+          tables: string[]
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
