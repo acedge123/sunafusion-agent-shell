@@ -204,6 +204,107 @@ serve(async (req) => {
       return json(200, { data });
     }
 
+    // ============================================================
+    // COMPOSIO PROXY ENDPOINTS
+    // ============================================================
+
+    const COMPOSIO_BASE_URL = "https://backend.composio.dev/api/v3";
+
+    // Helper to make Composio API calls
+    async function composioFetch(path: string, options: RequestInit = {}): Promise<Response> {
+      const composioKey = Deno.env.get("COMPOSIO_API_KEY");
+      if (!composioKey) {
+        console.error("[agent-vault] COMPOSIO_API_KEY not configured");
+        return new Response(JSON.stringify({ error: "composio_not_configured" }), {
+          status: 500,
+          headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+        });
+      }
+
+      const headers: Record<string, string> = {
+        "x-api-key": composioKey,
+        "Content-Type": "application/json",
+        ...(options.headers as Record<string, string> || {}),
+      };
+
+      console.log(`[agent-vault] Composio request: ${options.method || "GET"} ${path}`);
+
+      const response = await fetch(`${COMPOSIO_BASE_URL}${path}`, {
+        ...options,
+        headers,
+      });
+
+      const data = await response.json();
+      return new Response(JSON.stringify(data), {
+        status: response.status,
+        headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+      });
+    }
+
+    // ---- GET /composio/toolkits ----
+    if (req.method === "GET" && pathname.endsWith("/composio/toolkits")) {
+      const params = new URLSearchParams();
+      const search = url.searchParams.get("search");
+      const limit = url.searchParams.get("limit");
+      
+      if (search) params.set("search", search);
+      if (limit) params.set("limit", limit);
+
+      const queryString = params.toString();
+      return composioFetch(`/toolkits${queryString ? `?${queryString}` : ""}`);
+    }
+
+    // ---- GET /composio/tools (list with filtering) ----
+    if (req.method === "GET" && pathname.endsWith("/composio/tools")) {
+      const params = new URLSearchParams();
+      const toolkitSlug = url.searchParams.get("toolkit_slug");
+      const search = url.searchParams.get("search");
+      const tags = url.searchParams.get("tags");
+      const limit = url.searchParams.get("limit");
+
+      if (toolkitSlug) params.set("toolkit_slug", toolkitSlug);
+      if (search) params.set("search", search);
+      if (tags) params.set("tags", tags);
+      if (limit) params.set("limit", limit);
+
+      const queryString = params.toString();
+      return composioFetch(`/tools${queryString ? `?${queryString}` : ""}`);
+    }
+
+    // ---- POST /composio/tools/execute ----
+    if (req.method === "POST" && pathname.endsWith("/composio/tools/execute")) {
+      const body = await req.json().catch(() => null);
+
+      if (!body || typeof body !== "object") {
+        return json(400, { error: "invalid JSON body" });
+      }
+
+      // Validate required fields
+      if (!body.toolSlug || typeof body.toolSlug !== "string") {
+        return json(400, { error: "missing or invalid toolSlug" });
+      }
+
+      console.log(`[agent-vault] Composio execute: ${body.toolSlug}`);
+
+      return composioFetch("/tools/execute", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    }
+
+    // ---- GET /composio/tools/:slug (specific tool) ----
+    // Must come after more specific routes
+    const composioToolMatch = pathname.match(/\/composio\/tools\/([A-Za-z0-9_-]+)$/);
+    if (req.method === "GET" && composioToolMatch) {
+      const slug = composioToolMatch[1];
+
+      if (!slug || slug.length > 100) {
+        return json(400, { error: "invalid tool slug" });
+      }
+
+      return composioFetch(`/tools/${encodeURIComponent(slug)}`);
+    }
+
     // ---- 404 fallback ----
     return json(404, { error: "not_found", path: pathname });
 
