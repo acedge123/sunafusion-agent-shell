@@ -92,6 +92,79 @@ serve(async (req) => {
       return json(200, { ok: true, learning_id: data.id });
     }
 
+    // ============================================================
+    // COMPOSIO WEBHOOK REGISTRATION (auth required)
+    // POST /composio/register-webhook - registers our webhook URL with Composio
+    // ============================================================
+    if (req.method === "POST" && pathname.endsWith("/composio/register-webhook")) {
+      // This endpoint needs auth - check header OR query param for one-time setup
+      const expectedKey = Deno.env.get("AGENT_EDGE_KEY");
+      const authHeader = req.headers.get("authorization") || "";
+      const providedKey = authHeader.replace(/^Bearer\s+/i, "").trim() || url.searchParams.get("key") || "";
+
+      if (!expectedKey || !providedKey || providedKey !== expectedKey) {
+        return json(401, { error: "unauthorized" });
+      }
+
+      const composioKey = Deno.env.get("COMPOSIO_API_KEY");
+      if (!composioKey) {
+        return json(500, { error: "COMPOSIO_API_KEY not configured" });
+      }
+
+      // Get webhook URL from body or use default
+      const body = await req.json().catch(() => ({}));
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+      const defaultWebhookUrl = `${supabaseUrl}/functions/v1/agent-vault/composio/webhook`;
+      const webhookUrl = body.url || defaultWebhookUrl;
+
+      console.log(`[agent-vault] Registering webhook URL: ${webhookUrl}`);
+
+      try {
+        const response = await fetch("https://backend.composio.dev/api/v1/webhooks", {
+          method: "POST",
+          headers: {
+            "x-api-key": composioKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: webhookUrl,
+            version: "v2",
+          }),
+        });
+
+        const data = await response.text();
+        console.log(`[agent-vault] Webhook registration response (${response.status}): ${data}`);
+
+        let parsed;
+        try {
+          parsed = JSON.parse(data);
+        } catch {
+          parsed = { raw: data };
+        }
+
+        if (!response.ok) {
+          return json(response.status, { 
+            error: "composio_webhook_registration_failed", 
+            detail: parsed,
+            status: response.status 
+          });
+        }
+
+        return json(200, { 
+          ok: true, 
+          message: "Webhook registered successfully",
+          webhook_url: webhookUrl,
+          composio_response: parsed 
+        });
+      } catch (fetchError) {
+        console.error("[agent-vault] Webhook registration failed:", fetchError);
+        return json(500, { 
+          error: "fetch_error", 
+          detail: String(fetchError) 
+        });
+      }
+    }
+
     // ---- Auth gate (shared secret) - for all other endpoints ----
     const expectedKey = Deno.env.get("AGENT_EDGE_KEY");
     const authHeader = req.headers.get("authorization") || "";
