@@ -362,6 +362,11 @@ serve(async (req) => {
         const rawText = await response.text();
         console.log(`[agent-vault] Composio response status: ${response.status}`);
         
+        // Log error details for debugging
+        if (!response.ok) {
+          console.error(`[agent-vault] Composio error response: ${rawText.slice(0, 1000)}`);
+        }
+        
         // Try to parse as JSON
         let data: unknown;
         try {
