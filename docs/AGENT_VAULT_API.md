@@ -476,6 +476,161 @@ Currently no rate limiting is enforced. For production use:
 
 ---
 
+## Example Use Cases
+
+### GitHub Integration
+
+**Create a GitHub Issue:**
+```bash
+# First, get tool details to understand required parameters
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/GITHUB_CREATE_ISSUE"
+
+# Execute the tool
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toolSlug": "GITHUB_CREATE_ISSUE",
+    "input": {
+      "owner": "my-org",
+      "repo": "my-repo",
+      "title": "Bug: Login page not loading",
+      "body": "## Description\nThe login page returns a 500 error.\n\n## Steps to Reproduce\n1. Navigate to /login\n2. Observe error",
+      "labels": ["bug", "priority-high"]
+    }
+  }' \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
+```
+
+**Create a Pull Request:**
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toolSlug": "GITHUB_CREATE_PULL_REQUEST",
+    "input": {
+      "owner": "my-org",
+      "repo": "my-repo",
+      "title": "feat: Add user authentication",
+      "body": "This PR adds OAuth2 authentication support.",
+      "head": "feature/auth",
+      "base": "main"
+    }
+  }' \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
+```
+
+**List Repository Issues:**
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toolSlug": "GITHUB_LIST_ISSUES",
+    "input": {
+      "owner": "my-org",
+      "repo": "my-repo",
+      "state": "open",
+      "labels": "bug"
+    }
+  }' \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
+```
+
+---
+
+### Email Integration (Gmail)
+
+**Send an Email:**
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toolSlug": "GMAIL_SEND_EMAIL",
+    "input": {
+      "to": "recipient@example.com",
+      "subject": "Weekly Report - Project Status",
+      "body": "Hi Team,\n\nHere is the weekly project status update...\n\nBest regards"
+    }
+  }' \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
+```
+
+**Search Emails:**
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toolSlug": "GMAIL_SEARCH_EMAILS",
+    "input": {
+      "query": "from:client@company.com subject:invoice",
+      "maxResults": 10
+    }
+  }' \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
+```
+
+**Create a Draft:**
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toolSlug": "GMAIL_CREATE_DRAFT",
+    "input": {
+      "to": "team@example.com",
+      "subject": "Q4 Planning Meeting",
+      "body": "Draft agenda for our upcoming planning session..."
+    }
+  }' \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
+```
+
+---
+
+### Discovering Available Tools
+
+**Find email-related tools:**
+```bash
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools?search=email&limit=20"
+```
+
+**List all GitHub tools:**
+```bash
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools?toolkit_slug=github"
+```
+
+**Browse available toolkits:**
+```bash
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/toolkits"
+```
+
+---
+
+### Prerequisites for Tool Execution
+
+Before executing tools, ensure:
+
+1. **OAuth Connection**: Some tools (Gmail, GitHub) require OAuth connections configured in your Composio account
+2. **Permissions**: The connected account must have appropriate permissions (e.g., repo write access for creating issues)
+3. **Tool Slug**: Use the exact tool slug from the `/composio/tools` listing
+
+**Checking if a tool requires authentication:**
+```bash
+# Get tool details - check the response for auth requirements
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/GMAIL_SEND_EMAIL"
+```
+
+---
+
 ## Quick Reference
 
 | Method | Endpoint | Description |
