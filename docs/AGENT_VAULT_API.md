@@ -480,6 +480,147 @@ Any Composio trigger can send events to this webhook, including:
 
 ---
 
+## Realtime Subscriptions (Recommended)
+
+Instead of polling, bots can subscribe to `agent_learnings` via Supabase Realtime for instant push notifications when new triggers arrive.
+
+### Architecture
+
+```
+Gmail → Composio → Edge webhook → INSERT agent_learnings → Realtime → Subscribed bots
+```
+
+**Benefits:**
+- ✅ No polling loops
+- ✅ Instant push to any number of bots  
+- ✅ Built-in auth + RLS scoping
+- ✅ Scales cleanly as you add more trigger types (Gmail, Slack, Drive, etc.)
+
+### JavaScript/TypeScript Bot Example
+
+```typescript
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  'https://nljlsqgldgmxlbylqazg.supabase.co',
+  'YOUR_ANON_OR_SERVICE_ROLE_KEY'
+);
+
+// Subscribe to new Composio triggers
+const channel = supabase
+  .channel('composio-triggers')
+  .on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'agent_learnings',
+      filter: 'category=eq.composio_trigger'
+    },
+    (payload) => {
+      console.log('🔔 New trigger received:', payload.new);
+      
+      const { learning, tags, metadata } = payload.new;
+      const triggerName = tags?.[1]; // e.g., "GMAIL_NEW_GMAIL_MESSAGE"
+      
+      // Route to appropriate handler
+      switch (triggerName) {
+        case 'GMAIL_NEW_GMAIL_MESSAGE':
+          handleNewEmail(metadata?.raw_payload);
+          break;
+        case 'GITHUB_ISSUE_CREATED':
+          handleNewIssue(metadata?.raw_payload);
+          break;
+        default:
+          console.log('Unknown trigger:', triggerName);
+      }
+    }
+  )
+  .subscribe((status) => {
+    console.log('Subscription status:', status);
+  });
+
+// Cleanup when done
+// await supabase.removeChannel(channel);
+```
+
+### Python Bot Example
+
+```python
+from supabase import create_client
+
+supabase = create_client(
+    "https://nljlsqgldgmxlbylqazg.supabase.co",
+    "YOUR_SERVICE_ROLE_KEY"
+)
+
+def handle_trigger(payload):
+    record = payload["new"]
+    trigger_name = record.get("tags", [])[1] if len(record.get("tags", [])) > 1 else None
+    print(f"🔔 Received: {trigger_name}")
+    print(f"   Learning: {record['learning'][:100]}...")
+
+# Subscribe to composio_trigger category
+channel = supabase.channel("composio-triggers")
+channel.on_postgres_changes(
+    event="INSERT",
+    schema="public", 
+    table="agent_learnings",
+    filter="category=eq.composio_trigger",
+    callback=handle_trigger
+).subscribe()
+
+# Keep running
+import asyncio
+asyncio.get_event_loop().run_forever()
+```
+
+### Filtering by Trigger Type
+
+You can create more specific subscriptions:
+
+```typescript
+// Gmail only
+.on('postgres_changes', {
+  event: 'INSERT',
+  schema: 'public',
+  table: 'agent_learnings',
+  filter: 'tags=cs.{GMAIL_NEW_GMAIL_MESSAGE}'
+}, callback)
+
+// Multiple trigger types with client-side filter
+.on('postgres_changes', {
+  event: 'INSERT', 
+  schema: 'public',
+  table: 'agent_learnings',
+  filter: 'category=eq.composio_trigger'
+}, (payload) => {
+  const triggerName = payload.new.tags?.[1];
+  if (['GMAIL_NEW_GMAIL_MESSAGE', 'SLACK_NEW_MESSAGE'].includes(triggerName)) {
+    handleCommunicationTrigger(payload.new);
+  }
+})
+```
+
+### Connection Management
+
+For long-running bots, handle reconnection:
+
+```typescript
+channel.subscribe((status, err) => {
+  if (status === 'SUBSCRIBED') {
+    console.log('✅ Connected to realtime');
+  } else if (status === 'CHANNEL_ERROR') {
+    console.error('❌ Channel error:', err);
+    // Implement retry logic
+  } else if (status === 'TIMED_OUT') {
+    console.warn('⏱️ Connection timed out, retrying...');
+  }
+});
+```
+
+---
+
 ## Error Responses
 
 All errors return JSON with an `error` field.
