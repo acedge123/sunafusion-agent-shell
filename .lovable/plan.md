@@ -1,124 +1,79 @@
 
 
-## Plan: Add Composio Proxy Endpoints to agent-vault
+## Plan: Create Agent Vault API Documentation
 
 ### Overview
-Extend the existing `agent-vault` edge function to proxy Composio API calls on behalf of OpenClaw. The `COMPOSIO_API_KEY` stays server-side and is never exposed to the client.
+Create a new documentation file `docs/AGENT_VAULT_API.md` that provides complete instructions for external AI agents (Codex, OpenClaw) to use the agent-vault edge function.
 
-### API Design
+### File to Create
 
-**New Endpoints:**
+**`docs/AGENT_VAULT_API.md`**
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/composio/tools` | List available tools (with filtering) |
-| GET | `/composio/tools/:slug` | Get a specific tool by slug |
-| POST | `/composio/tools/execute` | Execute a tool action |
-| GET | `/composio/toolkits` | List available toolkits |
+The documentation will include:
 
-**Authentication:** Same Bearer token (`AGENT_EDGE_KEY`) as existing endpoints
+1. **Overview** - What agent-vault is and its purpose
+2. **Authentication** - How to authenticate using Bearer token
+3. **Base URL** - The endpoint URL
+4. **API Reference** - All endpoints with:
+   - Method and path
+   - Query parameters
+   - Request body (where applicable)
+   - Response format
+   - Example curl commands
+5. **Repo Map Endpoints** - Search and retrieve repository information
+6. **Agent Learnings Endpoints** - Search and insert learnings
+7. **Composio Proxy Endpoints** - Tool listing and execution
+8. **Error Handling** - Common error responses
+9. **Rate Limiting Notes** - Production considerations
+
+### Documentation Structure
+
+```markdown
+# Agent Vault API
+
+## Overview
+Secure API for external AI agents to access institutional memory.
+
+## Authentication
+Bearer token: AGENT_EDGE_KEY
+
+## Base URL
+https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault
+
+## Endpoints
+
+### Health Check
+GET /health
+
+### Repo Map
+- GET /repo_map/count
+- GET /repo_map/get?name=<name>
+- GET /repo_map/search?q=<query>&limit=<n>
+
+### Agent Learnings
+- GET /learnings/search?q=<query>&limit=<n>
+- POST /learnings
+
+### Composio Proxy
+- GET /composio/toolkits
+- GET /composio/tools
+- GET /composio/tools/:slug
+- POST /composio/tools/execute
+
+## Error Responses
+- 400: Bad request (validation errors)
+- 401: Unauthorized
+- 404: Not found
+- 500: Server error
+```
 
 ### Implementation Details
 
-**Composio API Configuration:**
-```typescript
-const COMPOSIO_BASE_URL = "https://backend.composio.dev/api/v3";
-const composioApiKey = Deno.env.get("COMPOSIO_API_KEY");
-```
+The documentation will be comprehensive, including:
 
-**Request Flow:**
-```text
-OpenClaw → agent-vault (validates AGENT_EDGE_KEY) → Composio API (uses COMPOSIO_API_KEY)
-    ↑                                                           ↓
-    └──────────────────── Response ←────────────────────────────┘
-```
-
-**Key Security Points:**
-1. `COMPOSIO_API_KEY` accessed only via `Deno.env.get()` - never in response
-2. All requests validated against `AGENT_EDGE_KEY` first
-3. Input sanitization on all forwarded parameters
-4. Rate limiting consideration for production
-
-### New Routes
-
-**GET /composio/tools**
-```typescript
-// Proxy to: GET https://backend.composio.dev/api/v3/tools
-// Supported query params: toolkit_slug, search, tags, limit
-if (req.method === "GET" && pathname.endsWith("/composio/tools")) {
-  const composioKey = Deno.env.get("COMPOSIO_API_KEY");
-  if (!composioKey) {
-    return json(500, { error: "composio_not_configured" });
-  }
-
-  const params = new URLSearchParams();
-  if (url.searchParams.get("toolkit_slug")) 
-    params.set("toolkit_slug", url.searchParams.get("toolkit_slug")!);
-  if (url.searchParams.get("search")) 
-    params.set("search", url.searchParams.get("search")!);
-  if (url.searchParams.get("limit")) 
-    params.set("limit", url.searchParams.get("limit")!);
-
-  const response = await fetch(
-    `https://backend.composio.dev/api/v3/tools?${params}`,
-    { headers: { "x-api-key": composioKey } }
-  );
-  
-  const data = await response.json();
-  return json(response.status, data);
-}
-```
-
-**GET /composio/tools/:slug**
-```typescript
-// Proxy to: GET https://backend.composio.dev/api/v3/tools/{slug}
-// Extract slug from path: /composio/tools/GITHUB_CREATE_ISSUE
-if (req.method === "GET" && pathname.includes("/composio/tools/")) {
-  const slug = pathname.split("/composio/tools/")[1];
-  // ... validate and forward
-}
-```
-
-**POST /composio/tools/execute**
-```typescript
-// Proxy to: POST https://backend.composio.dev/api/v3/tools/execute
-// Body: { toolSlug, input, authConfigId, ... }
-if (req.method === "POST" && pathname.endsWith("/composio/tools/execute")) {
-  const body = await req.json();
-  // Validate required fields
-  // Forward to Composio with x-api-key header
-}
-```
-
-### Files to Modify
-
-1. **Modify**: `supabase/functions/agent-vault/index.ts`
-   - Add new route handlers for `/composio/*` endpoints
-   - Add helper function for Composio API calls
-   - Add input validation for forwarded requests
-
-### Error Handling
-
-- Return `500 { error: "composio_not_configured" }` if `COMPOSIO_API_KEY` is missing
-- Forward Composio API errors with original status codes
-- Log errors for debugging (without exposing API key)
-
-### Testing Commands
-
-```bash
-# List tools
-curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
-  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools?search=github"
-
-# Get specific tool
-curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
-  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/GITHUB_CREATE_ISSUE"
-
-# Execute tool
-curl -X POST \
-  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"toolSlug":"GITHUB_CREATE_ISSUE","input":{"title":"Test","body":"Hello"}}' \
-  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
-```
+- Full curl examples for every endpoint
+- Request/response JSON schemas
+- Field descriptions and validation rules
+- Notes on payload format compatibility (CGPT format vs native format for learnings)
+- Composio-specific fields for tool execution
 
