@@ -444,8 +444,26 @@ serve(async (req) => {
       }
 
       const toolSlug = body.toolSlug;
-      // Remove toolSlug from body since it goes in the URL path
-      const { toolSlug: _, ...executeBody } = body;
+      
+      // Normalize field names to snake_case (Composio v3 API requirement)
+      // Accept both camelCase and snake_case from clients
+      const executeBody: Record<string, unknown> = {
+        // Prefer snake_case, fallback to camelCase
+        connected_account_id: body.connected_account_id || body.connectedAccountId,
+        user_id: body.user_id || body.entityId || body.userId,
+        arguments: body.arguments,
+        version: body.version,
+        text: body.text,
+        custom_auth_params: body.custom_auth_params || body.customAuthParams,
+        allow_tracing: body.allow_tracing || body.allowTracing,
+      };
+
+      // Remove undefined values
+      Object.keys(executeBody).forEach(key => {
+        if (executeBody[key] === undefined) {
+          delete executeBody[key];
+        }
+      });
 
       console.log(`[agent-vault] Composio execute: ${toolSlug}`);
       console.log(`[agent-vault] Composio execute body:`, JSON.stringify(executeBody));
