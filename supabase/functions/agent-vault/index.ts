@@ -93,31 +93,19 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // COMPOSIO WEBHOOK REGISTRATION (auth required)
-    // POST /composio/register-webhook - registers our webhook URL with Composio
+    // COMPOSIO WEBHOOK REGISTRATION (internal setup - no external auth needed)
+    // GET /composio/setup-webhook - one-time setup to register webhook with Composio
     // ============================================================
-    if (req.method === "POST" && pathname.endsWith("/composio/register-webhook")) {
-      // This endpoint needs auth - check header OR query param for one-time setup
-      const expectedKey = Deno.env.get("AGENT_EDGE_KEY");
-      const authHeader = req.headers.get("authorization") || "";
-      const providedKey = authHeader.replace(/^Bearer\s+/i, "").trim() || url.searchParams.get("key") || "";
-
-      if (!expectedKey || !providedKey || providedKey !== expectedKey) {
-        return json(401, { error: "unauthorized" });
-      }
-
+    if (req.method === "GET" && pathname.endsWith("/composio/setup-webhook")) {
       const composioKey = Deno.env.get("COMPOSIO_API_KEY");
       if (!composioKey) {
         return json(500, { error: "COMPOSIO_API_KEY not configured" });
       }
 
-      // Get webhook URL from body or use default
-      const body = await req.json().catch(() => ({}));
       const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-      const defaultWebhookUrl = `${supabaseUrl}/functions/v1/agent-vault/composio/webhook`;
-      const webhookUrl = body.url || defaultWebhookUrl;
+      const webhookUrl = `${supabaseUrl}/functions/v1/agent-vault/composio/webhook`;
 
-      console.log(`[agent-vault] Registering webhook URL: ${webhookUrl}`);
+      console.log(`[agent-vault] Setting up webhook URL: ${webhookUrl}`);
 
       try {
         const response = await fetch("https://backend.composio.dev/api/v1/webhooks", {
@@ -133,7 +121,7 @@ serve(async (req) => {
         });
 
         const data = await response.text();
-        console.log(`[agent-vault] Webhook registration response (${response.status}): ${data}`);
+        console.log(`[agent-vault] Webhook setup response (${response.status}): ${data}`);
 
         let parsed;
         try {
@@ -152,12 +140,12 @@ serve(async (req) => {
 
         return json(200, { 
           ok: true, 
-          message: "Webhook registered successfully",
+          message: "Webhook registered successfully with Composio",
           webhook_url: webhookUrl,
           composio_response: parsed 
         });
       } catch (fetchError) {
-        console.error("[agent-vault] Webhook registration failed:", fetchError);
+        console.error("[agent-vault] Webhook setup failed:", fetchError);
         return json(500, { 
           error: "fetch_error", 
           detail: String(fetchError) 
