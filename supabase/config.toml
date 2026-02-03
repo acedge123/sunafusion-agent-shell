@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.unified-agent]
 verify_jwt = false
+
+[functions.agent-vault]
+verify_jwt = false
