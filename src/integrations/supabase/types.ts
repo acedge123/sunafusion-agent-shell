@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_learnings: {
+        Row: {
+          category: string | null
+          confidence: number | null
+          created_at: string
+          id: string
+          learning: string
+          metadata: Json | null
+          source: string | null
+          tags: string[] | null
+          updated_at: string
+          verified: boolean | null
+        }
+        Insert: {
+          category?: string | null
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          learning: string
+          metadata?: Json | null
+          source?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          verified?: boolean | null
+        }
+        Update: {
+          category?: string | null
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          learning?: string
+          metadata?: Json | null
+          source?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          verified?: boolean | null
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           content: string
@@ -353,6 +392,17 @@ export type Database = {
     Functions: {
       cleanup_expired_creator_iq_state: { Args: never; Returns: undefined }
       count_repo_map: { Args: never; Returns: number }
+      search_agent_learnings: {
+        Args: { limit_count?: number; query: string }
+        Returns: {
+          category: string
+          id: string
+          learning: string
+          relevance: number
+          source: string
+          tags: string[]
+        }[]
+      }
       search_repo_map: {
         Args: { query: string }
         Returns: {
