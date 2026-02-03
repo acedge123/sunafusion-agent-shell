@@ -407,6 +407,79 @@ curl -X POST \
 
 ---
 
+## Composio Webhook Endpoint
+
+Receive triggers from Composio (Gmail events, GitHub webhooks, etc.) and store them as agent learnings.
+
+### `POST /composio/webhook`
+
+**No authentication required** - This endpoint is called directly by Composio's trigger system.
+
+This endpoint receives trigger events from Composio and automatically stores them in the `agent_learnings` table for agents to discover and process.
+
+**Request Body (from Composio):**
+```json
+{
+  "trigger_name": "GMAIL_NEW_GMAIL_MESSAGE",
+  "connected_account_id": "ca_up0kdYOJgr7Y",
+  "payload": {
+    "from": "sender@example.com",
+    "subject": "Meeting Tomorrow",
+    "snippet": "Just a reminder about our meeting..."
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "ok": true,
+  "learning_id": "c698485d-dc26-4328-99a3-2a178c56b9f1"
+}
+```
+
+**Stored Learning Format:**
+When a trigger is received, it's stored in `agent_learnings` with:
+- `category`: `"composio_trigger"`
+- `source`: `"composio_webhook"`
+- `tags`: `[connected_account_id, trigger_name]`
+- `metadata`: Full raw payload with timestamp
+
+**Setup Instructions:**
+
+1. Go to [Composio Dashboard → Event & Trigger Settings](https://platform.composio.dev/?next_page=/settings/events)
+2. Set the **Webhook URL** to:
+   ```
+   https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/webhook
+   ```
+3. Save the configuration
+
+**Querying Stored Triggers:**
+
+Agents can discover trigger events by searching the learnings:
+
+```bash
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/learnings/search?q=composio+trigger+gmail"
+```
+
+Or query directly via Supabase:
+```sql
+SELECT * FROM agent_learnings 
+WHERE category = 'composio_trigger' 
+ORDER BY created_at DESC 
+LIMIT 10;
+```
+
+**Supported Triggers:**
+Any Composio trigger can send events to this webhook, including:
+- `GMAIL_NEW_GMAIL_MESSAGE` - New email received
+- `GITHUB_ISSUE_CREATED` - New GitHub issue
+- `SLACK_NEW_MESSAGE` - New Slack message
+- And many more from Composio's trigger catalog
+
+---
+
 ## Error Responses
 
 All errors return JSON with an `error` field.
@@ -661,3 +734,4 @@ curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
 | GET | `/composio/tools` | List tools |
 | GET | `/composio/tools/:slug` | Get tool details |
 | POST | `/composio/tools/execute` | Execute tool |
+| POST | `/composio/webhook` | Receive Composio triggers (no auth) |
