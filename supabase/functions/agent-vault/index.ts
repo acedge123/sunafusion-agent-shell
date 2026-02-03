@@ -229,16 +229,47 @@ serve(async (req) => {
 
       console.log(`[agent-vault] Composio request: ${options.method || "GET"} ${path}`);
 
-      const response = await fetch(`${COMPOSIO_BASE_URL}${path}`, {
-        ...options,
-        headers,
-      });
+      try {
+        const response = await fetch(`${COMPOSIO_BASE_URL}${path}`, {
+          ...options,
+          headers,
+        });
 
-      const data = await response.json();
-      return new Response(JSON.stringify(data), {
-        status: response.status,
-        headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
-      });
+        // Get raw text first to handle non-JSON responses
+        const rawText = await response.text();
+        console.log(`[agent-vault] Composio response status: ${response.status}`);
+        
+        // Try to parse as JSON
+        let data: unknown;
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          // Not valid JSON - return error with raw response
+          console.error(`[agent-vault] Composio returned non-JSON: ${rawText.slice(0, 200)}`);
+          return new Response(JSON.stringify({ 
+            error: "composio_error", 
+            detail: response.ok ? "Invalid response format" : rawText.slice(0, 500),
+            status: response.status
+          }), {
+            status: response.ok ? 500 : response.status,
+            headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+          });
+        }
+
+        return new Response(JSON.stringify(data), {
+          status: response.status,
+          headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+        });
+      } catch (fetchError) {
+        console.error(`[agent-vault] Composio fetch failed:`, fetchError);
+        return new Response(JSON.stringify({ 
+          error: "composio_fetch_error", 
+          detail: String(fetchError) 
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, "content-type": "application/json; charset=utf-8" },
+        });
+      }
     }
 
     // ---- GET /composio/toolkits ----
