@@ -1,172 +1,166 @@
 
 
-## Plan: Fix Database Function Search Path Vulnerabilities
+## Plan: Create `agent-vault` Edge Function for External Agent Access
 
-### Problem
-The Supabase linter flagged 9 database functions with "Search Path Mutable" vulnerability. This occurs when functions don't explicitly set their `search_path`, making them potentially susceptible to search path injection attacks where a malicious actor could hijack function behavior by manipulating the schema search order.
+### Overview
+Create a secure edge function that allows external AI agents (Codex, OpenClaw) to:
+- **Read** from `repo_map` (search and get by name)
+- **Read** from `agent_learnings` (search)
+- **Write** to `agent_learnings` (insert new learnings)
 
-### Functions to Fix
+### Critical Issues with CGPT's Code
 
-All 9 functions in the `public` schema need `SET search_path = public` added:
+The proposed code has several schema mismatches that would cause runtime errors:
 
-| Function | Purpose |
-|----------|---------|
-| `update_creator_iq_state_updated_at()` | Trigger: auto-update timestamp |
-| `cleanup_expired_creator_iq_state()` | Cleanup: remove expired state |
-| `update_agent_learnings_updated_at()` | Trigger: auto-update timestamp |
-| `search_repo_map(text)` | Search: full-text repo search |
-| `count_repo_map()` | Utility: count repos |
-| `search_agent_learnings(text, integer)` | Search: find learnings |
-| `update_updated_at_column()` | Trigger: generic timestamp update |
-| `handle_new_user()` | Trigger: create profile on signup |
-| `handle_updated_at()` | Trigger: generic timestamp update |
+| CGPT's Code | Actual Schema | Fix |
+|-------------|---------------|-----|
+| `repo_map.repo` | `repo_map.repo_name` | Rename |
+| `repo_map.path` | Does not exist | Remove |
+| `repo_map.title`, `summary` | `domain_summary`, `full_text_search` | Rename |
+| `agent_learnings.repo` | Does not exist | Map to `category` or `tags` |
+| `agent_learnings.topic` | Does not exist | Map to `category` |
 
-### SQL Migration
+### Corrected API Design
 
-Execute a single migration that recreates each function with the secure search_path setting:
+**Endpoints:**
 
-```sql
--- 1. update_creator_iq_state_updated_at
-CREATE OR REPLACE FUNCTION public.update_creator_iq_state_updated_at()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public
-AS $function$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$function$;
-
--- 2. cleanup_expired_creator_iq_state
-CREATE OR REPLACE FUNCTION public.cleanup_expired_creator_iq_state()
-RETURNS void
-LANGUAGE plpgsql
-SET search_path = public
-AS $function$
-BEGIN
-  DELETE FROM public.creator_iq_state
-  WHERE expires_at < now();
-END;
-$function$;
-
--- 3. update_agent_learnings_updated_at
-CREATE OR REPLACE FUNCTION public.update_agent_learnings_updated_at()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public
-AS $function$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$function$;
-
--- 4. search_repo_map
-CREATE OR REPLACE FUNCTION public.search_repo_map(query text)
-RETURNS TABLE(repo_name text, origin text, integrations text[], supabase_functions text[], tables text[], relevance real)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $function$
-BEGIN
-  RETURN QUERY
-  SELECT
-    rm.repo_name,
-    rm.origin,
-    rm.integrations,
-    rm.supabase_functions,
-    rm.tables,
-    ts_rank(to_tsvector('english', rm.full_text_search), plainto_tsquery('english', query)) as relevance
-  FROM public.repo_map rm
-  WHERE to_tsvector('english', rm.full_text_search) @@ plainto_tsquery('english', query)
-  ORDER BY relevance DESC
-  LIMIT 20;
-END;
-$function$;
-
--- 5. count_repo_map
-CREATE OR REPLACE FUNCTION public.count_repo_map()
-RETURNS integer
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $function$
-BEGIN
-  RETURN (SELECT COUNT(*)::INTEGER FROM public.repo_map);
-END;
-$function$;
-
--- 6. search_agent_learnings
-CREATE OR REPLACE FUNCTION public.search_agent_learnings(query text, limit_count integer DEFAULT 10)
-RETURNS TABLE(id uuid, learning text, category text, tags text[], source text, relevance real)
-LANGUAGE plpgsql
-SET search_path = public
-AS $function$
-BEGIN
-  RETURN QUERY
-  SELECT
-    al.id,
-    al.learning,
-    al.category,
-    al.tags,
-    al.source,
-    ts_rank(to_tsvector('english', al.learning), plainto_tsquery('english', query)) as relevance
-  FROM public.agent_learnings al
-  WHERE to_tsvector('english', al.learning) @@ plainto_tsquery('english', query)
-  ORDER BY relevance DESC, created_at DESC
-  LIMIT limit_count;
-END;
-$function$;
-
--- 7. update_updated_at_column
-CREATE OR REPLACE FUNCTION public.update_updated_at_column()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public
-AS $function$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$function$;
-
--- 8. handle_new_user
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $function$
-BEGIN
-  INSERT INTO public.profiles (id, username, avatar_url)
-  VALUES (new.id, new.email, 'https://api.dicebear.com/7.x/avataaars/svg?seed=' || new.id);
-  RETURN new;
-END;
-$function$;
-
--- 9. handle_updated_at
-CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS trigger
-LANGUAGE plpgsql
-SET search_path = public
-AS $function$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$function$;
+```text
+GET  /health                      → Health check
+GET  /repo_map/get?name=<name>    → Get single repo by name
+GET  /repo_map/search?q=<query>   → Full-text search (uses existing DB function)
+GET  /repo_map/count              → Count all repos
+GET  /learnings/search?q=<query>  → Search learnings (uses existing DB function)
+POST /learnings                   → Insert new learning
 ```
+
+**Authentication:** Bearer token via `AGENT_EDGE_KEY` secret
 
 ### Implementation Steps
 
-1. **Create migration file** with the SQL above
-2. **Run migration** via Supabase dashboard or CLI
-3. **Re-run linter** to verify warnings are resolved
+#### Step 1: Add Required Secret
+Add `AGENT_EDGE_KEY` as a new Supabase Edge Function secret. This is the shared secret that Codex/OpenClaw will use.
 
-### Security Notes
+#### Step 2: Create Edge Function
 
-- `SET search_path = public` ensures functions only resolve objects from the `public` schema
-- Functions with `SECURITY DEFINER` (search_repo_map, count_repo_map, handle_new_user) are especially important to secure as they run with elevated privileges
-- This is a non-breaking change - function behavior remains identical
+Create `supabase/functions/agent-vault/index.ts` with corrected schema:
+
+```typescript
+// Key corrections from CGPT's code:
+
+// For repo_map - use actual columns:
+.from("repo_map")
+.select("repo_name,origin,domain_summary,tables,integrations,supabase_functions")
+.eq("repo_name", name)  // Not "repo"
+
+// For search - leverage existing DB functions:
+await supabase.rpc("search_repo_map", { query: q })
+await supabase.rpc("search_agent_learnings", { query: q, limit_count: limit })
+
+// For agent_learnings insert - use actual columns:
+const payload = {
+  learning: body.learning,           // Required - the actual learning text
+  category: body.category || body.topic || "general",  // Support CGPT's "topic"
+  source: body.source || "agent",    // e.g., "codex", "openclaw"
+  tags: body.tags || (body.repo ? [body.repo] : null), // Support CGPT's "repo" as tag
+  confidence: body.confidence || 0.5,
+  metadata: body.meta || {}
+};
+```
+
+#### Step 3: Update Config
+
+Add to `supabase/config.toml`:
+```toml
+[functions.agent-vault]
+verify_jwt = false
+```
+
+### Security Design
+
+1. **Bearer Token Auth**: Validates `AGENT_EDGE_KEY` secret on every request
+2. **Service Role Isolation**: Service role key stays server-side only
+3. **Input Validation**: Length limits, type checking on all inputs
+4. **Insert-Only Writes**: No UPDATE/DELETE on learnings (read-append model)
+5. **Rate Limiting Note**: Consider adding rate limiting via Supabase or external proxy
+
+### Technical Details
+
+**Full corrected code structure:**
+
+```typescript
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+function json(status: number, body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "content-type": "application/json" },
+  });
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Auth check with AGENT_EDGE_KEY
+  const expectedKey = Deno.env.get("AGENT_EDGE_KEY");
+  const authHeader = req.headers.get("authorization") || "";
+  const providedKey = authHeader.replace(/^Bearer\s+/i, "").trim();
+  
+  if (!providedKey || providedKey !== expectedKey) {
+    return json(401, { error: "unauthorized" });
+  }
+
+  // Create service role client
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false } }
+  );
+
+  const url = new URL(req.url);
+  const path = url.pathname.replace(/\/+$/, "");
+
+  // Route handling with corrected schema...
+});
+```
+
+### Files to Create/Modify
+
+1. **Create**: `supabase/functions/agent-vault/index.ts`
+2. **Modify**: `supabase/config.toml` (add function config)
+3. **Secret**: Add `AGENT_EDGE_KEY` via Supabase dashboard
+
+### Testing Commands (for Codex/OpenClaw)
+
+```bash
+# Health check
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/health"
+
+# Search repos
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/repo_map/search?q=rls"
+
+# Get specific repo
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/repo_map/get?name=sunafusion"
+
+# Search learnings
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/learnings/search?q=security"
+
+# Insert learning
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"learning":"Always set search_path in DB functions","category":"security","source":"codex","tags":["rls","postgres"],"confidence":0.9}' \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/learnings"
+```
 
