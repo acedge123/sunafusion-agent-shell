@@ -315,11 +315,17 @@ serve(async (req) => {
         return json(400, { error: "missing or invalid toolSlug" });
       }
 
-      console.log(`[agent-vault] Composio execute: ${body.toolSlug}`);
+      const toolSlug = body.toolSlug;
+      // Remove toolSlug from body since it goes in the URL path
+      const { toolSlug: _, ...executeBody } = body;
 
-      return composioFetch("/tools/execute", {
+      console.log(`[agent-vault] Composio execute: ${toolSlug}`);
+      console.log(`[agent-vault] Composio execute body:`, JSON.stringify(executeBody));
+
+      // Correct endpoint: /tools/execute/{tool_slug}
+      return composioFetch(`/tools/execute/${encodeURIComponent(toolSlug)}`, {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify(executeBody),
       });
     }
 
