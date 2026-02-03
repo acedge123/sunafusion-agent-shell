@@ -31,7 +31,68 @@ serve(async (req) => {
     const url = new URL(req.url);
     const pathname = url.pathname.replace(/\/+$/, ""); // trim trailing slash
 
-    // ---- Auth gate (shared secret) ----
+    // ============================================================
+    // COMPOSIO WEBHOOK (no auth - Composio calls this)
+    // ============================================================
+    if (req.method === "POST" && pathname.endsWith("/composio/webhook")) {
+      console.log("[agent-vault] Composio webhook received");
+      
+      const body = await req.json().catch(() => null);
+      if (!body) {
+        console.error("[agent-vault] Webhook: invalid JSON body");
+        return json(400, { error: "invalid JSON body" });
+      }
+
+      console.log("[agent-vault] Webhook payload:", JSON.stringify(body).slice(0, 500));
+
+      // Get Supabase client for storing the trigger data
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+      if (!supabaseUrl || !serviceRole) {
+        console.error("[agent-vault] Webhook: Missing Supabase config");
+        return json(500, { error: "server_config_error" });
+      }
+
+      const supabase = createClient(supabaseUrl, serviceRole, {
+        auth: { persistSession: false },
+      });
+
+      // Extract trigger info from Composio payload
+      // Composio sends: { user_id, connected_account_id, payload, trigger_name, ... }
+      const triggerData = {
+        learning: `Composio trigger: ${body.trigger_name || body.triggerName || "unknown"} - ${JSON.stringify(body.payload || body.data || {}).slice(0, 1000)}`,
+        category: "composio_trigger",
+        source: "composio_webhook",
+        tags: [
+          body.connected_account_id || body.connectedAccountId || "unknown_account",
+          body.trigger_name || body.triggerName || "unknown_trigger"
+        ].filter(Boolean),
+        confidence: 1.0,
+        metadata: {
+          raw_payload: body,
+          received_at: new Date().toISOString(),
+          connected_account_id: body.connected_account_id || body.connectedAccountId,
+          trigger_name: body.trigger_name || body.triggerName,
+        },
+      };
+
+      const { data, error } = await supabase
+        .from("agent_learnings")
+        .insert(triggerData)
+        .select("id,learning,category,source,created_at")
+        .single();
+
+      if (error) {
+        console.error("[agent-vault] Webhook insert error:", error.message);
+        return json(500, { error: "db_error", detail: error.message });
+      }
+
+      console.log(`[agent-vault] Webhook stored as learning id=${data.id}`);
+      return json(200, { ok: true, learning_id: data.id });
+    }
+
+    // ---- Auth gate (shared secret) - for all other endpoints ----
     const expectedKey = Deno.env.get("AGENT_EDGE_KEY");
     const authHeader = req.headers.get("authorization") || "";
     const providedKey = authHeader.replace(/^Bearer\s+/i, "").trim();
