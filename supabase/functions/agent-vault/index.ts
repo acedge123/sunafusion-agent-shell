@@ -59,14 +59,15 @@ serve(async (req) => {
       });
 
       // Extract trigger info from Composio payload
-      // Composio sends: { user_id, connected_account_id, payload, trigger_name, ... }
+      // Composio sends: { type, data, timestamp, log_id, ... } (v2 format)
+      const triggerName = body.type || body.trigger_name || body.triggerName || "unknown";
       const triggerData = {
-        learning: `Composio trigger: ${body.trigger_name || body.triggerName || "unknown"} - ${JSON.stringify(body.payload || body.data || {}).slice(0, 1000)}`,
+        learning: `Composio trigger: ${triggerName} - ${JSON.stringify(body.data || body.payload || {}).slice(0, 1000)}`,
         category: "composio_trigger",
         source: "composio_webhook",
         tags: [
-          body.connected_account_id || body.connectedAccountId || "unknown_account",
-          body.trigger_name || body.triggerName || "unknown_trigger"
+          body.data?.connection_id || body.connected_account_id || "unknown_account",
+          triggerName.toUpperCase()
         ].filter(Boolean),
         confidence: 1.0,
         metadata: {
