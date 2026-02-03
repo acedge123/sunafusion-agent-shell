@@ -478,7 +478,14 @@ Currently no rate limiting is enforced. For production use:
 
 ## Example Use Cases
 
+> **Required Fields for Tool Execution:**
+> - `toolSlug`: The tool identifier (e.g., `GMAIL_SEND_EMAIL`)
+> - `connectedAccountId`: Your connected account ID from Composio dashboard
+> - `arguments`: Tool-specific input parameters
+
 ### GitHub Integration
+
+> Get your GitHub `connectedAccountId` from the Composio dashboard under Connected Accounts.
 
 **Create a GitHub Issue:**
 ```bash
@@ -492,7 +499,8 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "toolSlug": "GITHUB_CREATE_ISSUE",
-    "input": {
+    "connectedAccountId": "ca_your_github_account_id",
+    "arguments": {
       "owner": "my-org",
       "repo": "my-repo",
       "title": "Bug: Login page not loading",
@@ -510,7 +518,8 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "toolSlug": "GITHUB_CREATE_PULL_REQUEST",
-    "input": {
+    "connectedAccountId": "ca_your_github_account_id",
+    "arguments": {
       "owner": "my-org",
       "repo": "my-repo",
       "title": "feat: Add user authentication",
@@ -529,7 +538,8 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "toolSlug": "GITHUB_LIST_ISSUES",
-    "input": {
+    "connectedAccountId": "ca_your_github_account_id",
+    "arguments": {
       "owner": "my-org",
       "repo": "my-repo",
       "state": "open",
@@ -543,6 +553,9 @@ curl -X POST \
 
 ### Email Integration (Gmail)
 
+> **Important**: Tool execution requires the `connectedAccountId` from your Composio dashboard.
+> You can find this in the Connected Accounts section of your Composio project.
+
 **Send an Email:**
 ```bash
 curl -X POST \
@@ -550,8 +563,9 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "toolSlug": "GMAIL_SEND_EMAIL",
-    "input": {
-      "to": "recipient@example.com",
+    "connectedAccountId": "ca_up0kdYOJgr7Y",
+    "arguments": {
+      "recipient_email": "recipient@example.com",
       "subject": "Weekly Report - Project Status",
       "body": "Hi Team,\n\nHere is the weekly project status update...\n\nBest regards"
     }
@@ -565,10 +579,11 @@ curl -X POST \
   -H "Authorization: Bearer $AGENT_EDGE_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "toolSlug": "GMAIL_SEARCH_EMAILS",
-    "input": {
+    "toolSlug": "GMAIL_FETCH_EMAILS",
+    "connectedAccountId": "ca_up0kdYOJgr7Y",
+    "arguments": {
       "query": "from:client@company.com subject:invoice",
-      "maxResults": 10
+      "max_results": 10
     }
   }' \
   "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/composio/tools/execute"
@@ -581,7 +596,8 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "toolSlug": "GMAIL_CREATE_DRAFT",
-    "input": {
+    "connectedAccountId": "ca_up0kdYOJgr7Y",
+    "arguments": {
       "to": "team@example.com",
       "subject": "Q4 Planning Meeting",
       "body": "Draft agenda for our upcoming planning session..."
