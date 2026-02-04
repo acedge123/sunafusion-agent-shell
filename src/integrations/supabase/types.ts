@@ -176,6 +176,45 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          payload: Json | null
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload?: Json | null
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          payload?: Json | null
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           created_at: string
@@ -390,7 +429,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_next_job: {
+        Args: { p_worker_id: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          payload: Json | null
+          status: string
+          type: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       cleanup_expired_creator_iq_state: { Args: never; Returns: undefined }
+      complete_job: {
+        Args: { p_job_id: string; p_last_error?: string; p_status: string }
+        Returns: undefined
+      }
       count_repo_map: { Args: never; Returns: number }
       search_agent_learnings: {
         Args: { limit_count?: number; query: string }

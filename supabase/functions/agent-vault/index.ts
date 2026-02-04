@@ -90,7 +90,29 @@ serve(async (req) => {
       }
 
       console.log(`[agent-vault] Webhook stored as learning id=${data.id}`);
-      return json(200, { ok: true, learning_id: data.id });
+
+      // Insert a job for the worker daemon to process
+      const { error: jobError } = await supabase
+        .from("jobs")
+        .insert({
+          type: triggerName || "composio_trigger",
+          payload: {
+            text: `New Composio trigger (${triggerName}). Check latest composio_trigger learnings.`,
+            learning_id: data.id,
+            trigger_name: triggerName,
+            timestamp: new Date().toISOString(),
+          },
+          status: "queued",
+        });
+
+      if (jobError) {
+        console.error("[agent-vault] Failed to insert job:", jobError.message);
+        // Non-fatal - the learning is still stored
+      } else {
+        console.log(`[agent-vault] Job queued for learning id=${data.id}`);
+      }
+
+      return json(200, { ok: true, learning_id: data.id, job_queued: !jobError });
     }
 
     // ============================================================
