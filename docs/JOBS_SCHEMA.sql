@@ -75,16 +75,17 @@ begin
 end;
 $$;
 
--- RLS: restrict so only service role (or your worker key) can read/write jobs.
+-- RLS: no policy for anon/authenticated so they cannot read/write jobs directly.
+-- Service role (Lovable/Edge Function) bypasses RLS and can insert. Worker uses anon key and
+-- only calls claim_next_job / complete_job (SECURITY DEFINER does the work inside the DB).
 alter table public.jobs enable row level security;
 
-create policy "Service role can manage jobs"
-  on public.jobs for all
-  using (true)
-  with check (true);
+drop policy if exists "Service role can manage jobs" on public.jobs;
+-- Do not create a permissive policy: anon then has no direct table access. Service role bypasses RLS.
 
--- If you use anon key for the worker, create a policy that allows the worker to claim and complete.
--- For service_role key, the policy above is enough. For a dedicated key, restrict by role or use service_role.
+-- Worker uses SUPABASE_ANON_KEY and only needs to run these two functions (safer than service role on the Mac).
+grant execute on function public.claim_next_job(text) to anon;
+grant execute on function public.complete_job(uuid, text, text) to anon;
 
 comment on table public.jobs is 'Queue for edge-bot worker; Lovable inserts rows (e.g. email_received), Mac worker claims and processes.';
 
