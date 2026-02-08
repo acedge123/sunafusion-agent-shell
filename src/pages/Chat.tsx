@@ -184,29 +184,39 @@ const Chat = () => {
 
   // Poll for response while waiting (fallback if realtime misses it)
   useEffect(() => {
-    if (!isProcessing || !pendingLearningId || !currentUserId) return
+    if (!isProcessing || !currentUserId) return
 
     const pollInterval = setInterval(async () => {
-      const { data } = await supabase
+      console.log('[Chat] Polling for responses...', { pendingLearningId, currentUserId })
+      
+      const { data, error } = await supabase
         .from('agent_learnings')
         .select('id, learning, created_at, metadata')
         .eq('kind', 'chat_response')
         .order('created_at', { ascending: false })
-        .limit(5)
+        .limit(10)
 
-      const match = (data || []).find(r => 
-        (r.metadata as any)?.query_learning_id === pendingLearningId ||
-        (r.metadata as any)?.user_id === currentUserId
-      )
-
-      if (match && !seenResponseIds.has(match.id)) {
-        addResponseIfNew(match as any)
-        toast({
-          title: "Response received",
-          description: "Edge Bot has replied.",
-        })
+      if (error) {
+        console.error('[Chat] Poll error:', error)
+        return
       }
-    }, 3000) // Poll every 3 seconds
+
+      console.log('[Chat] Poll results:', data?.length, 'responses found')
+
+      // Find any new responses for this user
+      for (const r of data || []) {
+        const meta = r.metadata as { user_id?: string; query_learning_id?: string } | null
+        if (meta?.user_id === currentUserId && !seenResponseIds.has(r.id)) {
+          console.log('[Chat] Found new response:', r.id)
+          addResponseIfNew(r as any)
+          toast({
+            title: "Response received",
+            description: "Edge Bot has replied.",
+          })
+          break // Only add one at a time to avoid duplicates
+        }
+      }
+    }, 2000) // Poll every 2 seconds
 
     return () => clearInterval(pollInterval)
   }, [isProcessing, pendingLearningId, currentUserId, seenResponseIds, addResponseIfNew, toast])
