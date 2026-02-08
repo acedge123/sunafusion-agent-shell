@@ -31,7 +31,9 @@ const Chat = () => {
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const [pendingLearningId, setPendingLearningId] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [seenResponseIds, setSeenResponseIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -50,9 +52,98 @@ const Chat = () => {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Load recent chat history on mount
+  useEffect(() => {
+    if (!currentUserId) return
+
+    const loadRecentHistory = async () => {
+      // Fetch recent chat_query and chat_response learnings for this user
+      const { data: responses } = await supabase
+        .from('agent_learnings')
+        .select('id, learning, created_at, kind, metadata')
+        .eq('kind', 'chat_response')
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      const { data: queries } = await supabase
+        .from('agent_learnings')
+        .select('id, learning, created_at, kind, metadata')
+        .eq('kind', 'chat_query')
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      // Filter to this user's messages and combine
+      const userResponses = (responses || [])
+        .filter(r => (r.metadata as any)?.user_id === currentUserId)
+      const userQueries = (queries || [])
+        .filter(q => (q.metadata as any)?.user_id === currentUserId)
+
+      // Track seen IDs
+      const seen = new Set<string>()
+      userResponses.forEach(r => seen.add(r.id))
+      setSeenResponseIds(seen)
+
+      // Combine and sort by date
+      const combined = [
+        ...userQueries.map(q => ({
+          id: q.id,
+          content: (q.learning as string).replace(/^User query:\s*/i, ''),
+          role: 'user' as const,
+          timestamp: new Date(q.created_at)
+        })),
+        ...userResponses.map(r => ({
+          id: r.id,
+          content: r.learning,
+          role: 'assistant' as const,
+          timestamp: new Date(r.created_at)
+        }))
+      ].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+
+      if (combined.length > 0) {
+        setMessages([
+          {
+            id: "welcome-message",
+            content: WELCOME_MESSAGE,
+            role: "assistant",
+            timestamp: new Date(0) // Put welcome first
+          },
+          ...combined
+        ])
+      }
+    }
+
+    loadRecentHistory()
+  }, [currentUserId])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  // Helper to add response if not already seen
+  const addResponseIfNew = useCallback((learning: {
+    id: string;
+    learning: string;
+    created_at: string;
+    metadata: any;
+  }) => {
+    if (seenResponseIds.has(learning.id)) return false
+    if (learning.metadata?.user_id !== currentUserId) return false
+
+    setSeenResponseIds(prev => new Set([...prev, learning.id]))
+    setMessages(prev => {
+      const filtered = prev.filter(m => !m.id.startsWith('processing-'))
+      return [...filtered, {
+        id: learning.id,
+        content: learning.learning,
+        role: "assistant",
+        timestamp: new Date(learning.created_at)
+      }]
+    })
+    setIsProcessing(false)
+    setPendingJobId(null)
+    setPendingLearningId(null)
+    return true
+  }, [currentUserId, seenResponseIds])
 
   // Subscribe to chat responses via realtime
   useEffect(() => {
@@ -76,27 +167,12 @@ const Chat = () => {
             metadata: { user_id?: string; job_id?: string; query_learning_id?: string } | null;
           }
           
-          // Only show responses for current user
-          if (learning.metadata?.user_id !== currentUserId) return
-
-          // Remove the "processing" placeholder message
-          setMessages(prev => {
-            const filtered = prev.filter(m => !m.id.startsWith('processing-'))
-            return [...filtered, {
-              id: learning.id,
-              content: learning.learning,
-              role: "assistant",
-              timestamp: new Date(learning.created_at)
-            }]
-          })
-          
-          setIsProcessing(false)
-          setPendingJobId(null)
-          
-          toast({
-            title: "Response received",
-            description: "Edge Bot has replied.",
-          })
+          if (addResponseIfNew(learning)) {
+            toast({
+              title: "Response received",
+              description: "Edge Bot has replied.",
+            })
+          }
         }
       )
       .subscribe()
@@ -104,7 +180,36 @@ const Chat = () => {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [currentUserId, toast])
+  }, [currentUserId, toast, addResponseIfNew])
+
+  // Poll for response while waiting (fallback if realtime misses it)
+  useEffect(() => {
+    if (!isProcessing || !pendingLearningId || !currentUserId) return
+
+    const pollInterval = setInterval(async () => {
+      const { data } = await supabase
+        .from('agent_learnings')
+        .select('id, learning, created_at, metadata')
+        .eq('kind', 'chat_response')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      const match = (data || []).find(r => 
+        (r.metadata as any)?.query_learning_id === pendingLearningId ||
+        (r.metadata as any)?.user_id === currentUserId
+      )
+
+      if (match && !seenResponseIds.has(match.id)) {
+        addResponseIfNew(match as any)
+        toast({
+          title: "Response received",
+          description: "Edge Bot has replied.",
+        })
+      }
+    }, 3000) // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [isProcessing, pendingLearningId, currentUserId, seenResponseIds, addResponseIfNew, toast])
 
   const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isProcessing) return
@@ -145,6 +250,7 @@ const Chat = () => {
 
       const data = await response.json()
       setPendingJobId(data.job?.id)
+      setPendingLearningId(data.learning_id)
 
       // Add a "processing" indicator message
       setMessages(prev => [...prev, {
