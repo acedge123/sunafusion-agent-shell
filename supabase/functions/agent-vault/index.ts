@@ -178,23 +178,112 @@ serve(async (req) => {
       }
     }
 
+    // ---- Supabase clients ----
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !serviceRole) {
+      console.error("[agent-vault] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+      return json(500, { error: "server_config_error" });
+    }
+
+    const authHeader = req.headers.get("authorization") || "";
+
+    // ============================================================
+    // CHAT SUBMIT (user auth via Supabase JWT)
+    // ============================================================
+    if (req.method === "POST" && pathname.endsWith("/chat/submit")) {
+      // Create client with user's JWT for RLS
+      const userClient = createClient(supabaseUrl, anonKey || serviceRole, {
+        auth: { persistSession: false },
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      // Verify user is authenticated
+      const { data: { user }, error: authError } = await userClient.auth.getUser();
+      if (authError || !user) {
+        console.log("[agent-vault] /chat/submit: Unauthorized - no valid user JWT");
+        return json(401, { error: "unauthorized" });
+      }
+
+      console.log(`[agent-vault] POST /chat/submit (user=${user.id})`);
+
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") {
+        return json(400, { error: "invalid JSON body" });
+      }
+
+      const message = String(body.message || "").trim();
+      if (!message) {
+        return json(400, { error: "missing message" });
+      }
+      if (message.length > 4000) {
+        return json(400, { error: "message too long (max 4000 chars)" });
+      }
+
+      // Use service role for inserts (bypasses RLS)
+      const supabase = createClient(supabaseUrl, serviceRole, {
+        auth: { persistSession: false },
+      });
+
+      // 1. Store the user message as a learning (for audit/display)
+      const { data: learning, error: learningError } = await supabase
+        .from("agent_learnings")
+        .insert({
+          learning: `User query: ${message}`,
+          category: "chat_query",
+          source: "chat_ui",
+          kind: "chat_query",
+          visibility: "private",
+          confidence: 1.0,
+          metadata: { 
+            timestamp: new Date().toISOString(),
+            raw_message: message,
+            user_id: user.id,
+          },
+        })
+        .select("id")
+        .single();
+
+      if (learningError) {
+        console.error("[agent-vault] chat learning insert error:", learningError.message);
+        return json(500, { error: "db_error", detail: learningError.message });
+      }
+
+      // 2. Create job for worker daemon
+      const { data: job, error: jobError } = await supabase
+        .from("jobs")
+        .insert({
+          type: "chat_query",
+          payload: {
+            text: message,
+            source: "chat_ui",
+            learning_id: learning?.id,
+            user_id: user.id,
+            timestamp: new Date().toISOString(),
+          },
+          status: "queued",
+        })
+        .select("id,type,status,created_at")
+        .single();
+
+      if (jobError) {
+        console.error("[agent-vault] chat job insert error:", jobError.message);
+        return json(500, { error: "db_error", detail: jobError.message });
+      }
+
+      console.log(`[agent-vault] Chat job created id=${job.id} learning_id=${learning?.id}`);
+      return json(200, { job, learning_id: learning?.id });
+    }
+
     // ---- Auth gate (shared secret) - for all other endpoints ----
     const expectedKey = Deno.env.get("AGENT_EDGE_KEY");
-    const authHeader = req.headers.get("authorization") || "";
     const providedKey = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     if (!providedKey || providedKey !== expectedKey) {
       console.log("[agent-vault] Unauthorized request attempt");
       return json(401, { error: "unauthorized" });
-    }
-
-    // ---- Supabase admin client (service role stays server-side) ----
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !serviceRole) {
-      console.error("[agent-vault] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
-      return json(500, { error: "server_config_error" });
     }
 
     const supabase = createClient(supabaseUrl, serviceRole, {
@@ -425,69 +514,6 @@ serve(async (req) => {
       return json(200, { data });
     }
 
-    // ---- POST /chat/submit (create job for OpenClaw worker) ----
-    if (req.method === "POST" && pathname.endsWith("/chat/submit")) {
-      const body = await req.json().catch(() => null);
-
-      if (!body || typeof body !== "object") {
-        return json(400, { error: "invalid JSON body" });
-      }
-
-      const message = String(body.message || "").trim();
-      if (!message) {
-        return json(400, { error: "missing message" });
-      }
-      if (message.length > 4000) {
-        return json(400, { error: "message too long (max 4000 chars)" });
-      }
-
-      // 1. Store the user message as a learning (for audit/display)
-      const { data: learning, error: learningError } = await supabase
-        .from("agent_learnings")
-        .insert({
-          learning: `User query: ${message}`,
-          category: "chat_query",
-          source: "chat_ui",
-          kind: "chat_query",
-          visibility: "private",
-          confidence: 1.0,
-          metadata: { 
-            timestamp: new Date().toISOString(),
-            raw_message: message,
-          },
-        })
-        .select("id")
-        .single();
-
-      if (learningError) {
-        console.error("[agent-vault] chat learning insert error:", learningError.message);
-        return json(500, { error: "db_error", detail: learningError.message });
-      }
-
-      // 2. Create job for worker daemon
-      const { data: job, error: jobError } = await supabase
-        .from("jobs")
-        .insert({
-          type: "chat_query",
-          payload: {
-            text: message,
-            source: "chat_ui",
-            learning_id: learning?.id,
-            timestamp: new Date().toISOString(),
-          },
-          status: "queued",
-        })
-        .select("id,type,status,created_at")
-        .single();
-
-      if (jobError) {
-        console.error("[agent-vault] chat job insert error:", jobError.message);
-        return json(500, { error: "db_error", detail: jobError.message });
-      }
-
-      console.log(`[agent-vault] Chat submitted: learning=${learning?.id} job=${job?.id}`);
-      return json(200, { job, learning_id: learning?.id });
-    }
 
     // ============================================================
     // JOBS API (for worker daemon)
