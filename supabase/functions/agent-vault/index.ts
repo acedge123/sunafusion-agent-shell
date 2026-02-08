@@ -350,6 +350,74 @@ serve(async (req) => {
     }
 
     // ============================================================
+    // JOBS API (for worker daemon)
+    // ============================================================
+
+    // ---- POST /jobs/next (claim next queued job) ----
+    if (req.method === "POST" && pathname.endsWith("/jobs/next")) {
+      const body = await req.json().catch(() => ({}));
+      const workerId = String(body.worker_id || "unknown-worker").trim();
+
+      if (workerId.length > 100) {
+        return json(400, { error: "worker_id too long" });
+      }
+
+      const { data, error } = await supabase.rpc("claim_next_job", { 
+        p_worker_id: workerId 
+      });
+
+      if (error) {
+        console.error("[agent-vault] claim_next_job error:", error.message);
+        return json(500, { error: "db_error", detail: error.message });
+      }
+
+      // RPC returns array; if empty, no job available
+      if (!data || data.length === 0) {
+        return new Response(null, { 
+          status: 204, 
+          headers: corsHeaders 
+        });
+      }
+
+      console.log(`[agent-vault] Job claimed: ${data[0].id} by ${workerId}`);
+      return json(200, { job: data[0] });
+    }
+
+    // ---- POST /jobs/ack (complete a job) ----
+    if (req.method === "POST" && pathname.endsWith("/jobs/ack")) {
+      const body = await req.json().catch(() => null);
+
+      if (!body || typeof body !== "object") {
+        return json(400, { error: "invalid JSON body" });
+      }
+
+      const jobId = body.job_id;
+      const status = body.status;
+      const lastError = body.last_error || null;
+
+      if (!jobId || typeof jobId !== "string") {
+        return json(400, { error: "missing or invalid job_id" });
+      }
+      if (!status || !["done", "failed"].includes(status)) {
+        return json(400, { error: "status must be 'done' or 'failed'" });
+      }
+
+      const { error } = await supabase.rpc("complete_job", {
+        p_job_id: jobId,
+        p_status: status,
+        p_last_error: lastError,
+      });
+
+      if (error) {
+        console.error("[agent-vault] complete_job error:", error.message);
+        return json(500, { error: "db_error", detail: error.message });
+      }
+
+      console.log(`[agent-vault] Job ${jobId} marked as ${status}`);
+      return json(200, { ok: true, job_id: jobId, status });
+    }
+
+    // ============================================================
     // COMPOSIO PROXY ENDPOINTS
     // ============================================================
 
