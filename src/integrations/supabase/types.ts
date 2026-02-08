@@ -20,36 +20,42 @@ export type Database = {
           confidence: number | null
           created_at: string
           id: string
+          kind: string | null
           learning: string
           metadata: Json | null
           source: string | null
           tags: string[] | null
           updated_at: string
           verified: boolean | null
+          visibility: string | null
         }
         Insert: {
           category?: string | null
           confidence?: number | null
           created_at?: string
           id?: string
+          kind?: string | null
           learning: string
           metadata?: Json | null
           source?: string | null
           tags?: string[] | null
           updated_at?: string
           verified?: boolean | null
+          visibility?: string | null
         }
         Update: {
           category?: string | null
           confidence?: number | null
           created_at?: string
           id?: string
+          kind?: string | null
           learning?: string
           metadata?: Json | null
           source?: string | null
           tags?: string[] | null
           updated_at?: string
           verified?: boolean | null
+          visibility?: string | null
         }
         Relationships: []
       }
