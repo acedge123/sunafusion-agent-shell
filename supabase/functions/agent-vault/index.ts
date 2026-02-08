@@ -64,6 +64,8 @@ serve(async (req) => {
       const triggerData = {
         learning: `Composio trigger: ${triggerName} - ${JSON.stringify(body.data || body.payload || {}).slice(0, 1000)}`,
         category: "composio_trigger",
+        kind: "composio_trigger", // NEW: set the kind for proper filtering
+        visibility: "private", // NEW: composio triggers are private by default
         source: "composio_webhook",
         tags: [
           body.data?.connection_id || body.connected_account_id || "unknown_account",
@@ -299,14 +301,23 @@ serve(async (req) => {
         return json(400, { error: "invalid JSON body" });
       }
 
+      // Valid values for kind and visibility
+      const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result'];
+      const VALID_VISIBILITY = ['private', 'family', 'public'];
+
       // Map from CGPT's proposed format to actual schema
       // Supports both formats:
       // - CGPT format: { repo, topic, learning, source, meta }
-      // - Native format: { learning, category, source, tags, confidence, metadata }
+      // - Native format: { learning, category, source, tags, confidence, metadata, kind, visibility }
+      const rawKind = String(body.kind || "general").trim();
+      const rawVisibility = String(body.visibility || "private").trim();
+
       const payload = {
         learning: String(body.learning ?? "").trim(),
         category: String(body.category || body.topic || "general").trim(),
         source: String(body.source || "agent").trim(),
+        kind: VALID_KINDS.includes(rawKind) ? rawKind : "general",
+        visibility: VALID_VISIBILITY.includes(rawVisibility) ? rawVisibility : "private",
         tags: Array.isArray(body.tags) 
           ? body.tags.map((t: unknown) => String(t)) 
           : (body.repo ? [String(body.repo)] : null),
@@ -337,7 +348,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from("agent_learnings")
         .insert(payload)
-        .select("id,learning,category,source,tags,created_at")
+        .select("id,learning,category,kind,visibility,source,tags,created_at")
         .single();
 
       if (error) {
@@ -345,8 +356,137 @@ serve(async (req) => {
         return json(500, { error: "db_error", detail: error.message });
       }
 
-      console.log(`[agent-vault] Inserted learning id=${data.id} source=${payload.source}`);
+      console.log(`[agent-vault] Inserted learning id=${data.id} kind=${payload.kind} source=${payload.source}`);
       return json(200, { data });
+    }
+
+    // ---- GET /learnings/feed (list with filtering/pagination) ----
+    if (req.method === "GET" && pathname.endsWith("/learnings/feed")) {
+      const kind = url.searchParams.get("kind");
+      const visibility = url.searchParams.get("visibility");
+      const search = url.searchParams.get("search");
+      const limit = clampInt(url.searchParams.get("limit"), 20, 1, 100);
+      const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10000);
+
+      // If search is provided, use full-text search RPC
+      if (search && search.trim()) {
+        const { data, error } = await supabase.rpc("search_agent_learnings", { 
+          query: search.trim(), 
+          limit_count: limit 
+        });
+
+        if (error) {
+          console.error("[agent-vault] search_agent_learnings error:", error.message);
+          return json(500, { error: "db_error", detail: error.message });
+        }
+
+        return json(200, { data: data || [], count: (data || []).length, search: search.trim() });
+      }
+
+      // Standard filtering query
+      let query = supabase
+        .from("agent_learnings")
+        .select("id,learning,category,kind,visibility,source,tags,confidence,created_at,metadata", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (kind) query = query.eq("kind", kind);
+      if (visibility) query = query.eq("visibility", visibility);
+
+      const { data, error, count } = await query;
+
+      if (error) {
+        console.error("[agent-vault] learnings feed error:", error.message);
+        return json(500, { error: "db_error", detail: error.message });
+      }
+
+      return json(200, { data: data || [], count: count ?? (data || []).length, offset, limit });
+    }
+
+    // ---- GET /learnings/:id (single learning detail) ----
+    const learningIdMatch = pathname.match(/\/learnings\/([a-f0-9-]{36})$/);
+    if (req.method === "GET" && learningIdMatch) {
+      const id = learningIdMatch[1];
+
+      const { data, error } = await supabase
+        .from("agent_learnings")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        if (error.code === "PGRST116") {
+          return json(404, { error: "not_found", id });
+        }
+        console.error("[agent-vault] get learning error:", error.message);
+        return json(500, { error: "db_error", detail: error.message });
+      }
+
+      return json(200, { data });
+    }
+
+    // ---- POST /chat/submit (create job for OpenClaw worker) ----
+    if (req.method === "POST" && pathname.endsWith("/chat/submit")) {
+      const body = await req.json().catch(() => null);
+
+      if (!body || typeof body !== "object") {
+        return json(400, { error: "invalid JSON body" });
+      }
+
+      const message = String(body.message || "").trim();
+      if (!message) {
+        return json(400, { error: "missing message" });
+      }
+      if (message.length > 4000) {
+        return json(400, { error: "message too long (max 4000 chars)" });
+      }
+
+      // 1. Store the user message as a learning (for audit/display)
+      const { data: learning, error: learningError } = await supabase
+        .from("agent_learnings")
+        .insert({
+          learning: `User query: ${message}`,
+          category: "chat_query",
+          source: "chat_ui",
+          kind: "chat_query",
+          visibility: "private",
+          confidence: 1.0,
+          metadata: { 
+            timestamp: new Date().toISOString(),
+            raw_message: message,
+          },
+        })
+        .select("id")
+        .single();
+
+      if (learningError) {
+        console.error("[agent-vault] chat learning insert error:", learningError.message);
+        return json(500, { error: "db_error", detail: learningError.message });
+      }
+
+      // 2. Create job for worker daemon
+      const { data: job, error: jobError } = await supabase
+        .from("jobs")
+        .insert({
+          type: "chat_query",
+          payload: {
+            text: message,
+            source: "chat_ui",
+            learning_id: learning?.id,
+            timestamp: new Date().toISOString(),
+          },
+          status: "queued",
+        })
+        .select("id,type,status,created_at")
+        .single();
+
+      if (jobError) {
+        console.error("[agent-vault] chat job insert error:", jobError.message);
+        return json(500, { error: "db_error", detail: jobError.message });
+      }
+
+      console.log(`[agent-vault] Chat submitted: learning=${learning?.id} job=${job?.id}`);
+      return json(200, { job, learning_id: learning?.id });
     }
 
     // ============================================================

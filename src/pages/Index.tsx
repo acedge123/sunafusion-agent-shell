@@ -1,75 +1,58 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
   MessageSquare, 
-  FileText, 
-  Database, 
-  Zap,
   Bot,
-  Image,
-  Users,
-  BarChart3
+  Brain,
+  Zap,
+  Mail,
+  Search,
+  GitBranch,
+  Database
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Index = () => {
   const features = [
     {
-      title: "AI Agent",
-      description: "Interact with our intelligent AI agent for complex tasks and data analysis",
+      title: "Edge Bot Chat",
+      description: "Send messages to your OpenClaw agent - it can search, email, code, and more",
       icon: Bot,
-      href: "/agent",
-      badge: "AI Powered"
-    },
-    {
-      title: "Chat Assistant", 
-      description: "Have natural conversations with our AI assistant",
-      icon: MessageSquare,
       href: "/chat",
-      badge: "Interactive"
+      badge: "Edge Bot",
+      skills: [
+        { icon: Mail, label: "Email" },
+        { icon: Brain, label: "Memory" },
+        { icon: Search, label: "Search" },
+        { icon: GitBranch, label: "GitHub" },
+        { icon: Database, label: "Database" },
+      ]
     },
     {
-      title: "Google Drive Integration",
-      description: "Connect and analyze your Google Drive files with AI assistance",
-      icon: FileText,
-      href: "/drive",
-      badge: "Cloud Connected"
+      title: "Learnings Feed",
+      description: "See what your agent has discovered, decided, and remembered",
+      icon: Brain,
+      href: "/learnings",
+      badge: "Live",
+      skills: []
     },
-    {
-      title: "AI Ad Generator",
-      description: "Create stunning static and video ads using Google Gemini's Imagen API",
-      icon: Image,
-      href: "/imagen",
-      badge: "New"
-    },
-    {
-      title: "Lead Dashboard",
-      description: "View and analyze leads received from ManyChat and other sources in real-time",
-      icon: BarChart3,
-      href: "/lead-dashboard",
-      badge: "Real-time"
-    },
-    {
-      title: "Lead Admin",
-      description: "Administrative interface for managing and reviewing all lead submissions",
-      icon: Users,
-      href: "/lead-admin",
-      badge: "Admin"
-    }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted">
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Welcome to <span className="text-blue-600">SunaFusion</span>
+          <div className="flex justify-center mb-6">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <Bot className="h-8 w-8 text-primary" />
+            </div>
+          </div>
+          <h1 className="text-5xl font-bold text-foreground mb-6">
+            Edge Bot <span className="text-primary">Control Center</span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Your intelligent AI-powered platform for productivity, creativity, and data analysis. 
-            Explore our suite of tools designed to enhance your workflow.
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
+            Your intelligent AI assistant powered by OpenClaw. Chat with your agent and track what it learns.
           </p>
           <div className="flex justify-center gap-4">
             <Badge variant="secondary" className="text-sm px-3 py-1">
@@ -77,33 +60,55 @@ const Index = () => {
               AI Powered
             </Badge>
             <Badge variant="secondary" className="text-sm px-3 py-1">
-              <Database className="w-3 h-3 mr-1" />
-              Cloud Connected
+              <Brain className="w-3 h-3 mr-1" />
+              Continuous Learning
             </Badge>
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {features.map((feature, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow duration-300 border-0 shadow-md">
+            <Card key={index} className="hover:shadow-lg transition-all duration-300 border-2 hover:border-primary/20">
               <CardHeader className="pb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <feature.icon className="h-8 w-8 text-blue-600" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <feature.icon className="h-6 w-6 text-primary" />
+                  </div>
                   <Badge variant="outline" className="text-xs">
                     {feature.badge}
                   </Badge>
                 </div>
-                <CardTitle className="text-xl font-semibold text-gray-900">
+                <CardTitle className="text-2xl font-semibold text-foreground">
                   {feature.title}
                 </CardTitle>
-                <CardDescription className="text-gray-600">
+                <CardDescription className="text-muted-foreground text-base">
                   {feature.description}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
+                {feature.skills.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {feature.skills.map((skill, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">
+                        <skill.icon className="h-3 w-3 mr-1" />
+                        {skill.label}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
                 <Link to={feature.href}>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                    Get Started
+                  <Button className="w-full" size="lg">
+                    {feature.title === "Edge Bot Chat" ? (
+                      <>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Start Chatting
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="h-4 w-4 mr-2" />
+                        View Feed
+                      </>
+                    )}
                   </Button>
                 </Link>
               </CardContent>
@@ -112,12 +117,13 @@ const Index = () => {
         </div>
 
         <div className="text-center mt-16">
-          <p className="text-gray-600 mb-4">
-            Ready to supercharge your productivity with AI?
+          <p className="text-muted-foreground mb-4">
+            Your Edge Bot can handle emails, search the web, manage GitHub, and more.
           </p>
-          <Link to="/agent">
-            <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3">
-              Start with AI Agent
+          <Link to="/chat">
+            <Button size="lg" variant="outline" className="px-8">
+              <Bot className="h-4 w-4 mr-2" />
+              Talk to Edge Bot
             </Button>
           </Link>
         </div>

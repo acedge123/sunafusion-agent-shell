@@ -1,16 +1,12 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
   Home, 
-  BarChart3, 
-  Users, 
   ArrowLeft,
   Bot,
   MessageSquare,
-  FileText,
-  Image
+  Brain
 } from 'lucide-react';
 
 const Navigation = () => {
@@ -18,12 +14,8 @@ const Navigation = () => {
   
   const navigationItems = [
     { href: '/', label: 'Home', icon: Home },
-    { href: '/lead-dashboard', label: 'Lead Dashboard', icon: BarChart3 },
-    { href: '/lead-admin', label: 'Lead Admin', icon: Users },
-    { href: '/agent', label: 'AI Agent', icon: Bot },
     { href: '/chat', label: 'Chat', icon: MessageSquare },
-    { href: '/drive', label: 'Drive', icon: FileText },
-    { href: '/imagen', label: 'Ad Generator', icon: Image },
+    { href: '/learnings', label: 'Learnings', icon: Brain },
   ];
 
   const isHomePage = location.pathname === '/';
@@ -33,14 +25,15 @@ const Navigation = () => {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-4">
-            <Link to="/" className="text-xl font-bold text-primary">
-              SunaFusion
+            <Link to="/" className="flex items-center gap-2 text-xl font-bold text-primary">
+              <Bot className="h-5 w-5" />
+              Edge Bot
             </Link>
             {!isHomePage && (
               <Link to="/">
                 <Button variant="ghost" size="sm" className="flex items-center gap-2">
                   <ArrowLeft className="h-4 w-4" />
-                  Back to Dashboard
+                  Back
                 </Button>
               </Link>
             )}
@@ -61,11 +54,16 @@ const Navigation = () => {
             ))}
           </div>
 
-          {/* Mobile menu button - simplified for now */}
-          <div className="md:hidden">
-            <Link to="/">
+          {/* Mobile menu button */}
+          <div className="md:hidden flex items-center gap-2">
+            <Link to="/chat">
               <Button variant="ghost" size="sm">
-                <Home className="h-4 w-4" />
+                <MessageSquare className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link to="/learnings">
+              <Button variant="ghost" size="sm">
+                <Brain className="h-4 w-4" />
               </Button>
             </Link>
           </div>
