@@ -31,8 +31,24 @@ const Chat = () => {
   const [input, setInput] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const { toast } = useToast()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Get current user ID for filtering responses
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setCurrentUserId(session?.user?.id || null)
+    }
+    getUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setCurrentUserId(session?.user?.id || null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -40,6 +56,8 @@ const Chat = () => {
 
   // Subscribe to chat responses via realtime
   useEffect(() => {
+    if (!currentUserId) return
+
     const channel = supabase
       .channel('chat-responses')
       .on(
@@ -51,24 +69,42 @@ const Chat = () => {
           filter: 'kind=eq.chat_response',
         },
         (payload) => {
-          const learning = payload.new as { id: string; learning: string; created_at: string };
-          // Add the response to messages
-          setMessages(prev => [...prev, {
-            id: learning.id,
-            content: learning.learning,
-            role: "assistant",
-            timestamp: new Date(learning.created_at)
-          }]);
-          setIsProcessing(false);
-          setPendingJobId(null);
+          const learning = payload.new as { 
+            id: string; 
+            learning: string; 
+            created_at: string;
+            metadata: { user_id?: string; job_id?: string; query_learning_id?: string } | null;
+          }
+          
+          // Only show responses for current user
+          if (learning.metadata?.user_id !== currentUserId) return
+
+          // Remove the "processing" placeholder message
+          setMessages(prev => {
+            const filtered = prev.filter(m => !m.id.startsWith('processing-'))
+            return [...filtered, {
+              id: learning.id,
+              content: learning.learning,
+              role: "assistant",
+              timestamp: new Date(learning.created_at)
+            }]
+          })
+          
+          setIsProcessing(false)
+          setPendingJobId(null)
+          
+          toast({
+            title: "Response received",
+            description: "Edge Bot has replied.",
+          })
         }
       )
-      .subscribe();
+      .subscribe()
 
     return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+      supabase.removeChannel(channel)
+    }
+  }, [currentUserId, toast])
 
   const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isProcessing) return
