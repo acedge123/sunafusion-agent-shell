@@ -492,6 +492,29 @@ serve(async (req) => {
       return json(200, { data: data || [], count: count ?? (data || []).length, offset, limit });
     }
 
+    // ---- GET /learnings/get?id=<uuid> (query-param style) ----
+    if (req.method === "GET" && pathname.endsWith("/learnings/get")) {
+      const qid = (url.searchParams.get("id") || "").trim();
+      if (!qid) {
+        return json(400, { error: "missing id parameter" });
+      }
+
+      const { data, error } = await supabase
+        .from("agent_learnings")
+        .select("*")
+        .eq("id", qid)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[agent-vault] learnings/get error:", error.message);
+        return json(500, { error: "db_error", detail: error.message });
+      }
+      if (!data) {
+        return json(404, { error: "not_found" });
+      }
+      return json(200, { data });
+    }
+
     // ---- GET /learnings/:id (single learning detail) ----
     const learningIdMatch = pathname.match(/\/learnings\/([a-f0-9-]{36})$/);
     if (req.method === "GET" && learningIdMatch) {
