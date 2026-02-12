@@ -23,8 +23,15 @@ export type Database = {
           kind: string | null
           learning: string
           metadata: Json | null
+          owner_id: string | null
+          redaction_level: string
           source: string | null
+          subject_id: string | null
+          subject_name: string | null
+          subject_type: string | null
+          summary: string | null
           tags: string[] | null
+          title: string | null
           updated_at: string
           verified: boolean | null
           visibility: string | null
@@ -37,8 +44,15 @@ export type Database = {
           kind?: string | null
           learning: string
           metadata?: Json | null
+          owner_id?: string | null
+          redaction_level?: string
           source?: string | null
+          subject_id?: string | null
+          subject_name?: string | null
+          subject_type?: string | null
+          summary?: string | null
           tags?: string[] | null
+          title?: string | null
           updated_at?: string
           verified?: boolean | null
           visibility?: string | null
@@ -51,8 +65,15 @@ export type Database = {
           kind?: string | null
           learning?: string
           metadata?: Json | null
+          owner_id?: string | null
+          redaction_level?: string
           source?: string | null
+          subject_id?: string | null
+          subject_name?: string | null
+          subject_type?: string | null
+          summary?: string | null
           tags?: string[] | null
+          title?: string | null
           updated_at?: string
           verified?: boolean | null
           visibility?: string | null
