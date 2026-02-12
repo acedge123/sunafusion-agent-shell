@@ -45,7 +45,8 @@ export function LearningCard({ learning, onClick }: LearningCardProps) {
   const IconComponent = config.icon;
   
   const timeAgo = formatDistanceToNow(new Date(learning.created_at), { addSuffix: true });
-  const snippet = truncateText(learning.learning, 200);
+  const displayTitle = learning.title || truncateText(learning.learning, 80);
+  const displayBody = learning.summary || truncateText(learning.learning, 200);
 
   return (
     <Card 
@@ -54,13 +55,18 @@ export function LearningCard({ learning, onClick }: LearningCardProps) {
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <IconComponent className="h-4 w-4 text-muted-foreground" />
-            <Badge variant="secondary" className={`text-xs ${config.color}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <IconComponent className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Badge variant="secondary" className={`text-xs shrink-0 ${config.color}`}>
               {config.label}
             </Badge>
-            {learning.source && (
-              <span className="text-xs text-muted-foreground">
+            {learning.subject_name && (
+              <Badge variant="outline" className="text-xs shrink-0">
+                {learning.subject_name}
+              </Badge>
+            )}
+            {learning.source && !learning.subject_name && (
+              <span className="text-xs text-muted-foreground truncate">
                 via {learning.source}
               </span>
             )}
@@ -69,9 +75,12 @@ export function LearningCard({ learning, onClick }: LearningCardProps) {
             {timeAgo}
           </span>
         </div>
+        {learning.title && (
+          <h3 className="text-sm font-medium mt-1 leading-snug">{learning.title}</h3>
+        )}
       </CardHeader>
       <CardContent className="pt-0">
-        <p className="text-sm text-foreground leading-relaxed">{snippet}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">{displayBody}</p>
         {learning.tags && learning.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-3">
             {learning.tags.slice(0, 3).map((tag, i) => (

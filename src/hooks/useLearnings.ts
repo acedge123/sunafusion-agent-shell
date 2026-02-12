@@ -12,6 +12,13 @@ export interface Learning {
   confidence: number | null;
   created_at: string;
   metadata: Record<string, unknown> | null;
+  owner_id: string | null;
+  subject_type: string | null;
+  subject_id: string | null;
+  subject_name: string | null;
+  title: string | null;
+  summary: string | null;
+  redaction_level: string | null;
 }
 
 interface UseLearningsOptions {
@@ -62,7 +69,7 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
       // Actually, let's query the table directly since RLS allows authenticated reads
       let query = supabase
         .from("agent_learnings")
-        .select("id,learning,category,kind,visibility,source,tags,confidence,created_at,metadata", { count: "exact" })
+        .select("id,learning,category,kind,visibility,source,tags,confidence,created_at,metadata,owner_id,subject_type,subject_id,subject_name,title,summary,redaction_level", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(currentOffset, currentOffset + limit - 1);
 

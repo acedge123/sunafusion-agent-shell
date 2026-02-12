@@ -18,6 +18,8 @@ import {
   Code,
   Clock,
   Tag,
+  User,
+  Shield,
   ChevronDown,
   ChevronRight
 } from "lucide-react";
@@ -67,8 +69,22 @@ export function LearningDetail({ learning, onClose }: LearningDetailProps) {
           </div>
 
           {/* Content */}
-          <ScrollArea className="flex-1 p-4">
+           <ScrollArea className="flex-1 p-4">
             <div className="space-y-6">
+              {/* Title + Summary */}
+              {(learning.title || learning.summary) && (
+                <div className="space-y-2">
+                  {learning.title && (
+                    <h2 className="text-lg font-semibold">{learning.title}</h2>
+                  )}
+                  {learning.summary && (
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      {learning.summary}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Main content */}
               <Card>
                 <CardContent className="pt-6">
@@ -84,6 +100,20 @@ export function LearningDetail({ learning, onClose }: LearningDetailProps) {
                   <Clock className="h-4 w-4" />
                   <span>{formattedDate}</span>
                 </div>
+
+                {learning.subject_name && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    <span>Subject: {learning.subject_name}{learning.subject_type ? ` (${learning.subject_type})` : ""}</span>
+                  </div>
+                )}
+
+                {learning.redaction_level && learning.redaction_level !== "sensitive" && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Shield className="h-4 w-4" />
+                    <span>Access: {learning.redaction_level}</span>
+                  </div>
+                )}
 
                 {learning.source && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
