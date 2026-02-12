@@ -11,6 +11,7 @@ import { LearningDetail } from "@/components/learnings/LearningDetail";
 const Learnings = () => {
   const [selectedKind, setSelectedKind] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState("all");
   const [selectedLearning, setSelectedLearning] = useState<Learning | null>(null);
 
   const {
@@ -24,6 +25,7 @@ const Learnings = () => {
   } = useLearnings({
     kind: selectedKind === "all" ? undefined : selectedKind,
     search: searchQuery || undefined,
+    subjectName: selectedSubject === "all" ? undefined : selectedSubject,
   });
 
   // Handle new realtime learnings
@@ -77,6 +79,8 @@ const Learnings = () => {
             onKindChange={setSelectedKind}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            selectedSubject={selectedSubject}
+            onSubjectChange={setSelectedSubject}
           />
 
           {/* Error state */}
