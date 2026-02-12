@@ -25,6 +25,7 @@ interface UseLearningsOptions {
   kind?: string;
   visibility?: string;
   search?: string;
+  subjectName?: string;
   limit?: number;
 }
 
@@ -39,7 +40,7 @@ interface UseLearningsResult {
 }
 
 export function useLearnings(options: UseLearningsOptions = {}): UseLearningsResult {
-  const { kind, visibility, search, limit = 20 } = options;
+  const { kind, visibility, search, subjectName, limit = 20 } = options;
   const [learnings, setLearnings] = useState<Learning[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +92,10 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
         query = query.eq("visibility", visibility);
       }
 
+      if (subjectName) {
+        query = query.eq("subject_name", subjectName);
+      }
+
       const { data, error: queryError, count } = await query;
 
       if (queryError) {
@@ -114,14 +119,14 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
     } finally {
       setIsLoading(false);
     }
-  }, [kind, visibility, search, limit, offset]);
+  }, [kind, visibility, search, subjectName, limit, offset]);
 
   // Initial fetch and reset on filter changes
   useEffect(() => {
     setOffset(0);
     setLearnings([]);
     fetchLearnings(true);
-  }, [kind, visibility, search]);
+  }, [kind, visibility, search, subjectName]);
 
   const loadMore = useCallback(() => {
     if (!isLoading && learnings.length < totalCount) {
