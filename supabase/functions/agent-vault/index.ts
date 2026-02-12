@@ -390,23 +390,28 @@ serve(async (req) => {
         return json(400, { error: "invalid JSON body" });
       }
 
-      // Valid values for kind and visibility
-      const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result'];
+      // Valid values for kind, visibility, redaction_level, subject_type
+      const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result', 'person', 'project', 'runbook', 'incident', 'integration'];
       const VALID_VISIBILITY = ['private', 'family', 'public'];
+      const VALID_REDACTION = ['public', 'internal', 'sensitive'];
+      const VALID_SUBJECT_TYPES = ['person', 'repo', 'service', 'system'];
 
       // Map from CGPT's proposed format to actual schema
       // Supports both formats:
       // - CGPT format: { repo, topic, learning, source, meta }
-      // - Native format: { learning, category, source, tags, confidence, metadata, kind, visibility }
+      // - Native format: { learning, category, source, tags, confidence, metadata, kind, visibility, ... }
       const rawKind = String(body.kind || "general").trim();
       const rawVisibility = String(body.visibility || "private").trim();
+      const rawRedaction = String(body.redaction_level || "sensitive").trim();
+      const rawSubjectType = body.subject_type ? String(body.subject_type).trim() : null;
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         learning: String(body.learning ?? "").trim(),
         category: String(body.category || body.topic || "general").trim(),
         source: String(body.source || "agent").trim(),
         kind: VALID_KINDS.includes(rawKind) ? rawKind : "general",
         visibility: VALID_VISIBILITY.includes(rawVisibility) ? rawVisibility : "private",
+        redaction_level: VALID_REDACTION.includes(rawRedaction) ? rawRedaction : "sensitive",
         tags: Array.isArray(body.tags) 
           ? body.tags.map((t: unknown) => String(t)) 
           : (body.repo ? [String(body.repo)] : null),
@@ -420,24 +425,44 @@ serve(async (req) => {
             : {},
       };
 
+      // Optional subject fields
+      if (body.owner_id && typeof body.owner_id === "string") {
+        payload.owner_id = body.owner_id.trim();
+      }
+      if (rawSubjectType && VALID_SUBJECT_TYPES.includes(rawSubjectType)) {
+        payload.subject_type = rawSubjectType;
+      }
+      if (body.subject_id && typeof body.subject_id === "string") {
+        payload.subject_id = body.subject_id.trim();
+      }
+      if (body.subject_name && typeof body.subject_name === "string") {
+        payload.subject_name = body.subject_name.trim();
+      }
+      if (body.title && typeof body.title === "string") {
+        payload.title = body.title.trim().slice(0, 500);
+      }
+      if (body.summary && typeof body.summary === "string") {
+        payload.summary = body.summary.trim().slice(0, 2000);
+      }
+
       // Validation
       if (!payload.learning) {
         return json(400, { error: "missing learning field" });
       }
-      if (payload.learning.length > 8000) {
+      if ((payload.learning as string).length > 8000) {
         return json(400, { error: "learning too long (max 8000 chars)" });
       }
-      if (payload.category.length > 200) {
+      if ((payload.category as string).length > 200) {
         return json(400, { error: "category/topic too long" });
       }
-      if (payload.source.length > 100) {
+      if ((payload.source as string).length > 100) {
         return json(400, { error: "source too long" });
       }
 
       const { data, error } = await supabase
         .from("agent_learnings")
         .insert(payload)
-        .select("id,learning,category,kind,visibility,source,tags,created_at")
+        .select("id,learning,category,kind,visibility,source,tags,created_at,owner_id,subject_type,subject_id,subject_name,title,summary,redaction_level")
         .single();
 
       if (error) {
@@ -445,7 +470,7 @@ serve(async (req) => {
         return json(500, { error: "db_error", detail: error.message });
       }
 
-      console.log(`[agent-vault] Inserted learning id=${data.id} kind=${payload.kind} source=${payload.source}`);
+      console.log(`[agent-vault] Inserted learning id=${data.id} kind=${payload.kind} source=${payload.source} subject=${payload.subject_name || "none"}`);
       return json(200, { data });
     }
 
