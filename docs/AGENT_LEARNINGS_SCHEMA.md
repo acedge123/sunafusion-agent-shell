@@ -27,6 +27,11 @@ This document is the **single source of truth** for the Edge Bot (and any other 
 | `title` | text | YES | — | Short title for display (max 500 chars) |
 | `summary` | text | YES | — | Human-readable summary (max 2000 chars) |
 | `redaction_level` | text | NO | `'sensitive'` | Access classification |
+| `domain` | text | YES | — | Knowledge domain (e.g. `edge-bot`, `ciq`, `ops`, `cost`, `messaging`) |
+| `source_date` | date | YES | — | The source day the learning pertains to |
+| `status` | text | NO | `'draft'` | Lifecycle: `draft` / `approved` / `rejected` |
+| `source_refs` | text[] | YES | — | Array of file paths, commit SHAs, or URLs used as sources |
+| `details_markdown` | text | YES | — | Full approved learning in Markdown |
 
 ### Valid `kind` values
 
@@ -57,17 +62,32 @@ public, internal, sensitive
 person, repo, service, system
 ```
 
+### Valid `domain` values
+
+```
+edge-bot, ciq, ops, cost, messaging
+```
+
+(Freeform — new domains can be added without migration.)
+
+### Valid `status` values
+
+```
+draft      — newly created, pending review
+approved   — reviewed and accepted
+rejected   — reviewed and discarded
+```
+
 ### Indexes
 
-- **Composite btree**: `(owner_id, kind, subject_type, subject_id)`
-- **GIN**: `tags`
-- **GIN text search**: `to_tsvector('english', coalesce(title,'') || ' ' || coalesce(summary,''))`
-- **btree**: `kind`, `visibility`, `created_at DESC`
-
-### RLS Summary
-
-| Role | Access |
-|------|--------|
+| Index | Columns |
+|-------|---------|
+| Composite btree | `(owner_id, kind, subject_type, subject_id)` |
+| GIN | `tags` |
+| GIN text search | `to_tsvector(...)` on title + summary |
+| btree | `kind`, `visibility`, `created_at DESC` |
+| btree | `domain` |
+| btree | `status` |
 | Service role (agents) | Full read/write on all rows |
 | Authenticated user | SELECT where `visibility IN ('public','family')` OR `owner_id = auth.uid()` |
 | Anonymous | SELECT where `visibility = 'public'` only |
@@ -101,6 +121,11 @@ person, repo, service, system
 | `title` | string | no | Short display title (truncated to 500 chars) |
 | `summary` | string | no | Human summary (truncated to 2000 chars) |
 | `redaction_level` | string | no | `public` / `internal` / `sensitive`. Default: `"sensitive"` |
+| `domain` | string | no | Knowledge domain: `edge-bot`, `ciq`, `ops`, `cost`, `messaging` |
+| `source_date` | string (YYYY-MM-DD) | no | The source day the learning pertains to |
+| `status` | string | no | `draft` / `approved` / `rejected`. Default: `"draft"` |
+| `source_refs` | string[] | no | File paths, commit SHAs, or URLs used as source material |
+| `details_markdown` | string | no | Full learning content in Markdown (for approved learnings) |
 
 ### Example: Person learning
 
