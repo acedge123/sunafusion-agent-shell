@@ -6,7 +6,8 @@ import {
   ArrowLeft,
   Bot,
   MessageSquare,
-  Brain
+  Brain,
+  Network
 } from 'lucide-react';
 
 const Navigation = () => {
@@ -16,6 +17,7 @@ const Navigation = () => {
     { href: '/', label: 'Home', icon: Home },
     { href: '/chat', label: 'Chat', icon: MessageSquare },
     { href: '/learnings', label: 'Learnings', icon: Brain },
+    { href: '/dashboard', label: 'Dashboard', icon: Network },
   ];
 
   const isHomePage = location.pathname === '/';
@@ -64,6 +66,11 @@ const Navigation = () => {
             <Link to="/learnings">
               <Button variant="ghost" size="sm">
                 <Brain className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link to="/dashboard">
+              <Button variant="ghost" size="sm">
+                <Network className="h-4 w-4" />
               </Button>
             </Link>
           </div>
