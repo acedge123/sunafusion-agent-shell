@@ -390,11 +390,12 @@ serve(async (req) => {
         return json(400, { error: "invalid JSON body" });
       }
 
-      // Valid values for kind, visibility, redaction_level, subject_type
+      // Valid values for kind, visibility, redaction_level, subject_type, status
       const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result', 'person', 'project', 'runbook', 'incident', 'integration'];
       const VALID_VISIBILITY = ['private', 'family', 'public'];
       const VALID_REDACTION = ['public', 'internal', 'sensitive'];
       const VALID_SUBJECT_TYPES = ['person', 'repo', 'service', 'system'];
+      const VALID_STATUS = ['draft', 'approved', 'rejected'];
 
       // Map from CGPT's proposed format to actual schema
       // Supports both formats:
@@ -444,6 +445,21 @@ serve(async (req) => {
       if (body.summary && typeof body.summary === "string") {
         payload.summary = body.summary.trim().slice(0, 2000);
       }
+      // New expanded fields
+      if (body.domain && typeof body.domain === "string") {
+        payload.domain = body.domain.trim();
+      }
+      if (body.source_date && typeof body.source_date === "string") {
+        payload.source_date = body.source_date.trim(); // YYYY-MM-DD
+      }
+      const rawStatus = String(body.status || "draft").trim();
+      payload.status = VALID_STATUS.includes(rawStatus) ? rawStatus : "draft";
+      if (Array.isArray(body.source_refs)) {
+        payload.source_refs = body.source_refs.map((r: unknown) => String(r));
+      }
+      if (body.details_markdown && typeof body.details_markdown === "string") {
+        payload.details_markdown = body.details_markdown;
+      }
 
       // Validation
       if (!payload.learning) {
@@ -462,7 +478,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from("agent_learnings")
         .insert(payload)
-        .select("id,learning,category,kind,visibility,source,tags,created_at,owner_id,subject_type,subject_id,subject_name,title,summary,redaction_level")
+        .select("id,learning,category,kind,visibility,source,tags,created_at,owner_id,subject_type,subject_id,subject_name,title,summary,redaction_level,domain,source_date,status,source_refs,details_markdown")
         .single();
 
       if (error) {

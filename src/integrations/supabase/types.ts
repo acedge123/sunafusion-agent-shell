@@ -19,6 +19,8 @@ export type Database = {
           category: string | null
           confidence: number | null
           created_at: string
+          details_markdown: string | null
+          domain: string | null
           id: string
           kind: string | null
           learning: string
@@ -26,6 +28,9 @@ export type Database = {
           owner_id: string | null
           redaction_level: string
           source: string | null
+          source_date: string | null
+          source_refs: string[] | null
+          status: string
           subject_id: string | null
           subject_name: string | null
           subject_type: string | null
@@ -40,6 +45,8 @@ export type Database = {
           category?: string | null
           confidence?: number | null
           created_at?: string
+          details_markdown?: string | null
+          domain?: string | null
           id?: string
           kind?: string | null
           learning: string
@@ -47,6 +54,9 @@ export type Database = {
           owner_id?: string | null
           redaction_level?: string
           source?: string | null
+          source_date?: string | null
+          source_refs?: string[] | null
+          status?: string
           subject_id?: string | null
           subject_name?: string | null
           subject_type?: string | null
@@ -61,6 +71,8 @@ export type Database = {
           category?: string | null
           confidence?: number | null
           created_at?: string
+          details_markdown?: string | null
+          domain?: string | null
           id?: string
           kind?: string | null
           learning?: string
@@ -68,6 +80,9 @@ export type Database = {
           owner_id?: string | null
           redaction_level?: string
           source?: string | null
+          source_date?: string | null
+          source_refs?: string[] | null
+          status?: string
           subject_id?: string | null
           subject_name?: string | null
           subject_type?: string | null
