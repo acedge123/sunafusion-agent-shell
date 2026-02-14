@@ -61,13 +61,7 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
       if (visibility) params.set("visibility", visibility);
       if (search) params.set("search", search);
 
-      const { data: response, error: fetchError } = await supabase.functions.invoke("agent-vault", {
-        body: null,
-        headers: {},
-      });
-
-      // Since we need auth for agent-vault, we'll call it via the Supabase REST API directly
-      // Actually, let's query the table directly since RLS allows authenticated reads
+      // Query the table directly since RLS allows authenticated reads
       let query = supabase
         .from("agent_learnings")
         .select("id,learning,category,kind,visibility,source,tags,confidence,created_at,metadata,owner_id,subject_type,subject_id,subject_name,title,summary,redaction_level", { count: "exact" })
