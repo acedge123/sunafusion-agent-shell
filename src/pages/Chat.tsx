@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Send, Bot, Brain, Plus, ArrowLeft } from "lucide-react"
+import { Loader2, Send, Bot, Brain, Plus, ArrowLeft, Network } from "lucide-react"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import ChatContainer, { Message } from "@/components/chat/ChatContainer"
@@ -342,6 +342,12 @@ const Chat = () => {
               <Button variant="outline" size="sm">
                 <Brain className="h-4 w-4 mr-2" />
                 Learnings
+              </Button>
+            </Link>
+            <Link to="/dashboard">
+              <Button variant="outline" size="sm">
+                <Network className="h-4 w-4 mr-2" />
+                Dashboard
               </Button>
             </Link>
           </div>
