@@ -9,9 +9,11 @@ import {
   Mail,
   Search,
   GitBranch,
-  Database
+  Database,
+  Network
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import Navigation from "@/components/Navigation";
 
 const Index = () => {
   const features = [
@@ -41,6 +43,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted">
+      <Navigation />
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
