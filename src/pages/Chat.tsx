@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2, Send, Bot, Brain, Plus, ArrowLeft, Network } from "lucide-react"
+import { Loader2, Send, Bot, Brain, Plus } from "lucide-react"
+import Navigation from "@/components/Navigation"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/components/ui/use-toast"
 import ChatContainer, { Message } from "@/components/chat/ChatContainer"
@@ -313,44 +314,18 @@ const Chat = () => {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <header className="border-b p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Home
-              </Button>
-            </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" />
-                <h1 className="text-xl font-bold">Edge Bot Chat</h1>
-                <Badge variant="secondary" className="text-xs">OpenClaw</Badge>
-              </div>
-              <p className="text-muted-foreground text-sm">
-                Your AI assistant with email, search, GitHub, and database skills
-              </p>
-            </div>
-          </div>
+      <Navigation />
+      <header className="border-b px-4 py-3">
+        <div className="flex items-center justify-between container mx-auto">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleNewConversation} title="New conversation">
-              <Plus className="h-4 w-4 mr-2" />
-              New
-            </Button>
-            <Link to="/learnings">
-              <Button variant="outline" size="sm">
-                <Brain className="h-4 w-4 mr-2" />
-                Learnings
-              </Button>
-            </Link>
-            <Link to="/dashboard">
-              <Button variant="outline" size="sm">
-                <Network className="h-4 w-4 mr-2" />
-                Dashboard
-              </Button>
-            </Link>
+            <Bot className="h-5 w-5 text-primary" />
+            <h1 className="text-lg font-bold">Edge Bot Chat</h1>
+            <Badge variant="secondary" className="text-xs">OpenClaw</Badge>
           </div>
+          <Button variant="outline" size="sm" onClick={handleNewConversation} title="New conversation">
+            <Plus className="h-4 w-4 mr-1.5" />
+            New
+          </Button>
         </div>
       </header>
       
