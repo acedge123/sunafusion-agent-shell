@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_contacts: {
+        Row: {
+          company: string | null
+          created_at: string
+          email: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          notes: string | null
+          owner_id: string | null
+          phone: string | null
+          role: string | null
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          role?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          role?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       agent_learnings: {
         Row: {
           category: string | null
@@ -94,6 +139,68 @@ export type Database = {
           visibility?: string | null
         }
         Relationships: []
+      }
+      agent_tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          domain: string | null
+          due_date: string | null
+          id: string
+          metadata: Json | null
+          owner_id: string | null
+          priority: string | null
+          related_learning_id: string | null
+          source: string | null
+          status: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          domain?: string | null
+          due_date?: string | null
+          id?: string
+          metadata?: Json | null
+          owner_id?: string | null
+          priority?: string | null
+          related_learning_id?: string | null
+          source?: string | null
+          status?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          domain?: string | null
+          due_date?: string | null
+          id?: string
+          metadata?: Json | null
+          owner_id?: string | null
+          priority?: string | null
+          related_learning_id?: string | null
+          source?: string | null
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_tasks_related_learning_id_fkey"
+            columns: ["related_learning_id"]
+            isOneToOne: false
+            referencedRelation: "agent_learnings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       chat_messages: {
         Row: {
