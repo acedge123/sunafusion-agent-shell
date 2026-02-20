@@ -382,6 +382,43 @@ serve(async (req) => {
       return json(200, { data: data || [], count: (data || []).length });
     }
 
+    // ---- GET /learnings/list?limit=50&since=<iso>&source=<src>&kind=<kind> ----
+    if (req.method === "GET" && pathname.endsWith("/learnings/list")) {
+      const limit = clampInt(url.searchParams.get("limit"), 50, 1, 200);
+      const since = (url.searchParams.get("since") || "").trim();
+      const source = (url.searchParams.get("source") || "").trim();
+      const kind = (url.searchParams.get("kind") || "").trim();
+      const domain = (url.searchParams.get("domain") || "").trim();
+
+      let query = supabase
+        .from("agent_learnings")
+        .select("id,title,summary,learning,category,kind,visibility,source,domain,tags,confidence,created_at,subject_type,subject_name,status")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (since) {
+        query = query.gte("created_at", since);
+      }
+      if (source) {
+        query = query.eq("source", source);
+      }
+      if (kind) {
+        query = query.eq("kind", kind);
+      }
+      if (domain) {
+        query = query.eq("domain", domain);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("[agent-vault] learnings/list error:", error.message);
+        return json(500, { error: "db_error", detail: error.message });
+      }
+
+      return json(200, { data: data || [], count: (data || []).length });
+    }
+
     // ---- POST /learnings (insert new learning) ----
     if (req.method === "POST" && pathname.endsWith("/learnings")) {
       const body = await req.json().catch(() => null);

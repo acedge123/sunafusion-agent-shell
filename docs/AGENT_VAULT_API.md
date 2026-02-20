@@ -138,6 +138,63 @@ curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
 
 ## Agent Learnings Endpoints
 
+### `GET /learnings/list`
+
+List latest learnings without requiring a search query. Supports optional filters.
+
+**Query Parameters:**
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `limit` | integer | No | 50 | Results limit (1-200) |
+| `since` | string (ISO 8601) | No | - | Only return learnings created after this timestamp |
+| `source` | string | No | - | Filter by source (e.g. `composio_webhook`, `chat_ui`, `codex`) |
+| `kind` | string | No | - | Filter by kind (e.g. `memory`, `composio_trigger`, `chat_response`) |
+| `domain` | string | No | - | Filter by domain (e.g. `edge-bot`, `ciq`, `ops`) |
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid-here",
+      "title": "Meeting notes from standup",
+      "summary": "Discussed Q1 priorities...",
+      "learning": "Full learning text...",
+      "category": "memory",
+      "kind": "memory",
+      "visibility": "family",
+      "source": "codex",
+      "domain": "edge-bot",
+      "tags": ["standup", "q1"],
+      "confidence": 0.9,
+      "created_at": "2025-02-03T12:00:00.000Z",
+      "subject_type": "person",
+      "subject_name": "Dad",
+      "status": "approved"
+    }
+  ],
+  "count": 1
+}
+```
+
+**Examples:**
+```bash
+# Latest 50 learnings (default)
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/learnings/list"
+
+# Last 10 learnings since yesterday
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/learnings/list?limit=10&since=2025-02-02T00:00:00Z"
+
+# Only composio triggers
+curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/learnings/list?kind=composio_trigger&limit=20"
+```
+
+---
+
+
 Store and retrieve institutional knowledge across agents.
 
 ### `GET /learnings/search`
@@ -870,6 +927,7 @@ curl -H "Authorization: Bearer $AGENT_EDGE_KEY" \
 | GET | `/repo_map/get?name=<name>` | Get repository by name |
 | GET | `/repo_map/search?q=<query>` | Search repositories |
 | GET | `/learnings/search?q=<query>` | Search learnings |
+| GET | `/learnings/list?limit=50` | List latest learnings (no query needed) |
 | POST | `/learnings` | Insert new learning |
 | GET | `/composio/toolkits` | List toolkits |
 | GET | `/composio/tools` | List tools |
