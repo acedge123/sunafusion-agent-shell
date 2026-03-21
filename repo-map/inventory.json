@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-01-25T01:45:59.159Z",
+  "generated_at": "2026-03-21T16:18:32.873Z",
   "repos": [
     {
       "name": "ads-gpt-starter",
@@ -18,7 +18,32 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "b78653ef9f7e72089a1c07cdf05859543679c35c",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Starter template for GPT-powered ad generation with dataset management.\n\n**Primary flows:**\n- Dataset Management: Manage ad generation datasets\n- Ad Generation: Generate ads using GPT models\n\n**Upstream dependencies:**\n- OpenAI (GPT models)\n- Supabase (database)\n- AWS (deployment)\n\n**Downstream dependencies:**\n- Ad generation tools (receives datasets)\n\n**If you change X, watch out for Y:**\n- Changing dataset schema → breaks existing datasets\n- Modifying ad generation → affects output quality\n\n---"
+    },
+    {
+      "name": "agentic-control-plane-kit",
+      "origin": "https://github.com/The-Gig-Agency/agentic-control-plane-kit.git",
+      "stack": [
+        "node"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "redis",
+        "stripe",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "98c2ded86fb84d381723caac4fadbfbf190cb29f",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "alan_test",
@@ -36,7 +61,31 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "2a2139dec9043f190395f14bf7cf12327cc201e5",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Test repository with Node.js and Python.\n\n**Primary flows:**\n- Testing: Various test scenarios\n\n**Upstream dependencies:**\n- Redis (caching)\n\n**Downstream dependencies:**\n- Test consumers\n\n**If you change X, watch out for Y:**\n- This is a test repo - changes may not affect production\n\n---"
+    },
+    {
+      "name": "api-docs-template",
+      "origin": "https://github.com/acedge123/api-docs-template.git",
+      "stack": [
+        "docker"
+      ],
+      "entrypoints": [
+        "README.md",
+        "backend"
+      ],
+      "integrations": [
+        "aws",
+        "redis",
+        "stripe",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "875a09c9a362e8ab55f3d8002406403e6c289ff0",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "api-ninja-gateway",
@@ -59,7 +108,30 @@
       ],
       "file_count_sampled": 110,
       "fingerprint": "b9b56eeb0985883e4074f1b6fe63f4febcdcd2c5",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Provide a unified API gateway for OpenAI API calls with translation and proxy capabilities.\n\n**Primary flows:**\n- API Proxy: Route OpenAI API calls through gateway\n- API Translation: Translate API calls between different formats\n- Documentation Analysis: Analyze API documentation patterns\n\n**Upstream dependencies:**\n- OpenAI API (target service)\n- Supabase (database, edge functions)\n\n**Downstream dependencies:**\n- Applications using OpenAI API (via gateway)\n\n**If you change X, watch out for Y:**\n- Changing proxy logic → breaks all API calls through gateway\n- Modifying translation rules → may break client applications\n- Updating API credentials → affects all downstream consumers\n\n---"
+    },
+    {
+      "name": "brand-connect-hub",
+      "origin": "https://github.com/The-Gig-Agency/brand-connect-hub.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 91,
+      "fingerprint": "0f5754de9c7529cd22f02f66db8655e768ceeece",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "candd-adserver",
@@ -76,11 +148,12 @@
       ],
       "file_count_sampled": 99,
       "fingerprint": "1002507eac9386d8d3da0bd34d627c1568d5cb11",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Ad serving platform with Redis caching and AWS deployment.\n\n**Primary flows:**\n- Ad Serving: Serve ads to clients\n- Caching: Cache ad data in Redis\n\n**Upstream dependencies:**\n- Redis (caching)\n- AWS (deployment)\n\n**Downstream dependencies:**\n- Ad clients (receives ads)\n\n**If you change X, watch out for Y:**\n- Changing cache keys → invalidates all cached ads\n- Modifying ad serving logic → affects all ad requests\n\n---"
     },
     {
       "name": "ciq-automations",
-      "origin": "git@github.com:acedge123/ciq-automations.git",
+      "origin": "https://github.com/acedge123/ciq-automations.git",
       "stack": [
         "node",
         "vite",
@@ -97,12 +170,15 @@
         "aws",
         "creatoriq",
         "openai",
+        "redis",
+        "stripe",
         "supabase",
         "webhook"
       ],
       "file_count_sampled": 200,
-      "fingerprint": "d1f1e4c51bd7beba99b99198c8b8bdeed0a0824e",
-      "override": {}
+      "fingerprint": "cfb26644f4431b761019387c9bad4ad8240be884",
+      "override": {},
+      "domain_summary": "**This repo exists to:** Automate CreatorIQ operations at scale, replacing manual UI work with programmatic APIs and agentic workflows.\n\n**Primary flows:**\n- Campaign & Publisher Management: Create campaigns, add/remove publishers, update status programmatically\n- Lists & Onesheets: Segment creators into groups for outreach, sales, or reporting\n- Media & Reporting: Fetch creator content and performance data from CreatorIQ\n- Workflows & Automation: Event-driven \"when X happens, do Y\" across CIQ + your stack\n- Outbound Actions: Turn creators into revenue channels (Meta audiences, Shopify orders, affiliate links)\n- Knowledge & Agent Memory: Populate knowledge base so agents don't re-discover everything each time\n\n**Upstream dependencies:**\n- CreatorIQ API (primary data source)\n- Supabase (database, edge functions, auth)\n- OpenAI (agent analysis, knowledge extraction)\n\n**Downstream dependencies:**\n- `creator-licensing-hub` (shares webhook_publisher_preferences table)\n- `sunafusion-agent-shell` (uses knowledge base for agent context)\n- `creatorgift-backend` (receives webhook events)\n- Meta/Facebook Ads (custom audiences, offline conversions)\n- Shopify (draft orders, product sync)\n\n**If you change X, watch out for Y:**\n- Changing `webhook_publisher_preferences` table → breaks `creator-licensing-hub` and `influencer-iq-flow-analysis`\n- Modifying workflow triggers → may break downstream webhook consumers\n- Changing CreatorIQ API patterns → affects all 70+ edge functions\n- Updating knowledge base schema → impacts agent memory system\n\n---"
     },
     {
       "name": "ciq-feed-map",
@@ -125,7 +201,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "16bcf1cfe8059c1ab19cdb051b72c41aac283736",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Map and sync product reviews/feed data between external sources and e-commerce platforms (Shopify, BigCommerce).\n\n**Primary flows:**\n- Review Import: Fetch reviews from external feeds, deduplicate, process images\n- Product Sync: Sync products between Shopify and BigCommerce\n- Customer Push: Export customer data to e-commerce platforms\n- AI Enhancement: Use OpenAI to enhance review content and metadata\n\n**Upstream dependencies:**\n- External review feeds (source data)\n- Shopify API (product/customer sync)\n- BigCommerce API (product/customer sync)\n- OpenAI (content enhancement)\n\n**Downstream dependencies:**\n- Shopify stores (receives products, customers, reviews)\n- BigCommerce stores (receives products, customers, reviews)\n\n**If you change X, watch out for Y:**\n- Changing review deduplication logic → may create duplicate reviews\n- Modifying product sync → can cause inventory mismatches\n- Updating customer export → may break customer matching in e-commerce platforms\n\n---"
     },
     {
       "name": "CIQ-landing-pages",
@@ -135,7 +212,8 @@
       "integrations": [],
       "file_count_sampled": 0,
       "fingerprint": "f9a701d38f6c6f9d0a06060b4a844cea6434c0c5",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Landing pages for CreatorIQ-related projects.\n\n**Primary flows:**\n- Landing Page Management: Manage landing pages\n\n**Upstream dependencies:**\n- Unknown\n\n**Downstream dependencies:**\n- Landing page visitors\n\n**If you change X, watch out for Y:**\n- Changing page structure → breaks existing pages\n\n---"
     },
     {
       "name": "client-survey-hub",
@@ -157,7 +235,8 @@
       ],
       "file_count_sampled": 180,
       "fingerprint": "f23a795803ae7078fa7a6c2538b396cf71aed7d4",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Collect and manage client surveys with Supabase backend and Vercel frontend.\n\n**Primary flows:**\n- Survey Creation: Create and configure surveys\n- Response Collection: Collect and store survey responses\n- Analytics: Generate survey analytics and reports\n\n**Upstream dependencies:**\n- Supabase (database, auth)\n- Vercel (frontend deployment)\n\n**Downstream dependencies:**\n- Survey respondents (via frontend)\n\n**If you change X, watch out for Y:**\n- Changing survey schema → breaks existing survey data\n- Modifying response format → affects analytics accuracy\n\n---"
     },
     {
       "name": "content4brand",
@@ -172,7 +251,8 @@
       "integrations": [],
       "file_count_sampled": 9,
       "fingerprint": "712aad86ed69ad54bdc00b2a28ca40904ebc4d80",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Content management platform for brands.\n\n**Primary flows:**\n- Content Management: Manage brand content\n\n**Upstream dependencies:**\n- Node.js runtime\n\n**Downstream dependencies:**\n- Brand content consumers\n\n**If you change X, watch out for Y:**\n- Changing content schema → breaks existing content\n\n---"
     },
     {
       "name": "convo-sparkle-magic",
@@ -190,7 +270,8 @@
       ],
       "file_count_sampled": 73,
       "fingerprint": "a875ea5c08be354d66b95f876bf15b0e740f0339",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Conversation enhancement tool with webhook integration.\n\n**Primary flows:**\n- Conversation Processing: Process and enhance conversations\n- Webhook Integration: Handle webhook events\n\n**Upstream dependencies:**\n- Webhook sources\n\n**Downstream dependencies:**\n- Conversation consumers\n\n**If you change X, watch out for Y:**\n- Changing webhook format → breaks integrations\n\n---"
     },
     {
       "name": "creator-licensing-harmony",
@@ -210,7 +291,8 @@
       ],
       "file_count_sampled": 78,
       "fingerprint": "8b48f1b24a9260af80f43241c8fd25c7a665e4d9",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Content licensing management with Supabase backend.\n\n**Primary flows:**\n- License Management: Manage content licenses\n\n**Upstream dependencies:**\n- Supabase (database)\n\n**Downstream dependencies:**\n- License consumers\n\n**If you change X, watch out for Y:**\n- Changing license schema → breaks existing licenses\n\n---"
     },
     {
       "name": "creator-licensing-hub",
@@ -238,7 +320,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "4e17b297eb10f966437fa8a84c7c538ad2042146",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Manage creator content licensing, watermarking, and distribution across e-commerce platforms.\n\n**Primary flows:**\n- Content Upload & Watermarking: Apply watermarks to licensed creator content\n- BigCommerce Integration: Sync products, orders, and customer data\n- Invoice Generation: Create invoices for licensed content usage\n- Analytics & Metrics: Track content performance and licensing revenue\n\n**Upstream dependencies:**\n- `ciq-automations` (shares webhook_publisher_preferences, receives creator data)\n- BigCommerce API (product sync, order management)\n- Supabase (database, storage)\n\n**Downstream dependencies:**\n- BigCommerce stores (product listings, order fulfillment)\n- CreatorIQ (creator data source)\n\n**If you change X, watch out for Y:**\n- Changing watermark logic → affects all licensed content\n- Modifying BigCommerce sync → may create duplicate products or orders\n- Updating invoice schema → breaks existing invoice records\n\n---"
     },
     {
       "name": "creator-licensing-marketplace",
@@ -254,7 +337,8 @@
       "integrations": [],
       "file_count_sampled": 85,
       "fingerprint": "23c725870546f8fbe88549c1b4b9bfa9415b3f96",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Marketplace for creator content licensing.\n\n**Primary flows:**\n- Marketplace Operations: Manage marketplace listings and transactions\n\n**Upstream dependencies:**\n- Node.js runtime\n\n**Downstream dependencies:**\n- Marketplace users\n\n**If you change X, watch out for Y:**\n- Changing marketplace schema → breaks listings\n\n---"
     },
     {
       "name": "creator-sold-analysis",
@@ -275,7 +359,8 @@
       ],
       "file_count_sampled": 104,
       "fingerprint": "75d05d7f8d0404f7aa9e1289e01a3db49bcc3d1d",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Analysis and API for Creator Sold platform with Next.js and Docker.\n\n**Primary flows:**\n- API Endpoints: Provide API endpoints for Creator Sold data\n- Analysis: Analyze Creator Sold platform structure\n\n**Upstream dependencies:**\n- Next.js (framework)\n- Docker (deployment)\n- AWS (deployment)\n- Vercel (deployment)\n\n**Downstream dependencies:**\n- API consumers\n\n**If you change X, watch out for Y:**\n- Changing API endpoints → breaks consumers\n- Modifying analysis → affects documentation\n\n---"
     },
     {
       "name": "creator-sold-api-analysis",
@@ -294,7 +379,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "6bac6527eba31c1326615355eca89400c985df32",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Analyze and process CreatorIQ CreatorSold API data for campaign performance tracking.\n\n**Primary flows:**\n- API Data Fetching: Pull campaign and publisher data from CreatorIQ CreatorSold API\n- Data Processing: Transform and analyze campaign performance metrics\n- Redis Caching: Cache API responses to reduce rate limits\n\n**Upstream dependencies:**\n- CreatorIQ CreatorSold API (data source)\n- Redis (caching layer)\n- AWS (deployment)\n\n**Downstream dependencies:**\n- Analysis tools (receives processed campaign data)\n\n**If you change X, watch out for Y:**\n- Changing API rate limiting → may hit CreatorIQ limits\n- Modifying cache keys → invalidates existing cached data\n- Updating data transformation → breaks downstream consumers\n\n---"
     },
     {
       "name": "creator-storefront-compass",
@@ -312,7 +398,8 @@
       ],
       "file_count_sampled": 104,
       "fingerprint": "51f66cd6647529052eb4407cc826e2fa75a15468",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Storefront management for creators with AWS integration.\n\n**Primary flows:**\n- Storefront Management: Manage creator storefronts\n\n**Upstream dependencies:**\n- AWS (deployment)\n\n**Downstream dependencies:**\n- Storefront users\n\n**If you change X, watch out for Y:**\n- Changing storefront schema → breaks existing storefronts\n\n---"
     },
     {
       "name": "creatorgift-admin",
@@ -331,7 +418,8 @@
       ],
       "file_count_sampled": 38,
       "fingerprint": "b7dcccdd14180a9310887342fbd0e5c1c4f78f77",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Admin interface for Creator Gift platform with AWS and Vercel deployment.\n\n**Primary flows:**\n- Campaign Management: Admin interface for managing gifting campaigns\n- Analytics: View campaign analytics and metrics\n\n**Upstream dependencies:**\n- `creatorgift-backend` (API)\n- AWS (deployment)\n- Vercel (frontend)\n- CreatorIQ (creator data)\n\n**Downstream dependencies:**\n- Admin users (via frontend)\n\n**If you change X, watch out for Y:**\n- Changing API contract → breaks admin interface\n- Modifying campaign schema → affects all campaigns\n\n---"
     },
     {
       "name": "creatorgift-admin-analysis",
@@ -351,7 +439,8 @@
       ],
       "file_count_sampled": 39,
       "fingerprint": "3047b84cf28375cca6596349ca0a9c3652ca4590",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Analysis and documentation of Creator Gift admin platform.\n\n**Primary flows:**\n- Documentation: Generate documentation for admin platform\n- Analysis: Analyze admin platform structure\n\n**Upstream dependencies:**\n- `creatorgift-admin` (source code)\n\n**Downstream dependencies:**\n- Documentation consumers\n\n**If you change X, watch out for Y:**\n- Changing analysis format → breaks documentation\n\n---"
     },
     {
       "name": "creatorgift-backend",
@@ -372,7 +461,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "de27ba9821529e5f9ce98c6727d34883a81d0db9",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Backend API for multi-tenant influencer gifting campaigns with Shopify integration.\n\n**Primary flows:**\n- Campaign Management: Create and manage gifting campaigns with product selections\n- Order Processing: Convert influencer orders to Shopify draft orders\n- Limit Enforcement: Enforce price, quantity, and order limits per influencer\n- Subdomain Routing: Route requests to branded subdomains per tenant\n\n**Upstream dependencies:**\n- Shopify API (product management, draft orders)\n- CreatorIQ (influencer verification)\n- Redis (session/cache management)\n- AWS (deployment)\n\n**Downstream dependencies:**\n- `creatorgift-admin` (admin UI)\n- `creatorgift-onboarding-app` (onboarding flow)\n- Shopify stores (receives draft orders)\n\n**If you change X, watch out for Y:**\n- Changing order limit logic → affects all active campaigns\n- Modifying Shopify draft order format → breaks order creation\n- Updating subdomain routing → breaks tenant isolation\n\n---"
     },
     {
       "name": "creatorgift-backend-analysis",
@@ -393,7 +483,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "a7af5d2025ba94b23a5e5384125477f22be7f343",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Analysis and documentation of Creator Gift backend.\n\n**Primary flows:**\n- Documentation: Generate documentation for backend\n- Analysis: Analyze backend structure\n\n**Upstream dependencies:**\n- `creatorgift-backend` (source code)\n\n**Downstream dependencies:**\n- Documentation consumers\n\n**If you change X, watch out for Y:**\n- Changing analysis format → breaks documentation\n\n---"
     },
     {
       "name": "creatorgift-onboarding-app",
@@ -414,7 +505,8 @@
       ],
       "file_count_sampled": 105,
       "fingerprint": "23dd675ce41d50af91eb34b8388cdd14db458617",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "creatoriq-invoice-hub",
@@ -435,7 +527,8 @@
       ],
       "file_count_sampled": 89,
       "fingerprint": "89f9a863c2f3c3bd1c2ab0d9063b9adbd2652c1e",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Generate and manage invoices for CreatorIQ campaigns, tracking creator payments and campaign costs.\n\n**Primary flows:**\n- Invoice Generation: Create invoices from CreatorIQ campaign data\n- Payment Tracking: Track creator payments and campaign expenses\n- Reporting: Generate financial reports for campaigns\n- Webhook Processing: Process CreatorIQ webhooks for invoice updates\n\n**Upstream dependencies:**\n- CreatorIQ API (campaign and payment data)\n- Supabase (database, edge functions)\n\n**Downstream dependencies:**\n- Financial reporting tools\n- Payment processing systems\n\n**If you change X, watch out for Y:**\n- Changing invoice schema → breaks existing invoice records\n- Modifying webhook processing → may miss invoice updates\n- Updating payment tracking → affects financial reporting accuracy\n\n---"
     },
     {
       "name": "debt-freedom-pathway-landing",
@@ -461,7 +554,73 @@
       ],
       "file_count_sampled": 182,
       "fingerprint": "d590132a63333b49837c23a5e04fb4f71823aa13",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Lead generation landing page with credit scoring, lead qualification, and Meta/Facebook conversion tracking.\n\n**Primary flows:**\n- Lead Capture: Collect lead information from landing page\n- Credit Scoring: Score leads based on credit data\n- Lead Qualification: Qualify leads for different programs\n- Conversion Tracking: Send conversions to Meta/Facebook Ads\n- Webhook Integration: Process leads via Zapier and other webhooks\n\n**Upstream dependencies:**\n- Supabase (database, edge functions)\n- Meta/Facebook Conversions API (conversion tracking)\n- Credit check APIs (lead scoring)\n\n**Downstream dependencies:**\n- Meta/Facebook Ads (receives conversion events)\n- CRM systems (via webhooks)\n\n**If you change X, watch out for Y:**\n- Changing credit scoring logic → affects lead qualification\n- Modifying conversion tracking → breaks Meta ad optimization\n- Updating webhook format → breaks downstream integrations\n\n---"
+    },
+    {
+      "name": "echelon-control",
+      "origin": "https://github.com/The-Gig-Agency/echelon-control.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "openai",
+        "stripe",
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 184,
+      "fingerprint": "efbc58b8661d07fb710c6c3b75921089da3a91e2",
+      "override": {},
+      "domain_summary": null
+    },
+    {
+      "name": "edge-bot",
+      "origin": "https://github.com/acedge123/edge-bot.git",
+      "stack": [],
+      "entrypoints": [],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "openai",
+        "pgvector",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 125,
+      "fingerprint": "170c719ded24b9765e100d6d50d9136af0c33103",
+      "override": {},
+      "domain_summary": null
+    },
+    {
+      "name": "edge-bot-latest-review",
+      "origin": "https://github.com/acedge123/edge-bot.git",
+      "stack": [],
+      "entrypoints": [],
+      "integrations": [
+        "aws",
+        "creatoriq",
+        "openai",
+        "pgvector",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 125,
+      "fingerprint": "170c719ded24b9765e100d6d50d9136af0c33103",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "engineering-hubcast",
@@ -480,7 +639,8 @@
       ],
       "file_count_sampled": 77,
       "fingerprint": "30db6435470602c269b4a4851c6756d8fcbec9ba",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "forecast-flex-wizard",
@@ -498,11 +658,13 @@
         "supabase/migrations"
       ],
       "integrations": [
+        "redis",
         "supabase"
       ],
-      "file_count_sampled": 134,
-      "fingerprint": "0c872a553c03eeb37ff5dc08ae2a5cf32e677edf",
-      "override": {}
+      "file_count_sampled": 167,
+      "fingerprint": "2a46e77286e0467ca5b915b32fcc29e4a78ae8c9",
+      "override": {},
+      "domain_summary": "**This repo exists to:** Sync and manage Meta/Facebook ad campaigns, accounts, and geo-breakdown data.\n\n**Primary flows:**\n- Ad Account Sync: Sync Meta ad accounts and campaigns\n- Campaign Management: List and manage Meta ad campaigns\n- Geo Breakdown: Fetch and analyze geo-based campaign performance\n- Brand Sync: Sync brand data with Meta\n\n**Upstream dependencies:**\n- Meta/Facebook Marketing API (ad data)\n- Supabase (database, edge functions)\n\n**Downstream dependencies:**\n- Ad management tools (receives campaign data)\n\n**If you change X, watch out for Y:**\n- Changing API sync logic → may miss campaign updates\n- Modifying geo breakdown → affects reporting accuracy\n\n---"
     },
     {
       "name": "four-visions-big-commerce",
@@ -530,7 +692,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "054b2985f7e800e8002e95cc8543ee99f5743cd5",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Full e-commerce platform for Four Visions brand with BigCommerce integration, OrderGroove subscriptions, and review management.\n\n**Primary flows:**\n- Product Sync: Sync products between systems and BigCommerce\n- Order Management: Process orders, subscriptions, and promotions\n- Customer Management: Handle customer accounts, authentication, and profiles\n- Review Import: Import and manage product reviews\n- Subscription Management: Handle OrderGroove subscription lifecycle\n\n**Upstream dependencies:**\n- BigCommerce API (products, orders, customers)\n- OrderGroove API (subscriptions)\n- Supabase (database, edge functions)\n\n**Downstream dependencies:**\n- BigCommerce store (receives products, orders, customers)\n- Customers (via frontend)\n\n**If you change X, watch out for Y:**\n- Changing OrderGroove sync → may create duplicate subscriptions\n- Modifying order processing → can break order fulfillment\n- Updating customer auth → affects all user logins\n- Changing review import → may create duplicate reviews\n\n---"
     },
     {
       "name": "gig-whisperer-sheet",
@@ -551,14 +714,80 @@
       ],
       "file_count_sampled": 78,
       "fingerprint": "bbaea2fa149bba3e3386ba7fd70e87be82e54e75",
-      "override": {}
+      "override": {},
+      "domain_summary": null
+    },
+    {
+      "name": "github-app",
+      "origin": "https://github.com/The-Gig-Agency/github-app.git",
+      "stack": [],
+      "entrypoints": [
+        "README.md"
+      ],
+      "integrations": [
+        "redis",
+        "webhook"
+      ],
+      "file_count_sampled": 12,
+      "fingerprint": "873a1b2095f30334f7ccb51126b251724d16f8da",
+      "override": {},
+      "domain_summary": null
+    },
+    {
+      "name": "governance-hub",
+      "origin": "https://github.com/The-Gig-Agency/governance-hub.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "stripe",
+        "supabase",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "cd6a52e28fd21c4c345d8a49efa49b62b00d0525",
+      "override": {},
+      "domain_summary": null
+    },
+    {
+      "name": "guild-landing-system",
+      "origin": "https://github.com/The-Gig-Agency/guild-landing-system.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "supabase"
+      ],
+      "file_count_sampled": 156,
+      "fingerprint": "2f1807d0e9558a4853d92d37ca89d383dd8e0f8b",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "hfc-scoring-engine",
       "origin": "https://github.com/The-Gig-Agency-Tech/hfc-scoring-engine",
       "stack": [
-        "python",
-        "docker"
+        "python"
       ],
       "entrypoints": [
         "README.md",
@@ -569,9 +798,10 @@
         "redis",
         "vercel"
       ],
-      "file_count_sampled": 130,
-      "fingerprint": "b5262abbe9310c4a735df7bac45873cb21b0848d",
-      "override": {}
+      "file_count_sampled": 131,
+      "fingerprint": "b76d790541c0f316555f8d91dd1ffa6e6e94073a",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "html-to-visualize-food",
@@ -595,7 +825,8 @@
       ],
       "file_count_sampled": 152,
       "fingerprint": "fb5e9d7b0dffc8f66502307fd940f382b8d8d1c7",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Process audio transcripts and generate visual reports using AI, with chunking and transcription capabilities.\n\n**Primary flows:**\n- Audio Upload: Upload and chunk audio files\n- Transcription: Transcribe audio chunks using AssemblyAI\n- Report Generation: Generate final reports from transcripts using AI\n- Content Synthesis: Synthesize report content with AI\n\n**Upstream dependencies:**\n- AssemblyAI (transcription service)\n- OpenAI (report generation, content synthesis)\n- Supabase (database, storage, edge functions)\n\n**Downstream dependencies:**\n- Users (receives generated reports)\n\n**If you change X, watch out for Y:**\n- Changing chunking logic → may break transcription\n- Modifying report format → breaks downstream consumers\n- Updating transcription service → affects all audio processing\n\n---"
     },
     {
       "name": "influencer-iq-flow-analysis",
@@ -623,7 +854,34 @@
       "override": {
         "status": "analysis-copy",
         "alias_of": "ciq-automations"
-      }
+      },
+      "domain_summary": "**This repo exists to:** Analysis copy of ciq-automations for flow analysis and documentation.\n\n**Primary flows:**\n- Flow Analysis: Analyze workflows and processes from ciq-automations\n- Documentation: Generate documentation based on analysis\n\n**Upstream dependencies:**\n- `ciq-automations` (source - this is an analysis copy)\n\n**Downstream dependencies:**\n- Documentation consumers\n\n**If you change X, watch out for Y:**\n- This is a read-only analysis copy - changes should be made in `ciq-automations`\n\n---"
+    },
+    {
+      "name": "key-vault-executor",
+      "origin": "https://github.com/The-Gig-Agency/key-vault-executor.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "creatoriq",
+        "stripe",
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 114,
+      "fingerprint": "03de67e234c678dee21d15b30a0bb3230b5db4ee",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "kitchen-capital-connect",
@@ -645,7 +903,8 @@
       ],
       "file_count_sampled": 122,
       "fingerprint": "52cf5fce2b34f2aaaf5e40e61af9909becc56350",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "lead-scoring-documentation",
@@ -667,7 +926,8 @@
       ],
       "file_count_sampled": 144,
       "fingerprint": "750858e9b9b7952c91a2abecfd6a75ebd4c1ee67",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "lifetrack",
@@ -688,7 +948,8 @@
       ],
       "file_count_sampled": 95,
       "fingerprint": "4f1f7d784fb8a19db5a2b95ab4b8bcc06c2c6342",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "linkcreator-magic",
@@ -708,7 +969,8 @@
       ],
       "file_count_sampled": 78,
       "fingerprint": "9bb057c1420b67f4d1834b098a28a73b28d25774",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "live-nation-demo",
@@ -731,7 +993,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "39a431a1f9fd3e11a1f67345c8bc29ad07602676",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "loan-chat-wizard-api",
@@ -754,7 +1017,8 @@
       ],
       "file_count_sampled": 76,
       "fingerprint": "9abbcb0a7d3afb456c0bf847a6050c80c0a82cb5",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "lovable-audit",
@@ -778,7 +1042,8 @@
       ],
       "file_count_sampled": 94,
       "fingerprint": "cc105629212dfc26b0866d13b1718af26d06d9b0",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "mom-walk-connect",
@@ -796,13 +1061,15 @@
         "supabase/migrations"
       ],
       "integrations": [
+        "aws",
         "supabase",
         "vercel",
         "webhook"
       ],
       "file_count_sampled": 200,
-      "fingerprint": "c7a74eafe19f0df11efd4172ba0f80a04cbb259c",
-      "override": {}
+      "fingerprint": "d48f67d7c40c904257a08e8e39c8f919ae8c099c",
+      "override": {},
+      "domain_summary": "**This repo exists to:** Community platform for moms with goals, conversations, and user management.\n\n**Primary flows:**\n- User Management: Handle user accounts, roles, and permissions\n- Goal Tracking: Track user goals and progress\n- Conversations: Manage user conversations and messages\n- Deletion Management: Handle user conversation deletions\n\n**Upstream dependencies:**\n- Supabase (database, auth)\n\n**Downstream dependencies:**\n- Users (via frontend)\n\n**If you change X, watch out for Y:**\n- Changing user schema → breaks existing user data\n- Modifying goal tracking → affects user progress\n- Updating conversation format → breaks message history\n\n---"
     },
     {
       "name": "new-api-project",
@@ -821,7 +1088,8 @@
       ],
       "file_count_sampled": 80,
       "fingerprint": "f6718887f61272498800999741666576472932a0",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "new-test-al",
@@ -833,7 +1101,8 @@
       "integrations": [],
       "file_count_sampled": 2,
       "fingerprint": "6680a11fd76c646001cd87750b15240cb1e2954b",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "NLWeb",
@@ -848,7 +1117,38 @@
       ],
       "file_count_sampled": 116,
       "fingerprint": "82c98f86c1d6034ea2f7dd9c7d3103f4a819e8f9",
-      "override": {}
+      "override": {},
+      "domain_summary": null
+    },
+    {
+      "name": "onsite-affiliate",
+      "origin": "https://github.com/The-Gig-Agency/onsite-affiliate.git",
+      "stack": [
+        "node",
+        "vite",
+        "supabase"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json",
+        "supabase/config.toml",
+        "supabase/functions",
+        "supabase/migrations"
+      ],
+      "integrations": [
+        "aws",
+        "openai",
+        "redis",
+        "stripe",
+        "supabase",
+        "upstash",
+        "vercel",
+        "webhook"
+      ],
+      "file_count_sampled": 200,
+      "fingerprint": "bccbd9a24366614871a6bd58352dce6d7d68c1df",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "pathfinder-financial-insights",
@@ -871,7 +1171,8 @@
       ],
       "file_count_sampled": 175,
       "fingerprint": "40d6b64c7863ec8af876aa86dae692fd19b780b3",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "perception-love-website",
@@ -887,7 +1188,8 @@
       "integrations": [],
       "file_count_sampled": 75,
       "fingerprint": "077d10eca3e0b5f5e0df076a41d89fef4b9c91fa",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "quiz-product-tinker",
@@ -907,7 +1209,8 @@
       ],
       "file_count_sampled": 92,
       "fingerprint": "0e486c5d2d5ee6f7fc9f76fcd32b82c38f201d77",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "scoring-engine",
@@ -926,7 +1229,29 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "6f1fd525ff333650f1ef521ac00bc0d42a59bc73",
-      "override": {}
+      "override": {},
+      "domain_summary": null
+    },
+    {
+      "name": "Shopify_App",
+      "origin": "https://github.com/mb2470/Shopify_App",
+      "stack": [
+        "node"
+      ],
+      "entrypoints": [
+        "README.md",
+        "package.json"
+      ],
+      "integrations": [
+        "aws",
+        "stripe",
+        "supabase",
+        "webhook"
+      ],
+      "file_count_sampled": 25,
+      "fingerprint": "aaac5a7ad463f6c27f15dce4afeab044db83f00a",
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "suna",
@@ -952,7 +1277,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "692dc25ffce465aee5bbdc338b9e507303f860c4",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "suna-kortix",
@@ -974,7 +1300,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "b3c9099f3933b0e92c816b6ec84c2da8e4945412",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "sunafusion-agent-shell",
@@ -1005,7 +1332,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "47486ba2cbd973c07e9ff1bf1825345a2189adb5",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Provide an AI agent platform with memory, tool access, and codebase understanding for personal assistant use cases.\n\n**Primary flows:**\n- Quick Mode (Edge): Fast responses using unified-agent with repo-map, memory, and integrations\n- Heavy Mode (Backend): Full agent with sandbox, tool loops, and long-running tasks\n- Memory System: Store and recall durable facts/preferences\n- Repo-Map Integration: Answer questions about codebase structure and ownership\n\n**Upstream dependencies:**\n- Supabase (database, edge functions, auth)\n- OpenAI/Anthropic (LLM providers)\n- CreatorIQ (via unified-agent)\n- Google Drive (via unified-agent)\n- Slack (via unified-agent)\n\n**Downstream dependencies:**\n- Users (via chat interface)\n- Other repos (via repo-map queries)\n\n**If you change X, watch out for Y:**\n- Changing memory schema → invalidates existing memories\n- Modifying repo-map structure → breaks codebase queries\n- Updating agent routing → affects all user interactions\n\n---"
     },
     {
       "name": "temp-creator-repo",
@@ -1034,7 +1362,8 @@
       "override": {
         "status": "duplicate",
         "alias_of": "creator-licensing-hub"
-      }
+      },
+      "domain_summary": null
     },
     {
       "name": "temp-wp-repo",
@@ -1051,7 +1380,8 @@
       ],
       "file_count_sampled": 9,
       "fingerprint": "f32ebd9eef98c3b1c17167b8d4d9bf4e42976749",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "text-safety-watchdog",
@@ -1076,7 +1406,8 @@
       ],
       "file_count_sampled": 128,
       "fingerprint": "27815461c4f38b5dacbd6c3dda9c886522cdf7b0",
-      "override": {}
+      "override": {},
+      "domain_summary": "**This repo exists to:** Monitor and moderate text content for safety, with user permissions and role management.\n\n**Primary flows:**\n- Text Analysis: Analyze text content for safety issues\n- User Permissions: Manage user permissions and roles\n- Content Moderation: Moderate unsafe content\n\n**Upstream dependencies:**\n- Supabase (database, auth)\n\n**Downstream dependencies:**\n- Content platforms (receives moderation decisions)\n\n**If you change X, watch out for Y:**\n- Changing moderation rules → affects all content decisions\n- Modifying permission schema → breaks user access\n\n---"
     },
     {
       "name": "textweaver-gigcraft",
@@ -1101,7 +1432,8 @@
       ],
       "file_count_sampled": 95,
       "fingerprint": "d629a039538286ac81f422dc04a01919589b2efa",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "tga-crm",
@@ -1126,7 +1458,8 @@
       ],
       "file_count_sampled": 200,
       "fingerprint": "a25fda445d88c1588caa1066b8e8f5eb0cfbd073",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     },
     {
       "name": "voice-agent-ciq-agent",
@@ -1147,7 +1480,8 @@
       ],
       "file_count_sampled": 93,
       "fingerprint": "1067d40a131e7479349ff003dac7ec935e0a3cb2",
-      "override": {}
+      "override": {},
+      "domain_summary": null
     }
   ]
 }

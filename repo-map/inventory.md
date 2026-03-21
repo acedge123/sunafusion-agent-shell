@@ -1,32 +1,47 @@
 # Repo Inventory
 
-Generated: 2026-01-25T01:45:59.160Z
+Generated: 2026-03-21T16:18:32.876Z
 
 ## ads-gpt-starter
 - Origin: git@github.com:acedge123/ads-gpt-starter.git
 - Stack: supabase, python
 - Entrypoints: README.md, supabase/migrations
 - Integrations: aws, supabase
+## agentic-control-plane-kit
+- Origin: https://github.com/The-Gig-Agency/agentic-control-plane-kit.git
+- Stack: node
+- Entrypoints: README.md, package.json
+- Integrations: aws, creatoriq, redis, stripe, supabase, vercel, webhook
 ## alan_test
 - Origin: unknown
 - Stack: node, python
 - Entrypoints: README.md, package.json
 - Integrations: redis
+## api-docs-template
+- Origin: https://github.com/acedge123/api-docs-template.git
+- Stack: docker
+- Entrypoints: README.md, backend
+- Integrations: aws, redis, stripe, supabase, vercel, webhook
 ## api-ninja-gateway
 - Origin: git@github.com:acedge123/api-ninja-gateway.git
 - Stack: node, vite, supabase
 - Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
 - Integrations: openai, supabase
+## brand-connect-hub
+- Origin: https://github.com/The-Gig-Agency/brand-connect-hub.git
+- Stack: node, vite, supabase
+- Entrypoints: README.md, package.json, supabase/config.toml, supabase/migrations
+- Integrations: supabase
 ## candd-adserver
 - Origin: https://github.com/The-Gig-Agency/candd-adserver
 - Stack: python
 - Entrypoints: README.md
 - Integrations: aws, redis
 ## ciq-automations
-- Origin: git@github.com:acedge123/ciq-automations.git
+- Origin: https://github.com/acedge123/ciq-automations.git
 - Stack: node, vite, supabase
 - Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
-- Integrations: aws, creatoriq, openai, supabase, webhook
+- Integrations: aws, creatoriq, openai, redis, stripe, supabase, webhook
 ## ciq-feed-map
 - Origin: git@github.com:acedge123/ciq-feed-map.git
 - Stack: node, vite, supabase
@@ -117,6 +132,21 @@ Generated: 2026-01-25T01:45:59.160Z
 - Stack: node, vite, supabase
 - Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
 - Integrations: aws, redis, supabase, vercel, webhook
+## echelon-control
+- Origin: https://github.com/The-Gig-Agency/echelon-control.git
+- Stack: node, vite, supabase
+- Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
+- Integrations: aws, openai, stripe, supabase, webhook
+## edge-bot
+- Origin: https://github.com/acedge123/edge-bot.git
+- Stack: unknown
+- Entrypoints: —
+- Integrations: aws, creatoriq, openai, pgvector, supabase, vercel, webhook
+## edge-bot-latest-review
+- Origin: https://github.com/acedge123/edge-bot.git
+- Stack: unknown
+- Entrypoints: —
+- Integrations: aws, creatoriq, openai, pgvector, supabase, vercel, webhook
 ## engineering-hubcast
 - Origin: git@github.com:acedge123/engineering-hubcast.git
 - Stack: node, vite
@@ -126,7 +156,7 @@ Generated: 2026-01-25T01:45:59.160Z
 - Origin: git@github.com:acedge123/forecast-flex-wizard.git
 - Stack: node, vite, supabase
 - Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
-- Integrations: supabase
+- Integrations: redis, supabase
 ## four-visions-big-commerce
 - Origin: https://github.com/The-Gig-Agency/four-visions-big-commerce.git
 - Stack: node, vite, supabase
@@ -137,9 +167,24 @@ Generated: 2026-01-25T01:45:59.160Z
 - Stack: node, vite
 - Entrypoints: README.md, package.json
 - Integrations: creatoriq, stripe, supabase, vercel
+## github-app
+- Origin: https://github.com/The-Gig-Agency/github-app.git
+- Stack: unknown
+- Entrypoints: README.md
+- Integrations: redis, webhook
+## governance-hub
+- Origin: https://github.com/The-Gig-Agency/governance-hub.git
+- Stack: node, vite, supabase
+- Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
+- Integrations: aws, stripe, supabase, vercel, webhook
+## guild-landing-system
+- Origin: https://github.com/The-Gig-Agency/guild-landing-system.git
+- Stack: node, vite, supabase
+- Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
+- Integrations: supabase
 ## hfc-scoring-engine
 - Origin: https://github.com/The-Gig-Agency-Tech/hfc-scoring-engine
-- Stack: python, docker
+- Stack: python
 - Entrypoints: README.md, api
 - Integrations: aws, redis, vercel
 ## html-to-visualize-food
@@ -154,6 +199,11 @@ Generated: 2026-01-25T01:45:59.160Z
 - Stack: node, vite, supabase
 - Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
 - Integrations: creatoriq, openai, supabase, webhook
+## key-vault-executor
+- Origin: https://github.com/The-Gig-Agency/key-vault-executor.git
+- Stack: node, vite, supabase
+- Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
+- Integrations: creatoriq, stripe, supabase, webhook
 ## kitchen-capital-connect
 - Origin: git@github.com:acedge123/kitchen-capital-connect.git
 - Stack: node, vite, supabase
@@ -193,7 +243,7 @@ Generated: 2026-01-25T01:45:59.160Z
 - Origin: git@github.com:The-Gig-Agency/mom-walk-connect.git
 - Stack: node, vite, supabase
 - Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
-- Integrations: supabase, vercel, webhook
+- Integrations: aws, supabase, vercel, webhook
 ## new-api-project
 - Origin: git@github.com:acedge123/api-docs-template.git
 - Stack: node, vite
@@ -209,6 +259,11 @@ Generated: 2026-01-25T01:45:59.160Z
 - Stack: unknown
 - Entrypoints: README.md
 - Integrations: aws, openai
+## onsite-affiliate
+- Origin: https://github.com/The-Gig-Agency/onsite-affiliate.git
+- Stack: node, vite, supabase
+- Entrypoints: README.md, package.json, supabase/config.toml, supabase/functions, supabase/migrations
+- Integrations: aws, openai, redis, stripe, supabase, upstash, vercel, webhook
 ## pathfinder-financial-insights
 - Origin: git@github.com:acedge123/pathfinder-financial-insights.git
 - Stack: node, vite, supabase
@@ -229,6 +284,11 @@ Generated: 2026-01-25T01:45:59.160Z
 - Stack: docker
 - Entrypoints: README.md, backend
 - Integrations: aws, redis, vercel
+## Shopify_App
+- Origin: https://github.com/mb2470/Shopify_App
+- Stack: node
+- Entrypoints: README.md, package.json
+- Integrations: aws, stripe, supabase, webhook
 ## suna
 - Origin: git@github.com:acedge123/suna.git
 - Stack: node, vite
