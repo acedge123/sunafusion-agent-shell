@@ -1,6 +1,6 @@
 
 import React from "react";
-import { UserCircle } from "lucide-react";
+import { UserCircle, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { GoogleDriveAuth } from "@/components/drive/GoogleDriveAuth";
 import { SlackAuth } from "@/components/slack/SlackAuth";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface ProfileDropdownProps {
   className?: string;
