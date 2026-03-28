@@ -241,6 +241,61 @@ Delete a task by UUID. Returns the deleted record.
 
 ---
 
+## Files Endpoints
+
+Upload, list, and download files via Supabase Storage. Max 50 MB per file.
+
+### `POST /files/upload`
+
+Multipart form data upload. Returns file metadata record.
+
+| Form Field | Type | Required | Description |
+|------------|------|----------|-------------|
+| `file` | file | Yes | The file to upload (max 50 MB) |
+| `tags` | string | No | Comma-separated tags |
+| `description` | string | No | File description |
+| `source` | string | No | Upload source (default: `agent`) |
+| `owner_id` | uuid | No | Owner user ID |
+| `original_path` | string | No | Original file path on source system |
+| `metadata` | JSON string | No | Additional metadata |
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $AGENT_EDGE_KEY" \
+  -F "file=@/path/to/finance_exports.tar.gz" \
+  -F "tags=finance,export,2025" \
+  -F "source=edge-bot" \
+  -F "original_path=/app/.openclaw/workspace/tmp/finance_exports_2025.tar.gz" \
+  "https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault/files/upload"
+```
+
+### `GET /files/list`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | int | 50 | Results limit (1-200) |
+| `since` | ISO 8601 | - | Only files after this timestamp |
+| `source` | string | - | Filter by source |
+| `tag` | string | - | Filter by tag (contains) |
+
+### `GET /files/:id`
+
+Get file metadata by UUID.
+
+### `GET /files/:id/url`
+
+Get a signed download URL.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `expires` | int | 3600 | URL expiry in seconds (60-86400) |
+
+### `DELETE /files/:id`
+
+Delete file from storage and metadata table.
+
+---
+
 ## Jobs Endpoints
 
 ### `GET /jobs/list`
@@ -319,6 +374,11 @@ Submit a chat message (requires Supabase JWT, not AGENT_EDGE_KEY).
 | GET | `/jobs/list` | List jobs |
 | POST | `/jobs/next` | Claim next job |
 | POST | `/jobs/ack` | Complete job |
+| GET | `/files/list` | List files |
+| GET | `/files/:id` | Get file metadata |
+| GET | `/files/:id/url` | Get signed download URL |
+| POST | `/files/upload` | Upload file (multipart) |
+| DELETE | `/files/:id` | Delete file |
 | POST | `/chat/submit` | Submit chat (JWT auth) |
 | GET | `/composio/toolkits` | List Composio toolkits |
 | GET | `/composio/tools` | List Composio tools |

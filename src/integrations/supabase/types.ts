@@ -59,6 +59,54 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_files: {
+        Row: {
+          created_at: string
+          description: string | null
+          filename: string
+          id: string
+          metadata: Json | null
+          mime_type: string | null
+          original_path: string | null
+          owner_id: string | null
+          size_bytes: number | null
+          source: string | null
+          storage_path: string
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          filename: string
+          id?: string
+          metadata?: Json | null
+          mime_type?: string | null
+          original_path?: string | null
+          owner_id?: string | null
+          size_bytes?: number | null
+          source?: string | null
+          storage_path: string
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          filename?: string
+          id?: string
+          metadata?: Json | null
+          mime_type?: string | null
+          original_path?: string | null
+          owner_id?: string | null
+          size_bytes?: number | null
+          source?: string | null
+          storage_path?: string
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       agent_learnings: {
         Row: {
           category: string | null
