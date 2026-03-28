@@ -19,8 +19,14 @@ interface ProfileDropdownProps {
 
 export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   if (!user) return null;
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth", { replace: true });
+  };
   
   return (
     <DropdownMenu>
@@ -42,6 +48,16 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ className }) =
           
           <GoogleDriveAuth />
           <SlackAuth />
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-2"
+            onClick={handleLogout}
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign out
+          </Button>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
