@@ -966,6 +966,145 @@ serve(async (req) => {
     }
 
     // ============================================================
+    // FILES
+    // ============================================================
+
+    // ---- POST /files/upload (multipart) ----
+    if (req.method === "POST" && pathname.endsWith("/files/upload")) {
+      const contentType = req.headers.get("content-type") || "";
+      if (!contentType.includes("multipart/form-data")) {
+        return json(400, { error: "content-type must be multipart/form-data" });
+      }
+
+      const formData = await req.formData().catch(() => null);
+      if (!formData) return json(400, { error: "invalid form data" });
+
+      const file = formData.get("file");
+      if (!file || !(file instanceof File)) {
+        return json(400, { error: "missing 'file' field in form data" });
+      }
+
+      if (file.size > 50 * 1024 * 1024) {
+        return json(400, { error: "file too large (max 50 MB)" });
+      }
+
+      const tags = (formData.get("tags") as string || "").split(",").map(t => t.trim()).filter(Boolean);
+      const description = (formData.get("description") as string || "").trim() || null;
+      const source = (formData.get("source") as string || "agent").trim();
+      const ownerId = (formData.get("owner_id") as string || "").trim() || null;
+      let meta: Record<string, unknown> = {};
+      try { const m = formData.get("metadata") as string; if (m) meta = JSON.parse(m); } catch { /* ignore */ }
+
+      const ext = file.name.includes(".") ? file.name.split(".").pop() : "";
+      const storagePath = `uploads/${Date.now()}_${crypto.randomUUID().slice(0, 8)}${ext ? `.${ext}` : ""}`;
+
+      const fileBuffer = await file.arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from("agent-files")
+        .upload(storagePath, fileBuffer, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("[agent-vault] Storage upload error:", uploadError.message);
+        return json(500, { error: "storage_error", detail: uploadError.message });
+      }
+
+      const { data: record, error: dbError } = await supabase
+        .from("agent_files")
+        .insert({
+          filename: file.name,
+          original_path: (formData.get("original_path") as string || "").trim() || null,
+          storage_path: storagePath,
+          mime_type: file.type || "application/octet-stream",
+          size_bytes: file.size,
+          tags: tags.length ? tags : null,
+          description,
+          source,
+          owner_id: ownerId,
+          metadata: meta,
+        })
+        .select("*")
+        .single();
+
+      if (dbError) {
+        console.error("[agent-vault] File record insert error:", dbError.message);
+        return json(500, { error: "db_error", detail: dbError.message });
+      }
+
+      console.log(`[agent-vault] File uploaded: ${file.name} → ${storagePath} (${file.size} bytes)`);
+      return json(200, { data: record });
+    }
+
+    // ---- GET /files/list ----
+    if (req.method === "GET" && pathname.endsWith("/files/list")) {
+      const limit = clampInt(url.searchParams.get("limit"), 50, 1, 200);
+      const since = (url.searchParams.get("since") || "").trim();
+      const source = (url.searchParams.get("source") || "").trim();
+      const tag = (url.searchParams.get("tag") || "").trim();
+
+      let query = supabase
+        .from("agent_files")
+        .select("id,filename,original_path,storage_path,mime_type,size_bytes,tags,description,source,owner_id,created_at")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (since) query = query.gte("created_at", since);
+      if (source) query = query.eq("source", source);
+      if (tag) query = query.contains("tags", [tag]);
+
+      const { data, error } = await query;
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      return json(200, { data: data || [], count: (data || []).length });
+    }
+
+    // ---- GET /files/:id ----
+    const fileGetMatch = pathname.match(/\/files\/([a-f0-9-]{36})$/);
+    if (req.method === "GET" && fileGetMatch) {
+      const id = fileGetMatch[1];
+      const { data, error } = await supabase.from("agent_files").select("*").eq("id", id).maybeSingle();
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      if (!data) return json(404, { error: "not_found" });
+      return json(200, { data });
+    }
+
+    // ---- GET /files/:id/url ----
+    const fileUrlMatch = pathname.match(/\/files\/([a-f0-9-]{36})\/url$/);
+    if (req.method === "GET" && fileUrlMatch) {
+      const id = fileUrlMatch[1];
+      const { data: record, error } = await supabase.from("agent_files").select("storage_path").eq("id", id).maybeSingle();
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      if (!record) return json(404, { error: "not_found" });
+
+      const expiresIn = clampInt(url.searchParams.get("expires"), 3600, 60, 86400);
+      const { data: signedUrl, error: signError } = await supabase.storage
+        .from("agent-files")
+        .createSignedUrl(record.storage_path, expiresIn);
+
+      if (signError) return json(500, { error: "storage_error", detail: signError.message });
+      return json(200, { url: signedUrl?.signedUrl, expires_in: expiresIn });
+    }
+
+    // ---- DELETE /files/:id ----
+    const fileDeleteMatch = pathname.match(/\/files\/([a-f0-9-]{36})$/);
+    if (req.method === "DELETE" && fileDeleteMatch) {
+      const id = fileDeleteMatch[1];
+      const { data: record } = await supabase.from("agent_files").select("id,filename,storage_path").eq("id", id).maybeSingle();
+      if (!record) return json(404, { error: "not_found", id });
+
+      const { error: storageErr } = await supabase.storage.from("agent-files").remove([record.storage_path]);
+      if (storageErr) console.error(`[agent-vault] Storage delete warning: ${storageErr.message}`);
+
+      const { error: dbErr } = await supabase.from("agent_files").delete().eq("id", id);
+      if (dbErr) return json(500, { error: "db_error", detail: dbErr.message });
+
+      console.log(`[agent-vault] Deleted file id=${id} path=${record.storage_path}`);
+      return json(200, { deleted: { id: record.id, filename: record.filename } });
+    }
+
+    // ============================================================
     // COMPOSIO PROXY
     // ============================================================
 
