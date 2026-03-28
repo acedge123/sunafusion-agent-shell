@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { AuthProvider } from "@/components/auth/AuthProvider"
+import { RequireAdmin } from "@/components/auth/RequireAdmin"
 import Index from "./pages/Index"
 import Auth from "./pages/Auth"
 import Chat from "./pages/Chat"
@@ -24,7 +25,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/chat" element={<Chat />} />
-            <Route path="/learnings" element={<Learnings />} />
+            <Route path="/learnings" element={<RequireAdmin><Learnings /></RequireAdmin>} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
