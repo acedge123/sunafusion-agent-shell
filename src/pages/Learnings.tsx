@@ -16,6 +16,8 @@ const Learnings = () => {
   const [selectedKind, setSelectedKind] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("all");
+  const [selectedDomain, setSelectedDomain] = useState("all");
+  const [selectedSurface, setSelectedSurface] = useState("all");
   const [selectedLearning, setSelectedLearning] = useState<Learning | null>(null);
 
   const {
@@ -30,6 +32,8 @@ const Learnings = () => {
     kind: selectedKind === "all" ? undefined : selectedKind,
     search: searchQuery || undefined,
     subjectName: selectedSubject === "all" ? undefined : selectedSubject,
+    domain: selectedDomain === "all" ? undefined : selectedDomain,
+    surface: selectedSurface === "all" ? undefined : selectedSurface,
   });
 
   const { files, isLoading: filesLoading, error: filesError, refresh: refreshFiles } = useAgentFiles();
