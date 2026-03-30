@@ -105,6 +105,10 @@ const Learnings = () => {
                 onSearchChange={setSearchQuery}
                 selectedSubject={selectedSubject}
                 onSubjectChange={setSelectedSubject}
+                selectedDomain={selectedDomain}
+                onDomainChange={setSelectedDomain}
+                selectedSurface={selectedSurface}
+                onSurfaceChange={setSelectedSurface}
               />
 
               {error && (

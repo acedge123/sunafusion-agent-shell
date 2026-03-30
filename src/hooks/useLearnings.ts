@@ -120,7 +120,7 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
     setOffset(0);
     setLearnings([]);
     fetchLearnings(true);
-  }, [kind, visibility, search, subjectName]);
+  }, [kind, visibility, search, subjectName, domain, surface]);
 
   const loadMore = useCallback(() => {
     if (!isLoading && learnings.length < totalCount) {
