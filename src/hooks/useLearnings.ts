@@ -26,6 +26,8 @@ interface UseLearningsOptions {
   visibility?: string;
   search?: string;
   subjectName?: string;
+  domain?: string;
+  surface?: string;
   limit?: number;
 }
 
