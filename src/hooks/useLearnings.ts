@@ -82,6 +82,14 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
         query = query.eq("subject_name", subjectName);
       }
 
+      if (domain) {
+        query = query.eq("domain", domain);
+      }
+
+      if (surface) {
+        query = query.contains("tags", [`surface:${surface}`]);
+      }
+
       const { data, error: queryError, count } = await query;
 
       if (queryError) {
