@@ -26,6 +26,8 @@ interface UseLearningsOptions {
   visibility?: string;
   search?: string;
   subjectName?: string;
+  domain?: string;
+  surface?: string;
   limit?: number;
 }
 
@@ -40,7 +42,7 @@ interface UseLearningsResult {
 }
 
 export function useLearnings(options: UseLearningsOptions = {}): UseLearningsResult {
-  const { kind, visibility, search, subjectName, limit = 20 } = options;
+  const { kind, visibility, search, subjectName, domain, surface, limit = 20 } = options;
   const [learnings, setLearnings] = useState<Learning[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,17 +71,7 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
         .range(currentOffset, currentOffset + limit - 1);
 
       if (kind && kind !== "all") {
-        // Handle multiple kinds for tabs like "email" which includes email_summary + composio_trigger
-        const kindMapping: Record<string, string[]> = {
-          research: ["research_summary"],
-          memory: ["memory"],
-          decision: ["decision"],
-          email: ["email_summary"],
-          github: ["github_push_summary", "code_change"],
-          composio: ["composio_trigger"],
-        };
-        const kinds = kindMapping[kind] || [kind];
-        query = query.in("kind", kinds);
+        query = query.eq("kind", kind);
       }
 
       if (visibility) {
@@ -88,6 +80,14 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
 
       if (subjectName) {
         query = query.eq("subject_name", subjectName);
+      }
+
+      if (domain) {
+        query = query.eq("domain", domain);
+      }
+
+      if (surface) {
+        query = query.contains("tags", [`surface:${surface}`]);
       }
 
       const { data, error: queryError, count } = await query;
@@ -113,14 +113,14 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
     } finally {
       setIsLoading(false);
     }
-  }, [kind, visibility, search, subjectName, limit, offset]);
+  }, [kind, visibility, search, subjectName, domain, surface, limit, offset]);
 
   // Initial fetch and reset on filter changes
   useEffect(() => {
     setOffset(0);
     setLearnings([]);
     fetchLearnings(true);
-  }, [kind, visibility, search, subjectName]);
+  }, [kind, visibility, search, subjectName, domain, surface]);
 
   const loadMore = useCallback(() => {
     if (!isLoading && learnings.length < totalCount) {

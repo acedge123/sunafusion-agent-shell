@@ -21,18 +21,14 @@ interface LearningCardProps {
 }
 
 const kindConfig: Record<string, { label: string; icon: typeof Brain; color: string }> = {
-  general: { label: "General", icon: Lightbulb, color: "bg-gray-100 text-gray-700" },
-  research_summary: { label: "Research", icon: Search, color: "bg-blue-100 text-blue-700" },
-  email_summary: { label: "Email", icon: Mail, color: "bg-purple-100 text-purple-700" },
-  memory: { label: "Memory", icon: Brain, color: "bg-green-100 text-green-700" },
   decision: { label: "Decision", icon: Lightbulb, color: "bg-amber-100 text-amber-700" },
-  github_push_summary: { label: "GitHub", icon: GitBranch, color: "bg-slate-100 text-slate-700" },
-  code_change: { label: "Code", icon: Code, color: "bg-indigo-100 text-indigo-700" },
-  db_query_result: { label: "Database", icon: Database, color: "bg-cyan-100 text-cyan-700" },
-  composio_trigger: { label: "Trigger", icon: Zap, color: "bg-orange-100 text-orange-700" },
+  playbook: { label: "Playbook", icon: Code, color: "bg-indigo-100 text-indigo-700" },
+  gotcha: { label: "Gotcha", icon: Zap, color: "bg-orange-100 text-orange-700" },
+  reference: { label: "Reference", icon: Database, color: "bg-cyan-100 text-cyan-700" },
+  research: { label: "Research", icon: Search, color: "bg-blue-100 text-blue-700" },
   chat_query: { label: "Chat Query", icon: MessageSquare, color: "bg-rose-100 text-rose-700" },
   chat_response: { label: "Response", icon: MessageSquare, color: "bg-emerald-100 text-emerald-700" },
-  image_generation: { label: "Image", icon: Image, color: "bg-pink-100 text-pink-700" },
+  general: { label: "General", icon: Lightbulb, color: "bg-gray-100 text-gray-700" },
 };
 
 function truncateText(text: string, maxLength: number): string {
