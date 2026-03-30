@@ -113,7 +113,7 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
     } finally {
       setIsLoading(false);
     }
-  }, [kind, visibility, search, subjectName, limit, offset]);
+  }, [kind, visibility, search, subjectName, domain, surface, limit, offset]);
 
   // Initial fetch and reset on filter changes
   useEffect(() => {
