@@ -71,17 +71,7 @@ export function useLearnings(options: UseLearningsOptions = {}): UseLearningsRes
         .range(currentOffset, currentOffset + limit - 1);
 
       if (kind && kind !== "all") {
-        // Handle multiple kinds for tabs like "email" which includes email_summary + composio_trigger
-        const kindMapping: Record<string, string[]> = {
-          research: ["research_summary"],
-          memory: ["memory"],
-          decision: ["decision"],
-          email: ["email_summary"],
-          github: ["github_push_summary", "code_change"],
-          composio: ["composio_trigger"],
-        };
-        const kinds = kindMapping[kind] || [kind];
-        query = query.in("kind", kinds);
+        query = query.eq("kind", kind);
       }
 
       if (visibility) {
