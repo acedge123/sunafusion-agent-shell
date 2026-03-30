@@ -42,7 +42,7 @@ interface UseLearningsResult {
 }
 
 export function useLearnings(options: UseLearningsOptions = {}): UseLearningsResult {
-  const { kind, visibility, search, subjectName, limit = 20 } = options;
+  const { kind, visibility, search, subjectName, domain, surface, limit = 20 } = options;
   const [learnings, setLearnings] = useState<Learning[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
