@@ -7,7 +7,8 @@ import {
   Bot,
   MessageSquare,
   Brain,
-  Network
+  Network,
+  BookOpen
 } from 'lucide-react';
 
 const Navigation = () => {
@@ -17,6 +18,7 @@ const Navigation = () => {
     { href: '/', label: 'Home', icon: Home },
     { href: '/chat', label: 'Chat', icon: MessageSquare },
     { href: '/learnings', label: 'Learnings', icon: Brain },
+    { href: '/wiki', label: 'Wiki', icon: BookOpen },
     { href: '/dashboard', label: 'Dashboard', icon: Network },
   ];
 
@@ -66,6 +68,11 @@ const Navigation = () => {
             <Link to="/learnings">
               <Button variant="ghost" size="sm">
                 <Brain className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link to="/wiki">
+              <Button variant="ghost" size="sm">
+                <BookOpen className="h-4 w-4" />
               </Button>
             </Link>
             <Link to="/dashboard">
