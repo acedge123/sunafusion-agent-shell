@@ -1,30 +1,17 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { 
-  X, 
-  Brain, 
-  Mail, 
-  Search, 
-  GitBranch, 
-  Database, 
-  Zap, 
-  MessageSquare,
-  Image,
-  Lightbulb,
-  Code,
-  Clock,
-  Tag,
-  User,
-  Shield,
-  ChevronDown,
-  ChevronRight
+  X, Brain, Search, Database, Zap, MessageSquare, Lightbulb, Code,
+  Clock, Tag, User, Shield, ChevronDown, ChevronRight, Mail, GitBranch, Image
 } from "lucide-react";
 import { useState } from "react";
 import type { Learning } from "@/hooks/useLearnings";
+import { useLearningEntities } from "@/hooks/useRelationalMemory";
+import { EntityChip } from "@/components/memory/EntityChip";
 
 interface LearningDetailProps {
   learning: Learning;
@@ -34,9 +21,13 @@ interface LearningDetailProps {
 const kindConfig: Record<string, { label: string; icon: typeof Brain; color: string }> = {
   general: { label: "General", icon: Lightbulb, color: "bg-gray-100 text-gray-700" },
   research_summary: { label: "Research", icon: Search, color: "bg-blue-100 text-blue-700" },
+  research: { label: "Research", icon: Search, color: "bg-blue-100 text-blue-700" },
   email_summary: { label: "Email", icon: Mail, color: "bg-purple-100 text-purple-700" },
   memory: { label: "Memory", icon: Brain, color: "bg-green-100 text-green-700" },
   decision: { label: "Decision", icon: Lightbulb, color: "bg-amber-100 text-amber-700" },
+  playbook: { label: "Playbook", icon: Code, color: "bg-indigo-100 text-indigo-700" },
+  gotcha: { label: "Gotcha", icon: Zap, color: "bg-orange-100 text-orange-700" },
+  reference: { label: "Reference", icon: Database, color: "bg-cyan-100 text-cyan-700" },
   github_push_summary: { label: "GitHub", icon: GitBranch, color: "bg-slate-100 text-slate-700" },
   code_change: { label: "Code", icon: Code, color: "bg-indigo-100 text-indigo-700" },
   db_query_result: { label: "Database", icon: Database, color: "bg-cyan-100 text-cyan-700" },
@@ -50,6 +41,7 @@ export function LearningDetail({ learning, onClose }: LearningDetailProps) {
   const [showMetadata, setShowMetadata] = useState(false);
   const config = kindConfig[learning.kind || "general"] || kindConfig.general;
   const IconComponent = config.icon;
+  const { entities: linkedEntities, isLoading: entitiesLoading } = useLearningEntities(learning.id);
 
   const formattedDate = format(new Date(learning.created_at), "PPpp");
 
@@ -69,7 +61,7 @@ export function LearningDetail({ learning, onClose }: LearningDetailProps) {
           </div>
 
           {/* Content */}
-           <ScrollArea className="flex-1 p-4">
+          <ScrollArea className="flex-1 p-4">
             <div className="space-y-6">
               {/* Title + Summary */}
               {(learning.title || learning.summary) && (
@@ -93,6 +85,20 @@ export function LearningDetail({ learning, onClose }: LearningDetailProps) {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* Linked entities */}
+              {linkedEntities.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Linked Entities</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {linkedEntities.map((link) =>
+                      link.entity ? (
+                        <EntityChip key={link.id} entity={link.entity} role={link.role} />
+                      ) : null
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Meta info */}
               <div className="space-y-3">

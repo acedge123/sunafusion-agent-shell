@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Brain, ArrowLeft, FileText } from "lucide-react";
+import { Loader2, RefreshCw, Brain, ArrowLeft, FileText, Users, ListChecks } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLearnings, type Learning } from "@/hooks/useLearnings";
@@ -10,6 +10,8 @@ import { LearningCard } from "@/components/learnings/LearningCard";
 import { LearningFilters } from "@/components/learnings/LearningFilters";
 import { LearningDetail } from "@/components/learnings/LearningDetail";
 import { FileList } from "@/components/files/FileList";
+import { EntityList } from "@/components/memory/EntityList";
+import { CommitmentsList } from "@/components/memory/CommitmentsList";
 
 const Learnings = () => {
   const [activeTab, setActiveTab] = useState("learnings");
@@ -38,7 +40,7 @@ const Learnings = () => {
 
   const { files, isLoading: filesLoading, error: filesError, refresh: refreshFiles } = useAgentFiles();
 
-  const handleNewLearning = useCallback((newLearning: Learning) => {
+  const handleNewLearning = useCallback((_newLearning: Learning) => {
     refresh();
   }, [refresh]);
 
@@ -50,8 +52,14 @@ const Learnings = () => {
 
   const handleRefresh = () => {
     if (activeTab === "learnings") refresh();
-    else refreshFiles();
+    else if (activeTab === "files") refreshFiles();
   };
+
+  const tabLabel = activeTab === "learnings"
+    ? `${totalCount} learnings`
+    : activeTab === "files"
+    ? `${files.length} files`
+    : "";
 
   return (
     <div className="min-h-screen bg-background">
@@ -71,9 +79,9 @@ const Learnings = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {activeTab === "learnings" ? `${totalCount} learnings` : `${files.length} files`}
-              </span>
+              {tabLabel && (
+                <span className="text-sm text-muted-foreground">{tabLabel}</span>
+              )}
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || filesLoading}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${(isLoading || filesLoading) ? "animate-spin" : ""}`} />
                 Refresh
@@ -86,10 +94,18 @@ const Learnings = () => {
       <main className="container mx-auto px-4 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="learnings" className="flex items-center gap-2">
                 <Brain className="h-4 w-4" />
                 Learnings
+              </TabsTrigger>
+              <TabsTrigger value="entities" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Entities
+              </TabsTrigger>
+              <TabsTrigger value="commitments" className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4" />
+                Commitments
               </TabsTrigger>
               <TabsTrigger value="files" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
@@ -163,6 +179,14 @@ const Learnings = () => {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="entities" className="mt-6">
+              <EntityList />
+            </TabsContent>
+
+            <TabsContent value="commitments" className="mt-6">
+              <CommitmentsList />
             </TabsContent>
 
             <TabsContent value="files" className="mt-6">
