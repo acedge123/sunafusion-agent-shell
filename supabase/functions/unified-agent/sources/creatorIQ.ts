@@ -26,6 +26,6 @@ export {
 };
 
 // For backwards compatibility
-export default async function handleCreatorIQQuery(query: string, params: any = {}, previousState: any = null) {
+export default async function handleCreatorIQQuery(query: string, params: Record<string, unknown> = {}, previousState: unknown = null) {
   return await processCreatorIQQuery(query, params, previousState);
 }
