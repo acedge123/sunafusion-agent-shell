@@ -547,7 +547,93 @@ serve(async (req) => {
 
       if (error) return json(500, { error: "db_error", detail: error.message });
       console.log(`[agent-vault] Inserted learning id=${data.id} kind=${payload.kind} source=${payload.source}`);
-      return json(200, { data });
+
+      // ---- Composite relational memory fields ----
+      const compositeResult: Record<string, unknown> = { learning: data };
+      const ownerId = String(payload.owner_id || "").trim();
+
+      // 1. create_entities: array of entity objects to upsert
+      if (Array.isArray(body.create_entities) && body.create_entities.length > 0 && ownerId) {
+        const createdEntities: unknown[] = [];
+        for (const ent of body.create_entities) {
+          if (!ent || typeof ent !== "object") continue;
+          const entType = String(ent.entity_type || "").trim();
+          const entName = String(ent.name || "").trim();
+          if (!entType || !VALID_ENTITY_TYPES.includes(entType) || !entName) continue;
+
+          const entPayload: Record<string, unknown> = {
+            owner_id: ownerId, entity_type: entType, name: entName,
+            external_key: ent.external_key ? String(ent.external_key).trim() : null,
+            aliases: Array.isArray(ent.aliases) ? ent.aliases : [],
+            status: ent.status && VALID_ENTITY_STATUS.includes(String(ent.status)) ? ent.status : "active",
+            summary: ent.summary ? String(ent.summary).trim() : null,
+            metadata: ent.metadata && typeof ent.metadata === "object" ? ent.metadata : {},
+          };
+
+          const { data: entData, error: entErr } = await supabase.from("entities").upsert(entPayload, { onConflict: "owner_id,entity_type,external_key", ignoreDuplicates: false }).select("*").single();
+          if (!entErr && entData) createdEntities.push(entData);
+        }
+        compositeResult.created_entities = createdEntities;
+      }
+
+      // 2. entity_links: array of { entity_id, role?, confidence? }
+      if (Array.isArray(body.entity_links) && body.entity_links.length > 0 && ownerId) {
+        const linkRows = body.entity_links.map((link: { entity_id: string; role?: string; confidence?: number }) => ({
+          owner_id: ownerId, learning_id: data.id,
+          entity_id: String(link.entity_id).trim(),
+          role: link.role ? String(link.role).trim() : null,
+          confidence: typeof link.confidence === "number" ? Math.max(0, Math.min(1, link.confidence)) : 1.0,
+        }));
+        const { data: linkData } = await supabase.from("learning_entities").upsert(linkRows, { onConflict: "learning_id,entity_id,role", ignoreDuplicates: true }).select("*");
+        compositeResult.entity_links = linkData || [];
+      }
+
+      // 3. create_relationships: array of relationship objects
+      if (Array.isArray(body.create_relationships) && body.create_relationships.length > 0 && ownerId) {
+        const createdRels: unknown[] = [];
+        for (const rel of body.create_relationships) {
+          if (!rel || typeof rel !== "object") continue;
+          const relType = String(rel.relationship_type || "").trim();
+          if (!VALID_RELATIONSHIP_TYPES.includes(relType)) continue;
+          const relPayload: Record<string, unknown> = {
+            owner_id: ownerId, from_entity_id: String(rel.from_entity_id).trim(),
+            relationship_type: relType, to_entity_id: String(rel.to_entity_id).trim(),
+            confidence: typeof rel.confidence === "number" ? Math.max(0, Math.min(1, rel.confidence)) : 0.8,
+            source_learning_id: data.id, metadata: rel.metadata && typeof rel.metadata === "object" ? rel.metadata : {},
+          };
+          const { data: relData } = await supabase.from("entity_relationships").upsert(relPayload, { onConflict: "from_entity_id,relationship_type,to_entity_id" }).select("*").single();
+          if (relData) createdRels.push(relData);
+        }
+        compositeResult.created_relationships = createdRels;
+      }
+
+      // 4. create_commitments: array of commitment objects
+      if (Array.isArray(body.create_commitments) && body.create_commitments.length > 0 && ownerId) {
+        const createdCommitments: unknown[] = [];
+        for (const comm of body.create_commitments) {
+          if (!comm || typeof comm !== "object") continue;
+          const commTitle = String(comm.title || "").trim();
+          if (!commTitle) continue;
+          const commPayload: Record<string, unknown> = {
+            owner_id: ownerId, title: commTitle,
+            description: comm.description ? String(comm.description).trim() : null,
+            status: comm.status && VALID_COMMITMENT_STATUS.includes(String(comm.status)) ? comm.status : "open",
+            priority: comm.priority && VALID_COMMITMENT_PRIORITY.includes(String(comm.priority)) ? comm.priority : "medium",
+            due_at: comm.due_at || null,
+            assigned_entity_id: comm.assigned_entity_id || null,
+            counterparty_entity_id: comm.counterparty_entity_id || null,
+            project_entity_id: comm.project_entity_id || null,
+            source_learning_id: data.id, metadata: comm.metadata && typeof comm.metadata === "object" ? comm.metadata : {},
+          };
+          const { data: commData } = await supabase.from("commitments").insert(commPayload).select("*").single();
+          if (commData) createdCommitments.push(commData);
+        }
+        compositeResult.created_commitments = createdCommitments;
+      }
+
+      // Return composite result if any relational fields were used, otherwise just the learning
+      const hasComposite = compositeResult.created_entities || compositeResult.entity_links || compositeResult.created_relationships || compositeResult.created_commitments;
+      return json(200, hasComposite ? compositeResult : { data });
     }
 
     // ---- PATCH /learnings/:id ----
