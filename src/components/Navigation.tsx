@@ -70,6 +70,11 @@ const Navigation = () => {
                 <Brain className="h-4 w-4" />
               </Button>
             </Link>
+            <Link to="/wiki">
+              <Button variant="ghost" size="sm">
+                <BookOpen className="h-4 w-4" />
+              </Button>
+            </Link>
             <Link to="/dashboard">
               <Button variant="ghost" size="sm">
                 <Network className="h-4 w-4" />

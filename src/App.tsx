@@ -11,6 +11,7 @@ import Chat from "./pages/Chat"
 import Learnings from "./pages/Learnings"
 import Dashboard from "./pages/Dashboard"
 import NotFound from "./pages/NotFound"
+import Wiki from "./pages/Wiki"
 
 const queryClient = new QueryClient()
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/learnings" element={<RequireAdmin><Learnings /></RequireAdmin>} />
+            <Route path="/wiki" element={<RequireAdmin><Wiki /></RequireAdmin>} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
