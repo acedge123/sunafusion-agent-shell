@@ -280,6 +280,86 @@ export type Database = {
         }
         Relationships: []
       }
+      commitments: {
+        Row: {
+          assigned_entity_id: string | null
+          counterparty_entity_id: string | null
+          created_at: string
+          description: string | null
+          due_at: string | null
+          id: string
+          metadata: Json
+          owner_id: string
+          priority: string
+          project_entity_id: string | null
+          source_learning_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_entity_id?: string | null
+          counterparty_entity_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          metadata?: Json
+          owner_id: string
+          priority?: string
+          project_entity_id?: string | null
+          source_learning_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_entity_id?: string | null
+          counterparty_entity_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          priority?: string
+          project_entity_id?: string | null
+          source_learning_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commitments_assigned_entity_id_fkey"
+            columns: ["assigned_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commitments_counterparty_entity_id_fkey"
+            columns: ["counterparty_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commitments_project_entity_id_fkey"
+            columns: ["project_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commitments_source_learning_id_fkey"
+            columns: ["source_learning_id"]
+            isOneToOne: false
+            referencedRelation: "agent_learnings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           created_at: string
@@ -342,6 +422,109 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      entities: {
+        Row: {
+          aliases: string[]
+          created_at: string
+          entity_type: string
+          external_key: string | null
+          id: string
+          metadata: Json
+          name: string
+          owner_id: string
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          aliases?: string[]
+          created_at?: string
+          entity_type: string
+          external_key?: string | null
+          id?: string
+          metadata?: Json
+          name: string
+          owner_id: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          aliases?: string[]
+          created_at?: string
+          entity_type?: string
+          external_key?: string | null
+          id?: string
+          metadata?: Json
+          name?: string
+          owner_id?: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      entity_relationships: {
+        Row: {
+          confidence: number
+          created_at: string
+          from_entity_id: string
+          id: string
+          metadata: Json
+          owner_id: string
+          relationship_type: string
+          source_learning_id: string | null
+          to_entity_id: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          from_entity_id: string
+          id?: string
+          metadata?: Json
+          owner_id: string
+          relationship_type: string
+          source_learning_id?: string | null
+          to_entity_id: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          from_entity_id?: string
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          relationship_type?: string
+          source_learning_id?: string | null
+          to_entity_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_relationships_from_entity_id_fkey"
+            columns: ["from_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_relationships_source_learning_id_fkey"
+            columns: ["source_learning_id"]
+            isOneToOne: false
+            referencedRelation: "agent_learnings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_relationships_to_entity_id_fkey"
+            columns: ["to_entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       google_drive_access: {
         Row: {
@@ -450,6 +633,51 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      learning_entities: {
+        Row: {
+          confidence: number
+          created_at: string
+          entity_id: string
+          id: string
+          learning_id: string
+          owner_id: string
+          role: string | null
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          entity_id: string
+          id?: string
+          learning_id: string
+          owner_id: string
+          role?: string | null
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          entity_id?: string
+          id?: string
+          learning_id?: string
+          owner_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_entities_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_entities_learning_id_fkey"
+            columns: ["learning_id"]
+            isOneToOne: false
+            referencedRelation: "agent_learnings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_feeds: {
         Row: {
@@ -674,6 +902,7 @@ export type Database = {
         Returns: undefined
       }
       count_repo_map: { Args: never; Returns: number }
+      get_entity_context: { Args: { entity_uuid: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -691,6 +920,33 @@ export type Database = {
           source: string
           tags: string[]
         }[]
+      }
+      search_entities: {
+        Args: {
+          limit_count?: number
+          offset_count?: number
+          owner_uuid: string
+          query_text: string
+        }
+        Returns: {
+          aliases: string[]
+          created_at: string
+          entity_type: string
+          external_key: string | null
+          id: string
+          metadata: Json
+          name: string
+          owner_id: string
+          status: string
+          summary: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "entities"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       search_repo_map: {
         Args: { query: string }
