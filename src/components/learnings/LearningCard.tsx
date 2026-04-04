@@ -2,18 +2,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { 
-  Brain, 
-  Mail, 
-  Search, 
-  GitBranch, 
-  Database, 
-  Zap, 
-  MessageSquare,
-  Image,
-  Lightbulb,
-  Code
+  Brain, Search, Database, Zap, MessageSquare, Lightbulb, Code
 } from "lucide-react";
 import type { Learning } from "@/hooks/useLearnings";
+import { useLearningEntities } from "@/hooks/useRelationalMemory";
+import { EntityChipList } from "@/components/memory/EntityChip";
 
 interface LearningCardProps {
   learning: Learning;
@@ -39,9 +32,9 @@ function truncateText(text: string, maxLength: number): string {
 export function LearningCard({ learning, onClick }: LearningCardProps) {
   const config = kindConfig[learning.kind || "general"] || kindConfig.general;
   const IconComponent = config.icon;
+  const { entities: linkedEntities } = useLearningEntities(learning.id);
   
   const timeAgo = formatDistanceToNow(new Date(learning.created_at), { addSuffix: true });
-  const displayTitle = learning.title || truncateText(learning.learning, 80);
   const displayBody = learning.summary || truncateText(learning.learning, 200);
 
   return (
@@ -77,6 +70,12 @@ export function LearningCard({ learning, onClick }: LearningCardProps) {
       </CardHeader>
       <CardContent className="pt-0">
         <p className="text-sm text-muted-foreground leading-relaxed">{displayBody}</p>
+        
+        {/* Entity chips */}
+        {linkedEntities.length > 0 && (
+          <EntityChipList entities={linkedEntities} maxShow={4} />
+        )}
+
         {learning.tags && learning.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-3">
             {learning.tags.slice(0, 3).map((tag, i) => (

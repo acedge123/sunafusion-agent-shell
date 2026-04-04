@@ -902,7 +902,12 @@ export type Database = {
         Returns: undefined
       }
       count_repo_map: { Args: never; Returns: number }
+      get_briefing: {
+        Args: { entity_uuid: string; owner_uuid: string }
+        Returns: Json
+      }
       get_entity_context: { Args: { entity_uuid: string }; Returns: Json }
+      get_learning_context: { Args: { learning_uuid: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
