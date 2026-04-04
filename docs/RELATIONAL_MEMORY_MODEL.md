@@ -88,3 +88,12 @@ Promises, follow-ups, tasks, and open loops.
 ## RPC Helpers
 - `search_entities(owner_uuid, query_text, limit_count, offset_count)` — Text search across entities
 - `get_entity_context(entity_uuid)` — Returns entity + learnings + relationships + commitments
+- `get_learning_context(learning_uuid)` — Returns learning + linked entities
+- `get_briefing(owner_uuid, entity_uuid)` — Convenience summary: entity + recent learnings + relationships + open commitments
+
+## UI
+The Knowledge Base page (`/learnings`) includes four tabs:
+- **Learnings** — with entity chips on cards showing linked entities
+- **Entities** — searchable/filterable list of people, orgs, projects, repos, systems, tickets
+- **Commitments** — filterable list of open loops, follow-ups, and promises
+- **Files** — agent-uploaded files
