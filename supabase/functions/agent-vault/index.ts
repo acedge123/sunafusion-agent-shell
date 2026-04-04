@@ -22,13 +22,18 @@ function clampInt(v: string | null, dflt: number, min: number, max: number): num
 }
 
 // Shared validation constants
-const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result', 'person', 'project', 'runbook', 'incident', 'integration'];
+const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result', 'person', 'project', 'runbook', 'incident', 'integration', 'playbook', 'gotcha', 'reference', 'research'];
 const VALID_VISIBILITY = ['private', 'family', 'public'];
 const VALID_REDACTION = ['public', 'internal', 'sensitive'];
 const VALID_SUBJECT_TYPES = ['person', 'repo', 'service', 'system'];
-const VALID_STATUS = ['draft', 'approved', 'rejected'];
+const VALID_STATUS = ['draft', 'approved', 'rejected', 'deprecated'];
 const VALID_TASK_STATUS = ['todo', 'in_progress', 'done', 'cancelled'];
 const VALID_TASK_PRIORITY = ['low', 'medium', 'high', 'urgent'];
+const VALID_ENTITY_TYPES = ['person', 'org', 'project', 'repo', 'system', 'ticket'];
+const VALID_ENTITY_STATUS = ['active', 'archived'];
+const VALID_RELATIONSHIP_TYPES = ['works_at', 'owns', 'member_of', 'related_to', 'depends_on', 'blocked_by', 'contact_at', 'responsible_for', 'about', 'mentioned_with'];
+const VALID_COMMITMENT_STATUS = ['open', 'in_progress', 'done', 'cancelled'];
+const VALID_COMMITMENT_PRIORITY = ['low', 'medium', 'high', 'urgent'];
 
 // Immutable fields that cannot be changed via PATCH
 const IMMUTABLE_LEARNING_FIELDS = new Set(['id', 'created_at', 'source']);
