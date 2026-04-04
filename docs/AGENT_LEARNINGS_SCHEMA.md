@@ -1,6 +1,10 @@
 # agent_learnings — Schema & Vault API Reference
 
-This document is the **single source of truth** for the Edge Bot (and any other agent) to understand the `agent_learnings` table and how to write to it via agent-vault.
+This document is the **single source of truth** for the Edge Bot (and any other agent) to understand the `agent_learnings` table, relational memory tables, and how to interact with them via agent-vault.
+
+**Base URL**: `https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault`
+
+**Auth**: Bearer token (`AGENT_EDGE_KEY`) in `Authorization` header for all endpoints below.
 
 ---
 
@@ -12,26 +16,26 @@ This document is the **single source of truth** for the Edge Bot (and any other 
 | `created_at` | timestamptz | NO | `now()` | Auto-set |
 | `updated_at` | timestamptz | NO | `now()` | Auto-updated via trigger |
 | `learning` | text | NO | — | **Required.** Main content body (max 8000 chars) |
-| `category` | text | YES | `'general'` | Freeform grouping (e.g. `composio_trigger`, `chat_query`) |
-| `kind` | text | YES | `'general'` | Taxonomy for UI filtering (see valid values below) |
+| `category` | text | YES | `'general'` | Freeform grouping |
+| `kind` | text | YES | `'general'` | Taxonomy for UI filtering |
 | `visibility` | text | YES | `'private'` | Access tier for RLS |
-| `source` | text | YES | `'codex'` | Origin system (e.g. `agent`, `composio_webhook`, `chat_ui`) |
+| `source` | text | YES | `'codex'` | Origin system |
 | `tags` | text[] | YES | — | Array of string tags |
 | `confidence` | real | YES | `0.5` | 0.0–1.0 |
 | `verified` | boolean | YES | `false` | Manual verification flag |
-| `metadata` | jsonb | YES | `'{}'` | Arbitrary structured data (raw payloads, user_id, job_id, etc.) |
-| `owner_id` | uuid | YES | — | Tenant scoping — references `auth.users.id` |
-| `subject_type` | text | YES | — | What the learning is about |
+| `metadata` | jsonb | YES | `'{}'` | Arbitrary structured data |
+| `owner_id` | uuid | YES | — | Tenant scoping |
+| `subject_type` | text | YES | — | `person`, `repo`, `service`, `system` |
 | `subject_id` | text | YES | — | Unique identifier for the subject |
-| `subject_name` | text | YES | — | Human-readable name (e.g. `Alan`, `Meg`) |
-| `title` | text | YES | — | Short title for display (max 500 chars) |
-| `summary` | text | YES | — | Human-readable summary (max 2000 chars) |
-| `redaction_level` | text | NO | `'sensitive'` | Access classification |
-| `domain` | text | YES | — | Knowledge domain (e.g. `edge-bot`, `ciq`, `ops`, `cost`, `messaging`) |
-| `source_date` | date | YES | — | The source day the learning pertains to |
-| `status` | text | NO | `'draft'` | Lifecycle: `draft` / `approved` / `rejected` |
-| `source_refs` | text[] | YES | — | Array of file paths, commit SHAs, or URLs used as sources |
-| `details_markdown` | text | YES | — | Full approved learning in Markdown |
+| `subject_name` | text | YES | — | Human-readable name |
+| `title` | text | YES | — | Short title (max 500 chars) |
+| `summary` | text | YES | — | Human summary (max 2000 chars) |
+| `redaction_level` | text | NO | `'sensitive'` | `public` / `internal` / `sensitive` |
+| `domain` | text | YES | — | Knowledge domain (freeform) |
+| `source_date` | date | YES | — | Source day the learning pertains to |
+| `status` | text | NO | `'draft'` | `draft` / `approved` / `rejected` / `deprecated` |
+| `source_refs` | text[] | YES | — | File paths, commit SHAs, or URLs |
+| `details_markdown` | text | YES | — | Full learning in Markdown |
 
 ### Valid `kind` values
 
@@ -39,211 +43,338 @@ This document is the **single source of truth** for the Edge Bot (and any other 
 general, composio_trigger, chat_response, chat_query,
 research_summary, github_push_summary, email_summary,
 memory, decision, code_change, image_generation, db_query_result,
-person, project, runbook, incident, integration
+person, project, runbook, incident, integration,
+playbook, gotcha, reference, research
 ```
 
-### Valid `visibility` values
+### Valid `visibility` / `redaction_level` / `status` / `subject_type`
 
-```
-private   — only service role can read
-family    — authenticated users can read
-public    — anyone can read
-```
-
-### Valid `redaction_level` values
-
-```
-public, internal, sensitive
-```
-
-### Valid `subject_type` values
-
-```
-person, repo, service, system
-```
-
-### Valid `domain` values
-
-```
-edge-bot, ciq, ops, cost, messaging
-```
-
-(Freeform — new domains can be added without migration.)
-
-### Valid `status` values
-
-```
-draft      — newly created, pending review
-approved   — reviewed and accepted
-rejected   — reviewed and discarded
-```
-
-### Indexes
-
-| Index | Columns |
-|-------|---------|
-| Composite btree | `(owner_id, kind, subject_type, subject_id)` |
-| GIN | `tags` |
-| GIN text search | `to_tsvector(...)` on title + summary |
-| btree | `kind`, `visibility`, `created_at DESC` |
-| btree | `domain` |
-| btree | `status` |
-| Service role (agents) | Full read/write on all rows |
-| Authenticated user | SELECT where `visibility IN ('public','family')` OR `owner_id = auth.uid()` |
-| Anonymous | SELECT where `visibility = 'public'` only |
+| Enum | Values |
+|------|--------|
+| `visibility` | `private`, `family`, `public` |
+| `redaction_level` | `public`, `internal`, `sensitive` |
+| `status` | `draft`, `approved`, `rejected`, `deprecated` |
+| `subject_type` | `person`, `repo`, `service`, `system` |
 
 ---
 
-## Vault API: POST /learnings
+## Relational Memory Tables
 
-**Base URL**: `https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault`
+### `entities`
 
-**Endpoint**: `POST /learnings`
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| `id` | uuid | `gen_random_uuid()` | PK |
+| `owner_id` | uuid | — | **Required.** Tenant scope |
+| `entity_type` | text | — | **Required.** `person`, `org`, `project`, `repo`, `system`, `ticket` |
+| `external_key` | text | null | Optional unique ID (e.g. E.164 phone) |
+| `name` | text | — | **Required.** Display name |
+| `aliases` | text[] | `'{}'` | Alternative names |
+| `status` | text | `'active'` | `active`, `archived` |
+| `summary` | text | null | Brief description |
+| `metadata` | jsonb | `'{}'` | Additional data |
 
-**Auth**: Bearer token (`AGENT_EDGE_KEY`) in `Authorization` header.
+### `learning_entities` (join table)
 
-### Request Body (JSON)
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| `id` | uuid | PK | |
+| `owner_id` | uuid | — | **Required** |
+| `learning_id` | uuid | — | FK → `agent_learnings` |
+| `entity_id` | uuid | — | FK → `entities` |
+| `role` | text | null | `subject`, `mentioned_person`, `project_context`, etc. |
+| `confidence` | real | `1.0` | 0.0–1.0 |
 
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `learning` | string | **YES** | Main content (max 8000 chars) |
-| `category` | string | no | Default: `"general"` |
-| `kind` | string | no | Must be a valid kind. Default: `"general"` |
-| `visibility` | string | no | `private` / `family` / `public`. Default: `"private"` |
-| `source` | string | no | Default: `"agent"` |
-| `tags` | string[] | no | Array of tags |
-| `confidence` | number | no | 0.0–1.0. Default: `0.5` |
-| `metadata` | object | no | Arbitrary JSON. Also accepts `meta` as alias |
-| `owner_id` | string (uuid) | no | Tenant/user who owns this learning |
-| `subject_type` | string | no | Must be valid: `person`, `repo`, `service`, `system` |
-| `subject_id` | string | no | E.g. phone `+13104333101`, repo `acedge123/sunafusion` |
-| `subject_name` | string | no | Human name: `Alan`, `Meg`, `Emily` |
-| `title` | string | no | Short display title (truncated to 500 chars) |
-| `summary` | string | no | Human summary (truncated to 2000 chars) |
-| `redaction_level` | string | no | `public` / `internal` / `sensitive`. Default: `"sensitive"` |
-| `domain` | string | no | Knowledge domain: `edge-bot`, `ciq`, `ops`, `cost`, `messaging` |
-| `source_date` | string (YYYY-MM-DD) | no | The source day the learning pertains to |
-| `status` | string | no | `draft` / `approved` / `rejected`. Default: `"draft"` |
-| `source_refs` | string[] | no | File paths, commit SHAs, or URLs used as source material |
-| `details_markdown` | string | no | Full learning content in Markdown (for approved learnings) |
+### `entity_relationships`
 
-### Example: Person learning
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| `id` | uuid | PK | |
+| `owner_id` | uuid | — | **Required** |
+| `from_entity_id` | uuid | — | FK → `entities` |
+| `relationship_type` | text | — | See valid types below |
+| `to_entity_id` | uuid | — | FK → `entities` |
+| `confidence` | real | `0.8` | |
+| `source_learning_id` | uuid | null | FK → `agent_learnings` |
+| `metadata` | jsonb | `'{}'` | |
+
+**Valid `relationship_type`**: `works_at`, `owns`, `member_of`, `related_to`, `depends_on`, `blocked_by`, `contact_at`, `responsible_for`, `about`, `mentioned_with`
+
+### `commitments`
+
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| `id` | uuid | PK | |
+| `owner_id` | uuid | — | **Required** |
+| `title` | text | — | **Required.** What needs to happen |
+| `description` | text | null | Details |
+| `status` | text | `'open'` | `open`, `in_progress`, `done`, `cancelled` |
+| `priority` | text | `'medium'` | `low`, `medium`, `high`, `urgent` |
+| `due_at` | timestamptz | null | Deadline |
+| `assigned_entity_id` | uuid | null | FK → `entities` |
+| `counterparty_entity_id` | uuid | null | FK → `entities` |
+| `project_entity_id` | uuid | null | FK → `entities` |
+| `source_learning_id` | uuid | null | FK → `agent_learnings` |
+| `metadata` | jsonb | `'{}'` | |
+
+---
+
+## Learnings API
+
+### POST /learnings — Create (with optional composite fields)
+
+Creates a learning and optionally creates entities, links, relationships, and commitments atomically.
+
+**Core fields**: see table above. `learning` is required.
+
+**Composite fields** (all optional, require `owner_id`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `create_entities` | array | Entity objects to upsert (see POST /entities/upsert schema) |
+| `entity_links` | array | `{ entity_id, role?, confidence? }` — link existing entities to this learning |
+| `create_relationships` | array | `{ from_entity_id, relationship_type, to_entity_id, confidence?, metadata? }` |
+| `create_commitments` | array | `{ title, description?, status?, priority?, due_at?, assigned_entity_id?, ... }` |
+
+#### Example: Composite learning with entities + commitment
 
 ```json
 {
-  "learning": "Alan prefers inspect → summarize risks → approval → install → first-run isolated workflow for new tools.",
-  "kind": "person",
+  "learning": "Alan confirmed Q3 budget of $50k for infra upgrades.",
+  "kind": "decision",
+  "owner_id": "owner-uuid",
   "subject_type": "person",
-  "subject_id": "+13104333101",
   "subject_name": "Alan",
-  "title": "Tool installation preferences",
-  "summary": "Alan wants a cautious, step-by-step approach to installing new tools with isolated first runs.",
-  "visibility": "private",
-  "redaction_level": "sensitive",
-  "source": "edge_bot",
-  "tags": ["preferences", "workflow", "tools"],
+  "title": "Q3 infra budget approved",
+  "summary": "Alan approved $50k for Q3 infrastructure.",
+  "tags": ["budget", "q3", "infrastructure"],
+  "confidence": 0.95,
+  "create_entities": [
+    {
+      "entity_type": "person",
+      "name": "Alan",
+      "external_key": "+13104333101",
+      "summary": "Primary stakeholder"
+    },
+    {
+      "entity_type": "project",
+      "name": "Q3 Infra Upgrade",
+      "summary": "Infrastructure upgrade project for Q3"
+    }
+  ],
+  "entity_links": [
+    { "entity_id": "existing-entity-uuid", "role": "mentioned_person", "confidence": 0.9 }
+  ],
+  "create_relationships": [
+    {
+      "from_entity_id": "alan-entity-uuid",
+      "relationship_type": "responsible_for",
+      "to_entity_id": "project-entity-uuid"
+    }
+  ],
+  "create_commitments": [
+    {
+      "title": "Finalize Q3 infra vendor selection",
+      "description": "Choose between AWS and GCP for the upgrade",
+      "priority": "high",
+      "due_at": "2026-05-01T00:00:00Z",
+      "assigned_entity_id": "alan-entity-uuid"
+    }
+  ]
+}
+```
+
+**Response** (composite):
+
+```json
+{
+  "learning": { "id": "uuid", "learning": "...", "kind": "decision", ... },
+  "created_entities": [ { "id": "uuid", "name": "Alan", ... } ],
+  "entity_links": [ { "id": "uuid", "learning_id": "...", "entity_id": "...", "role": "mentioned_person" } ],
+  "created_relationships": [ { "id": "uuid", "from_entity_id": "...", "relationship_type": "responsible_for", ... } ],
+  "created_commitments": [ { "id": "uuid", "title": "Finalize Q3 infra vendor selection", ... } ]
+}
+```
+
+### PATCH /learnings/:id
+
+Update mutable fields. Immutable: `id`, `created_at`, `source`.
+
+### DELETE /learnings/:id
+
+Hard-delete by UUID. Prefer `PATCH` with `status: "deprecated"` for soft-delete.
+
+### GET /learnings/get?id=UUID
+
+Returns full learning record with all metadata.
+
+### GET /learnings/:id/entities
+
+Returns all entities linked to a learning (with full entity data via join).
+
+```json
+{
+  "data": [
+    {
+      "id": "link-uuid",
+      "learning_id": "...",
+      "entity_id": "...",
+      "role": "subject",
+      "confidence": 1.0,
+      "entities": { "id": "...", "name": "Alan", "entity_type": "person", ... }
+    }
+  ],
+  "count": 1
+}
+```
+
+### GET /learnings/feed
+
+`?kind=&visibility=&search=&limit=&offset=` — Paginated list with filters.
+
+### GET /learnings/list
+
+`?since=&source=&kind=&domain=&limit=&offset=` — "What happened recently?" pattern.
+
+### GET /learnings/stats
+
+Aggregate counts by kind, domain, and status.
+
+### POST /learnings/bulk
+
+Batch insert up to 50 learnings. Body: `{ items: [...] }`.
+
+### POST /learnings/link
+
+Link an existing learning to entities after creation.
+
+```json
+{
+  "learning_id": "learning-uuid",
+  "owner_id": "owner-uuid",
+  "links": [
+    { "entity_id": "entity-uuid", "role": "subject", "confidence": 1.0 },
+    { "entity_id": "entity-uuid-2", "role": "mentioned_person" }
+  ]
+}
+```
+
+---
+
+## Entities API
+
+### POST /entities/upsert
+
+Create or update an entity. Matches on `(owner_id, entity_type, external_key)` or `(owner_id, entity_type, name)`.
+
+```json
+{
+  "owner_id": "owner-uuid",
+  "entity_type": "person",
+  "name": "Alan",
+  "external_key": "+13104333101",
+  "aliases": ["Al"],
+  "summary": "Primary stakeholder",
+  "metadata": { "role": "CEO" }
+}
+```
+
+**Response**: `{ "data": { ... }, "created": true }` or `{ "data": { ... }, "upserted": true }`
+
+### GET /entities/search
+
+`?q=&entity_type=&owner_id=&limit=&offset=`
+
+### GET /entities/:id
+
+Single entity by UUID.
+
+### GET /entities/:id/context
+
+Full context via `get_entity_context` RPC — returns entity + linked learnings + relationships + commitments.
+
+---
+
+## Relationships API
+
+### POST /relationships
+
+Create or upsert a relationship. Upserts on `(from_entity_id, relationship_type, to_entity_id)`.
+
+```json
+{
+  "owner_id": "owner-uuid",
+  "from_entity_id": "entity-uuid-1",
+  "relationship_type": "works_at",
+  "to_entity_id": "entity-uuid-2",
   "confidence": 0.9,
-  "metadata": {
-    "user_id": "some-uuid",
-    "observed_at": "2025-06-10T12:00:00Z"
-  }
+  "source_learning_id": "learning-uuid",
+  "metadata": {}
 }
 ```
 
-### Example: Project learning
+### GET /relationships
 
-```json
-{
-  "learning": "The ACP mortgage lead form uses field_name slugs for scoring with 5 axes: credit, income, property, timeline, engagement.",
-  "kind": "project",
-  "subject_type": "repo",
-  "subject_id": "acedge123/api-docs-template",
-  "subject_name": "ACP",
-  "title": "Mortgage lead scoring schema",
-  "summary": "5-axis scoring system for mortgage leads using field_name slugs.",
-  "visibility": "family",
-  "redaction_level": "internal",
-  "source": "edge_bot",
-  "tags": ["acp", "mortgage", "scoring"],
-  "confidence": 0.95
-}
-```
-
-### Example: Email summary
-
-```json
-{
-  "learning": "Email from john@example.com RE: Q3 budget approval. Approved $50k for infrastructure.",
-  "kind": "email_summary",
-  "subject_type": "person",
-  "subject_name": "Alan",
-  "title": "Q3 budget approved",
-  "summary": "John approved $50k infrastructure budget for Q3.",
-  "visibility": "private",
-  "source": "edge_bot",
-  "tags": ["email", "budget", "q3"],
-  "metadata": {
-    "thread_id": "abc123",
-    "from": "john@example.com",
-    "job_id": "some-job-uuid"
-  }
-}
-```
-
-### Response (200)
-
-```json
-{
-  "data": {
-    "id": "uuid",
-    "learning": "...",
-    "category": "general",
-    "kind": "person",
-    "visibility": "private",
-    "source": "edge_bot",
-    "tags": ["preferences"],
-    "created_at": "2025-06-10T...",
-    "owner_id": "uuid-or-null",
-    "subject_type": "person",
-    "subject_id": "+13104333101",
-    "subject_name": "Alan",
-    "title": "Tool installation preferences",
-    "summary": "...",
-    "redaction_level": "sensitive"
-  }
-}
-```
-
-### Error Responses
-
-| Status | Body | Cause |
-|--------|------|-------|
-| 400 | `{ "error": "missing learning field" }` | `learning` is empty |
-| 400 | `{ "error": "learning too long (max 8000 chars)" }` | Exceeds limit |
-| 401 | `{ "error": "unauthorized" }` | Bad/missing Bearer token |
-| 500 | `{ "error": "db_error", "detail": "..." }` | Supabase insert failed |
+`?entity_id=UUID&relationship_type=` — Returns all relationships involving the entity (both directions), with full entity data on both sides.
 
 ---
 
-## Vault API: GET /learnings/get
+## Commitments API
 
-**Endpoint**: `GET /learnings/get?id=<uuid>`
+### POST /commitments
 
-Returns the full learning record including all metadata. Used by Edge Bot to retrieve context (e.g. full email payload from a Composio trigger).
+```json
+{
+  "owner_id": "owner-uuid",
+  "title": "Follow up with vendor on pricing",
+  "description": "Need final quote by Friday",
+  "priority": "high",
+  "due_at": "2026-04-10T00:00:00Z",
+  "assigned_entity_id": "alan-entity-uuid",
+  "counterparty_entity_id": "vendor-entity-uuid",
+  "project_entity_id": "project-entity-uuid",
+  "source_learning_id": "learning-uuid"
+}
+```
+
+### PATCH /commitments/:id
+
+Update any mutable field: `title`, `description`, `status`, `priority`, `due_at`, `assigned_entity_id`, `counterparty_entity_id`, `project_entity_id`, `source_learning_id`, `metadata`.
+
+### GET /commitments
+
+`?status=&assigned_entity_id=&counterparty_entity_id=&project_entity_id=&due_before=&limit=&offset=`
 
 ---
 
-## Vault API: GET /learnings/feed
+## RPC Helpers
 
-**Endpoint**: `GET /learnings/feed?kind=&visibility=&search=&limit=&offset=`
-
-Returns paginated list of learnings with optional filtering. Used by the Learnings Feed UI.
+| Function | Args | Returns |
+|----------|------|---------|
+| `get_entity_context(entity_uuid)` | entity UUID | Entity + learnings + relationships + commitments |
+| `get_learning_context(learning_uuid)` | learning UUID | Learning + linked entities |
+| `get_briefing(owner_uuid, entity_uuid)` | owner + entity | Entity + recent learnings + relationships + open commitments |
+| `search_entities(owner_uuid, query_text, limit_count, offset_count)` | search params | Matching entities |
 
 ---
 
 ## Conventions
 
-- **People**: `subject_type='person'`, `subject_id` is E.164 phone (e.g. `+13104333101`), `subject_name` is first name.
+- **People**: `subject_type='person'`, `subject_id` is E.164 phone, `subject_name` is first name.
 - **People learnings** default to `redaction_level='sensitive'`, `visibility='private'`.
-- **The `metadata` field** stores raw payloads (Composio triggers, email data, job context). Always include `user_id` and/or `job_id` when available.
-- **The `content` column does not exist.** Use `learning` for text content and `metadata` (jsonb) for structured data.
+- **`metadata`** stores raw payloads. Always include `user_id` and/or `job_id` when available.
+- **`content` column does not exist.** Use `learning` for text, `metadata` for structured data.
+- **Composite POST /learnings** is the preferred path for agents — create everything in one atomic call.
+
+## Error Responses
+
+| Status | Body | Cause |
+|--------|------|-------|
+| 400 | `{ "error": "missing learning field" }` | `learning` is empty |
+| 400 | `{ "error": "learning too long (max 8000 chars)" }` | Exceeds limit |
+| 400 | `{ "error": "invalid or missing entity_type" }` | Bad entity_type |
+| 400 | `{ "error": "missing owner_id" }` | owner_id required but missing |
+| 400 | `{ "error": "invalid relationship_type" }` | Not in valid set |
+| 401 | `{ "error": "unauthorized" }` | Bad/missing Bearer token |
+| 404 | `{ "error": "not_found" }` | Resource doesn't exist |
+| 500 | `{ "error": "db_error", "detail": "..." }` | Supabase operation failed |
