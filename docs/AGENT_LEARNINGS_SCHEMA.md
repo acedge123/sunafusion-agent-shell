@@ -4,7 +4,9 @@ This document is the **single source of truth** for the Edge Bot (and any other 
 
 **Base URL**: `https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/agent-vault`
 
-**Auth**: Bearer token (`AGENT_EDGE_KEY`) in `Authorization` header for all endpoints below.
+**Auth**: Bearer token (`AGENT_EDGE_KEY`) in `Authorization` header for all endpoints below. Never log or echo this token. Rotate via Supabase dashboard → Edge Functions secrets.
+
+**Trust boundary**: Agents must only read/write records for the `owner_id` they are authorized for. The Edge Function enforces owner scoping; agents must not fabricate or guess cross-tenant `owner_id` values.
 
 ---
 
@@ -56,66 +58,86 @@ playbook, gotcha, reference, research
 | `status` | `draft`, `approved`, `rejected`, `deprecated` |
 | `subject_type` | `person`, `repo`, `service`, `system` |
 
+### Tenant isolation
+
+RLS is enabled; authenticated users have full CRUD where `owner_id = auth.uid()`. The Edge Function uses the service role for agent operations but always scopes queries by `owner_id`.
+
 ---
 
 ## Relational Memory Tables
 
 ### `entities`
 
-| Column | Type | Default | Notes |
-|--------|------|---------|-------|
-| `id` | uuid | `gen_random_uuid()` | PK |
-| `owner_id` | uuid | — | **Required.** Tenant scope |
-| `entity_type` | text | — | **Required.** `person`, `org`, `project`, `repo`, `system`, `ticket` |
-| `external_key` | text | null | Optional unique ID (e.g. E.164 phone) |
-| `name` | text | — | **Required.** Display name |
-| `aliases` | text[] | `'{}'` | Alternative names |
-| `status` | text | `'active'` | `active`, `archived` |
-| `summary` | text | null | Brief description |
-| `metadata` | jsonb | `'{}'` | Additional data |
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| `id` | uuid | NO | `gen_random_uuid()` | PK |
+| `owner_id` | uuid | NO | — | **Required.** Tenant scope |
+| `entity_type` | text | NO | — | **Required.** `person`, `org`, `project`, `repo`, `system`, `ticket` |
+| `external_key` | text | YES | null | Optional unique ID (e.g. `+15555550100`) |
+| `name` | text | NO | — | **Required.** Display name |
+| `aliases` | text[] | NO | `'{}'` | Alternative names |
+| `status` | text | NO | `'active'` | `active`, `archived` |
+| `summary` | text | YES | null | Brief description |
+| `metadata` | jsonb | NO | `'{}'` | Additional data |
+
+**Uniqueness**: Upsert matches on `(owner_id, entity_type, external_key)` when `external_key` is set, otherwise `(owner_id, entity_type, name)`.
+
+**Indexes**: `(owner_id, entity_type)` for filtered listing; name/summary ILIKE used by `search_entities` RPC.
 
 ### `learning_entities` (join table)
 
-| Column | Type | Default | Notes |
-|--------|------|---------|-------|
-| `id` | uuid | PK | |
-| `owner_id` | uuid | — | **Required** |
-| `learning_id` | uuid | — | FK → `agent_learnings` |
-| `entity_id` | uuid | — | FK → `entities` |
-| `role` | text | null | `subject`, `mentioned_person`, `project_context`, etc. |
-| `confidence` | real | `1.0` | 0.0–1.0 |
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| `id` | uuid | NO | `gen_random_uuid()` | PK |
+| `owner_id` | uuid | NO | — | **Required** |
+| `learning_id` | uuid | NO | — | FK → `agent_learnings` (`ON DELETE CASCADE`) |
+| `entity_id` | uuid | NO | — | FK → `entities` (`ON DELETE CASCADE`) |
+| `role` | text | YES | null | `subject`, `mentioned_person`, `project_context`, etc. |
+| `confidence` | real | NO | `1.0` | 0.0–1.0 |
+
+**Indexes**: `(learning_id)`, `(entity_id)` for join lookups.
 
 ### `entity_relationships`
 
-| Column | Type | Default | Notes |
-|--------|------|---------|-------|
-| `id` | uuid | PK | |
-| `owner_id` | uuid | — | **Required** |
-| `from_entity_id` | uuid | — | FK → `entities` |
-| `relationship_type` | text | — | See valid types below |
-| `to_entity_id` | uuid | — | FK → `entities` |
-| `confidence` | real | `0.8` | |
-| `source_learning_id` | uuid | null | FK → `agent_learnings` |
-| `metadata` | jsonb | `'{}'` | |
+Directed edges between entities. Edges are **not** auto-mirrored; create explicit inverse edges if needed.
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| `id` | uuid | NO | `gen_random_uuid()` | PK |
+| `owner_id` | uuid | NO | — | **Required** |
+| `from_entity_id` | uuid | NO | — | FK → `entities` (`ON DELETE CASCADE`) |
+| `relationship_type` | text | NO | — | See valid types below |
+| `to_entity_id` | uuid | NO | — | FK → `entities` (`ON DELETE CASCADE`) |
+| `confidence` | real | NO | `0.8` | 0.0–1.0 |
+| `source_learning_id` | uuid | YES | null | FK → `agent_learnings` (`ON DELETE SET NULL`) |
+| `metadata` | jsonb | NO | `'{}'` | Additional context |
 
 **Valid `relationship_type`**: `works_at`, `owns`, `member_of`, `related_to`, `depends_on`, `blocked_by`, `contact_at`, `responsible_for`, `about`, `mentioned_with`
 
+**Uniqueness**: Upsert on `(from_entity_id, relationship_type, to_entity_id)`.
+
+**Query behavior**: `GET /relationships?entity_id=` returns edges where the entity is either `from` or `to`.
+
 ### `commitments`
 
-| Column | Type | Default | Notes |
-|--------|------|---------|-------|
-| `id` | uuid | PK | |
-| `owner_id` | uuid | — | **Required** |
-| `title` | text | — | **Required.** What needs to happen |
-| `description` | text | null | Details |
-| `status` | text | `'open'` | `open`, `in_progress`, `done`, `cancelled` |
-| `priority` | text | `'medium'` | `low`, `medium`, `high`, `urgent` |
-| `due_at` | timestamptz | null | Deadline |
-| `assigned_entity_id` | uuid | null | FK → `entities` |
-| `counterparty_entity_id` | uuid | null | FK → `entities` |
-| `project_entity_id` | uuid | null | FK → `entities` |
-| `source_learning_id` | uuid | null | FK → `agent_learnings` |
-| `metadata` | jsonb | `'{}'` | |
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| `id` | uuid | NO | `gen_random_uuid()` | PK |
+| `owner_id` | uuid | NO | — | **Required** |
+| `title` | text | NO | — | **Required.** What needs to happen |
+| `description` | text | YES | null | Details |
+| `status` | text | NO | `'open'` | `open`, `in_progress`, `done`, `cancelled` |
+| `priority` | text | NO | `'medium'` | `low`, `medium`, `high`, `urgent` |
+| `due_at` | timestamptz | YES | null | Deadline |
+| `assigned_entity_id` | uuid | YES | null | FK → `entities` (`ON DELETE SET NULL`) |
+| `counterparty_entity_id` | uuid | YES | null | FK → `entities` (`ON DELETE SET NULL`) |
+| `project_entity_id` | uuid | YES | null | FK → `entities` (`ON DELETE SET NULL`) |
+| `source_learning_id` | uuid | YES | null | FK → `agent_learnings` (`ON DELETE SET NULL`) |
+| `metadata` | jsonb | NO | `'{}'` | Additional context |
+
+**Status transitions**: No server-side validation; any status may transition to any other via `PATCH`. Agents should follow the logical flow: `open` → `in_progress` → `done` | `cancelled`.
+
+**Indexes**: `(owner_id, status)` for filtered queries.
 
 ---
 
@@ -140,20 +162,20 @@ Creates a learning and optionally creates entities, links, relationships, and co
 
 ```json
 {
-  "learning": "Alan confirmed Q3 budget of $50k for infra upgrades.",
+  "learning": "Example User confirmed Q3 budget of $50k for infra upgrades.",
   "kind": "decision",
-  "owner_id": "owner-uuid",
+  "owner_id": "00000000-0000-0000-0000-000000000001",
   "subject_type": "person",
-  "subject_name": "Alan",
+  "subject_name": "Example User",
   "title": "Q3 infra budget approved",
-  "summary": "Alan approved $50k for Q3 infrastructure.",
+  "summary": "Example User approved $50k for Q3 infrastructure.",
   "tags": ["budget", "q3", "infrastructure"],
   "confidence": 0.95,
   "create_entities": [
     {
       "entity_type": "person",
-      "name": "Alan",
-      "external_key": "+13104333101",
+      "name": "Example User",
+      "external_key": "+15555550100",
       "summary": "Primary stakeholder"
     },
     {
@@ -163,22 +185,22 @@ Creates a learning and optionally creates entities, links, relationships, and co
     }
   ],
   "entity_links": [
-    { "entity_id": "existing-entity-uuid", "role": "mentioned_person", "confidence": 0.9 }
+    { "entity_id": "00000000-0000-0000-0000-000000000099", "role": "mentioned_person", "confidence": 0.9 }
   ],
   "create_relationships": [
     {
-      "from_entity_id": "alan-entity-uuid",
+      "from_entity_id": "00000000-0000-0000-0000-000000000010",
       "relationship_type": "responsible_for",
-      "to_entity_id": "project-entity-uuid"
+      "to_entity_id": "00000000-0000-0000-0000-000000000020"
     }
   ],
   "create_commitments": [
     {
       "title": "Finalize Q3 infra vendor selection",
-      "description": "Choose between AWS and GCP for the upgrade",
+      "description": "Choose between cloud providers for the upgrade",
       "priority": "high",
       "due_at": "2026-05-01T00:00:00Z",
-      "assigned_entity_id": "alan-entity-uuid"
+      "assigned_entity_id": "00000000-0000-0000-0000-000000000010"
     }
   ]
 }
@@ -188,11 +210,11 @@ Creates a learning and optionally creates entities, links, relationships, and co
 
 ```json
 {
-  "learning": { "id": "uuid", "learning": "...", "kind": "decision", ... },
-  "created_entities": [ { "id": "uuid", "name": "Alan", ... } ],
+  "learning": { "id": "uuid", "learning": "...", "kind": "decision" },
+  "created_entities": [ { "id": "uuid", "name": "Example User" } ],
   "entity_links": [ { "id": "uuid", "learning_id": "...", "entity_id": "...", "role": "mentioned_person" } ],
-  "created_relationships": [ { "id": "uuid", "from_entity_id": "...", "relationship_type": "responsible_for", ... } ],
-  "created_commitments": [ { "id": "uuid", "title": "Finalize Q3 infra vendor selection", ... } ]
+  "created_relationships": [ { "id": "uuid", "from_entity_id": "...", "relationship_type": "responsible_for" } ],
+  "created_commitments": [ { "id": "uuid", "title": "Finalize Q3 infra vendor selection" } ]
 }
 ```
 
@@ -204,9 +226,9 @@ Update mutable fields. Immutable: `id`, `created_at`, `source`.
 
 Hard-delete by UUID. Prefer `PATCH` with `status: "deprecated"` for soft-delete.
 
-### GET /learnings/get?id=UUID
+### GET /learnings/:id
 
-Returns full learning record with all metadata.
+Returns full learning record with all metadata. (Also available via `GET /learnings/get?id=UUID` for backward compat.)
 
 ### GET /learnings/:id/entities
 
@@ -221,7 +243,7 @@ Returns all entities linked to a learning (with full entity data via join).
       "entity_id": "...",
       "role": "subject",
       "confidence": 1.0,
-      "entities": { "id": "...", "name": "Alan", "entity_type": "person", ... }
+      "entities": { "id": "...", "name": "Example User", "entity_type": "person" }
     }
   ],
   "count": 1
@@ -271,9 +293,9 @@ Create or update an entity. Matches on `(owner_id, entity_type, external_key)` o
 {
   "owner_id": "owner-uuid",
   "entity_type": "person",
-  "name": "Alan",
-  "external_key": "+13104333101",
-  "aliases": ["Al"],
+  "name": "Example User",
+  "external_key": "+15555550100",
+  "aliases": ["EU"],
   "summary": "Primary stakeholder",
   "metadata": { "role": "CEO" }
 }
@@ -315,7 +337,7 @@ Create or upsert a relationship. Upserts on `(from_entity_id, relationship_type,
 
 ### GET /relationships
 
-`?entity_id=UUID&relationship_type=` — Returns all relationships involving the entity (both directions), with full entity data on both sides.
+`?entity_id=UUID&relationship_type=` — Returns all relationships involving the entity (**both** directions), with full entity data on both sides.
 
 ---
 
@@ -330,16 +352,18 @@ Create or upsert a relationship. Upserts on `(from_entity_id, relationship_type,
   "description": "Need final quote by Friday",
   "priority": "high",
   "due_at": "2026-04-10T00:00:00Z",
-  "assigned_entity_id": "alan-entity-uuid",
-  "counterparty_entity_id": "vendor-entity-uuid",
-  "project_entity_id": "project-entity-uuid",
+  "assigned_entity_id": "entity-uuid-1",
+  "counterparty_entity_id": "entity-uuid-2",
+  "project_entity_id": "entity-uuid-3",
   "source_learning_id": "learning-uuid"
 }
 ```
 
 ### PATCH /commitments/:id
 
-Update any mutable field: `title`, `description`, `status`, `priority`, `due_at`, `assigned_entity_id`, `counterparty_entity_id`, `project_entity_id`, `source_learning_id`, `metadata`.
+**Mutable fields**: `title`, `description`, `status`, `priority`, `due_at`, `assigned_entity_id`, `counterparty_entity_id`, `project_entity_id`, `source_learning_id`, `metadata`.
+
+No server-side status-transition validation. Agents should follow: `open` → `in_progress` → `done` | `cancelled`.
 
 ### GET /commitments
 
@@ -353,8 +377,10 @@ Update any mutable field: `title`, `description`, `status`, `priority`, `due_at`
 |----------|------|---------|
 | `get_entity_context(entity_uuid)` | entity UUID | Entity + learnings + relationships + commitments |
 | `get_learning_context(learning_uuid)` | learning UUID | Learning + linked entities |
-| `get_briefing(owner_uuid, entity_uuid)` | owner + entity | Entity + recent learnings + relationships + open commitments |
+| `get_briefing(owner_uuid, entity_uuid)` | owner UUID + entity UUID | Entity + recent learnings + relationships + open commitments |
 | `search_entities(owner_uuid, query_text, limit_count, offset_count)` | search params | Matching entities |
+
+> **Naming note**: RPC args use `owner_uuid` / `entity_uuid`; these correspond to `owner_id` / entity `id` in HTTP API payloads.
 
 ---
 

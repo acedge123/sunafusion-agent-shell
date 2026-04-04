@@ -1,68 +1,35 @@
 # Relational Memory Model
 
+> **Canonical column-level detail** (defaults, nullability, valid enums) lives in
+> [`AGENT_LEARNINGS_SCHEMA.md`](./AGENT_LEARNINGS_SCHEMA.md).
+> This file is the **product / architecture overview only**.
+
 ## Overview
 
 The relational memory system extends `agent_learnings` with first-class entities, relationships, and commitments. It enables the agent to answer questions like "What do I know about Sarah?", "What's open for Acme?", and "What commitments are outstanding?"
 
-## Schema
+## Schema (summary)
 
 ### `entities`
 Canonical records for people, orgs, projects, repos, systems, and tickets.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| owner_id | uuid | Tenant scope |
-| entity_type | text | person, org, project, repo, system, ticket |
-| external_key | text | Optional unique identifier (e.g., E.164 phone) |
-| name | text | Display name |
-| aliases | text[] | Alternative names |
-| status | text | active, archived |
-| summary | text | Brief description |
-| metadata | jsonb | Additional data |
+Key columns: `id`, `owner_id`, `entity_type`, `external_key`, `name`, `aliases`, `status`, `summary`, `metadata`.
 
 ### `learning_entities`
-Join table linking learnings to entities.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| owner_id | uuid | Tenant scope |
-| learning_id | uuid | FK → agent_learnings |
-| entity_id | uuid | FK → entities |
-| role | text | subject, mentioned_person, project_context, etc. |
-| confidence | real | 0.0–1.0, default 1.0 |
+Join table linking learnings to entities (`learning_id` → `agent_learnings`, `entity_id` → `entities`, plus `role` and `confidence`).
 
 ### `entity_relationships`
-Typed edges between entities.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| owner_id | uuid | Tenant scope |
-| from_entity_id | uuid | FK → entities |
-| relationship_type | text | works_at, owns, member_of, related_to, depends_on, blocked_by, contact_at, responsible_for, about, mentioned_with |
-| to_entity_id | uuid | FK → entities |
-| confidence | real | Default 0.8 |
-| source_learning_id | uuid | Optional FK → agent_learnings |
-| metadata | jsonb | Additional context |
+Directed typed edges between entities. Edges are **directed** (`from_entity_id` → `to_entity_id`); inverse edges are not auto-created. `GET /relationships?entity_id=` returns edges in **both directions** (where the entity is `from` or `to`).
 
 ### `commitments`
-Promises, follow-ups, tasks, and open loops.
+Promises, follow-ups, tasks, and open loops. Linked to entities via `assigned_entity_id`, `counterparty_entity_id`, and `project_entity_id`.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | uuid | PK |
-| owner_id | uuid | Tenant scope |
-| title | text | What needs to happen |
-| description | text | Details |
-| status | text | open, in_progress, done, cancelled |
-| priority | text | low, medium, high, urgent |
-| due_at | timestamptz | Optional deadline |
-| assigned_entity_id | uuid | Who's responsible |
-| counterparty_entity_id | uuid | Who it's for/with |
-| project_entity_id | uuid | Related project |
-| source_learning_id | uuid | Where it originated |
+## Data Integrity Notes
+
+- **Tenant isolation**: Every relational table includes `owner_id`. The Edge Function enforces owner scoping on all read/write paths. RLS is enabled on all tables as a defense-in-depth layer.
+- **Uniqueness**: `entities` are upserted on `(owner_id, entity_type, external_key)` when `external_key` is set, otherwise `(owner_id, entity_type, name)`. `entity_relationships` upsert on `(from_entity_id, relationship_type, to_entity_id)`.
+- **Referential integrity**: `learning_entities`, `entity_relationships`, and `commitments` use `ON DELETE CASCADE` from their FK targets (`entities`, `agent_learnings`). Deleting an entity removes its links, relationships, and commitment references.
+- **Indexes**: `entities(owner_id, entity_type)`, `learning_entities(learning_id)`, `learning_entities(entity_id)`, and `commitments(owner_id, status)` support the primary query paths.
 
 ## API Endpoints (agent-vault)
 
@@ -78,20 +45,26 @@ Promises, follow-ups, tasks, and open loops.
 
 ### Relationships
 - `POST /relationships` — Create/upsert relationship
-- `GET /relationships?entity_id=&relationship_type=`
+- `GET /relationships?entity_id=&relationship_type=` — Returns edges in **both** directions
 
 ### Commitments
 - `POST /commitments` — Create commitment
-- `PATCH /commitments/:id` — Update commitment
+- `PATCH /commitments/:id` — Update commitment (mutable fields: `title`, `description`, `status`, `priority`, `due_at`, entity FKs, `metadata`). No status-transition validation; any status can move to any other.
 - `GET /commitments?status=&assigned_entity_id=&due_before=&limit=&offset=`
 
 ## RPC Helpers
-- `search_entities(owner_uuid, query_text, limit_count, offset_count)` — Text search across entities
-- `get_entity_context(entity_uuid)` — Returns entity + learnings + relationships + commitments
-- `get_learning_context(learning_uuid)` — Returns learning + linked entities
-- `get_briefing(owner_uuid, entity_uuid)` — Convenience summary: entity + recent learnings + relationships + open commitments
+
+| Function | Args | Returns |
+|----------|------|---------|
+| `search_entities` | `(owner_uuid, query_text, limit_count, offset_count)` | Matching entities (same as `owner_id` in HTTP APIs) |
+| `get_entity_context` | `(entity_uuid)` | Entity + learnings + relationships + commitments |
+| `get_learning_context` | `(learning_uuid)` | Learning + linked entities |
+| `get_briefing` | `(owner_uuid, entity_uuid)` | Entity + recent learnings + relationships + open commitments |
+
+> **Naming note**: RPC args use `owner_uuid` / `entity_uuid`; these correspond to `owner_id` / entity `id` in HTTP API payloads.
 
 ## UI
+
 The Knowledge Base page (`/learnings`) includes four tabs:
 - **Learnings** — with entity chips on cards showing linked entities
 - **Entities** — searchable/filterable list of people, orgs, projects, repos, systems, tickets
