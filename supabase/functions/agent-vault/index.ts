@@ -22,13 +22,18 @@ function clampInt(v: string | null, dflt: number, min: number, max: number): num
 }
 
 // Shared validation constants
-const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result', 'person', 'project', 'runbook', 'incident', 'integration'];
+const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result', 'person', 'project', 'runbook', 'incident', 'integration', 'playbook', 'gotcha', 'reference', 'research'];
 const VALID_VISIBILITY = ['private', 'family', 'public'];
 const VALID_REDACTION = ['public', 'internal', 'sensitive'];
 const VALID_SUBJECT_TYPES = ['person', 'repo', 'service', 'system'];
-const VALID_STATUS = ['draft', 'approved', 'rejected'];
+const VALID_STATUS = ['draft', 'approved', 'rejected', 'deprecated'];
 const VALID_TASK_STATUS = ['todo', 'in_progress', 'done', 'cancelled'];
 const VALID_TASK_PRIORITY = ['low', 'medium', 'high', 'urgent'];
+const VALID_ENTITY_TYPES = ['person', 'org', 'project', 'repo', 'system', 'ticket'];
+const VALID_ENTITY_STATUS = ['active', 'archived'];
+const VALID_RELATIONSHIP_TYPES = ['works_at', 'owns', 'member_of', 'related_to', 'depends_on', 'blocked_by', 'contact_at', 'responsible_for', 'about', 'mentioned_with'];
+const VALID_COMMITMENT_STATUS = ['open', 'in_progress', 'done', 'cancelled'];
+const VALID_COMMITMENT_PRIORITY = ['low', 'medium', 'high', 'urgent'];
 
 // Immutable fields that cannot be changed via PATCH
 const IMMUTABLE_LEARNING_FIELDS = new Set(['id', 'created_at', 'source']);
@@ -1207,11 +1212,328 @@ serve(async (req) => {
       return composioFetch(`/tools/${encodeURIComponent(slug)}`);
     }
 
+    // ============================================================
+    // ENTITIES API
+    // ============================================================
+
+    // ---- POST /entities/upsert ----
+    if (req.method === "POST" && pathname.endsWith("/entities/upsert")) {
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") return json(400, { error: "invalid JSON body" });
+
+      const entityType = String(body.entity_type || "").trim();
+      const name = String(body.name || "").trim();
+      if (!entityType || !VALID_ENTITY_TYPES.includes(entityType)) return json(400, { error: "invalid or missing entity_type" });
+      if (!name) return json(400, { error: "missing name" });
+      if (name.length > 500) return json(400, { error: "name too long" });
+
+      const ownerId = String(body.owner_id || "").trim();
+      if (!ownerId) return json(400, { error: "missing owner_id" });
+
+      const externalKey = body.external_key ? String(body.external_key).trim() : null;
+
+      // Try upsert by external_key first
+      if (externalKey) {
+        const { data: existing } = await supabase
+          .from("entities")
+          .select("*")
+          .eq("owner_id", ownerId)
+          .eq("entity_type", entityType)
+          .eq("external_key", externalKey)
+          .maybeSingle();
+
+        if (existing) {
+          const updatePayload: Record<string, unknown> = { name };
+          if (body.aliases) updatePayload.aliases = body.aliases;
+          if (body.summary) updatePayload.summary = String(body.summary).trim();
+          if (body.status && VALID_ENTITY_STATUS.includes(String(body.status))) updatePayload.status = body.status;
+          if (body.metadata && typeof body.metadata === "object") updatePayload.metadata = body.metadata;
+
+          const { data, error } = await supabase.from("entities").update(updatePayload).eq("id", existing.id).select("*").single();
+          if (error) return json(500, { error: "db_error", detail: error.message });
+          return json(200, { data, upserted: true });
+        }
+      }
+
+      // Fallback: match by (owner_id, entity_type, lower(name))
+      if (!externalKey) {
+        const { data: existing } = await supabase
+          .from("entities")
+          .select("*")
+          .eq("owner_id", ownerId)
+          .eq("entity_type", entityType)
+          .ilike("name", name)
+          .maybeSingle();
+
+        if (existing) {
+          const updatePayload: Record<string, unknown> = {};
+          if (body.aliases) updatePayload.aliases = body.aliases;
+          if (body.summary) updatePayload.summary = String(body.summary).trim();
+          if (body.status && VALID_ENTITY_STATUS.includes(String(body.status))) updatePayload.status = body.status;
+          if (body.metadata && typeof body.metadata === "object") updatePayload.metadata = body.metadata;
+
+          if (Object.keys(updatePayload).length > 0) {
+            const { data, error } = await supabase.from("entities").update(updatePayload).eq("id", existing.id).select("*").single();
+            if (error) return json(500, { error: "db_error", detail: error.message });
+            return json(200, { data, upserted: true });
+          }
+          return json(200, { data: existing, upserted: false });
+        }
+      }
+
+      // Insert new entity
+      const insertPayload: Record<string, unknown> = {
+        owner_id: ownerId,
+        entity_type: entityType,
+        name,
+        external_key: externalKey,
+        aliases: Array.isArray(body.aliases) ? body.aliases : [],
+        status: body.status && VALID_ENTITY_STATUS.includes(String(body.status)) ? body.status : "active",
+        summary: body.summary ? String(body.summary).trim() : null,
+        metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
+      };
+
+      const { data, error } = await supabase.from("entities").insert(insertPayload).select("*").single();
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      console.log(`[agent-vault] Created entity id=${data.id} type=${entityType} name=${name}`);
+      return json(200, { data, created: true });
+    }
+
+    // ---- GET /entities/search ----
+    if (req.method === "GET" && pathname.endsWith("/entities/search")) {
+      const q = (url.searchParams.get("q") || "").trim();
+      const entityType = (url.searchParams.get("entity_type") || "").trim();
+      const ownerId = (url.searchParams.get("owner_id") || "").trim();
+      const limit = clampInt(url.searchParams.get("limit"), 20, 1, 100);
+      const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10000);
+
+      let query = supabase.from("entities").select("*").order("updated_at", { ascending: false }).range(offset, offset + limit - 1);
+
+      if (ownerId) query = query.eq("owner_id", ownerId);
+      if (entityType && VALID_ENTITY_TYPES.includes(entityType)) query = query.eq("entity_type", entityType);
+      if (q) query = query.or(`name.ilike.%${q}%,summary.ilike.%${q}%`);
+
+      const { data, error } = await query;
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      return json(200, { data: data || [], count: (data || []).length });
+    }
+
+    // ---- GET /entities/:id/context ----
+    const entityContextMatch = pathname.match(/\/entities\/([a-f0-9-]{36})\/context$/);
+    if (req.method === "GET" && entityContextMatch) {
+      const entityId = entityContextMatch[1];
+      const { data, error } = await supabase.rpc("get_entity_context", { entity_uuid: entityId });
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      if (!data) return json(404, { error: "not_found" });
+      return json(200, { data });
+    }
+
+    // ---- GET /entities/:id ----
+    const entityGetMatch = pathname.match(/\/entities\/([a-f0-9-]{36})$/);
+    if (req.method === "GET" && entityGetMatch) {
+      const id = entityGetMatch[1];
+      const { data, error } = await supabase.from("entities").select("*").eq("id", id).maybeSingle();
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      if (!data) return json(404, { error: "not_found" });
+      return json(200, { data });
+    }
+
+    // ============================================================
+    // LEARNING-ENTITY LINKS
+    // ============================================================
+
+    // ---- POST /learnings/link ----
+    if (req.method === "POST" && pathname.endsWith("/learnings/link")) {
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") return json(400, { error: "invalid JSON body" });
+
+      const learningId = String(body.learning_id || "").trim();
+      const ownerId = String(body.owner_id || "").trim();
+      if (!learningId) return json(400, { error: "missing learning_id" });
+      if (!ownerId) return json(400, { error: "missing owner_id" });
+      if (!Array.isArray(body.links) || body.links.length === 0) return json(400, { error: "missing or empty links array" });
+
+      const rows = body.links.map((link: { entity_id: string; role?: string; confidence?: number }) => ({
+        owner_id: ownerId,
+        learning_id: learningId,
+        entity_id: String(link.entity_id).trim(),
+        role: link.role ? String(link.role).trim() : null,
+        confidence: typeof link.confidence === "number" ? Math.max(0, Math.min(1, link.confidence)) : 1.0,
+      }));
+
+      const { data, error } = await supabase.from("learning_entities").upsert(rows, { onConflict: "learning_id,entity_id,role", ignoreDuplicates: true }).select("*");
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      console.log(`[agent-vault] Linked ${(data || []).length} entities to learning ${learningId}`);
+      return json(200, { data: data || [], count: (data || []).length });
+    }
+
+    // ---- GET /learnings/:id/entities ----
+    const learningEntitiesMatch = pathname.match(/\/learnings\/([a-f0-9-]{36})\/entities$/);
+    if (req.method === "GET" && learningEntitiesMatch) {
+      const learningId = learningEntitiesMatch[1];
+      const { data, error } = await supabase
+        .from("learning_entities")
+        .select("*, entities(*)")
+        .eq("learning_id", learningId);
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      return json(200, { data: data || [], count: (data || []).length });
+    }
+
+    // ============================================================
+    // RELATIONSHIPS API
+    // ============================================================
+
+    // ---- POST /relationships ----
+    if (req.method === "POST" && pathname.endsWith("/relationships") && !pathname.includes("/relationships/")) {
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") return json(400, { error: "invalid JSON body" });
+
+      const ownerId = String(body.owner_id || "").trim();
+      const fromEntityId = String(body.from_entity_id || "").trim();
+      const relationshipType = String(body.relationship_type || "").trim();
+      const toEntityId = String(body.to_entity_id || "").trim();
+
+      if (!ownerId) return json(400, { error: "missing owner_id" });
+      if (!fromEntityId) return json(400, { error: "missing from_entity_id" });
+      if (!toEntityId) return json(400, { error: "missing to_entity_id" });
+      if (!VALID_RELATIONSHIP_TYPES.includes(relationshipType)) return json(400, { error: "invalid relationship_type" });
+
+      const payload: Record<string, unknown> = {
+        owner_id: ownerId,
+        from_entity_id: fromEntityId,
+        relationship_type: relationshipType,
+        to_entity_id: toEntityId,
+        confidence: typeof body.confidence === "number" ? Math.max(0, Math.min(1, body.confidence)) : 0.8,
+        source_learning_id: body.source_learning_id || null,
+        metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
+      };
+
+      const { data, error } = await supabase.from("entity_relationships")
+        .upsert(payload, { onConflict: "from_entity_id,relationship_type,to_entity_id" })
+        .select("*")
+        .single();
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      console.log(`[agent-vault] Relationship: ${fromEntityId} -[${relationshipType}]-> ${toEntityId}`);
+      return json(200, { data });
+    }
+
+    // ---- GET /relationships ----
+    if (req.method === "GET" && pathname.endsWith("/relationships")) {
+      const entityId = (url.searchParams.get("entity_id") || "").trim();
+      const relType = (url.searchParams.get("relationship_type") || "").trim();
+      if (!entityId) return json(400, { error: "missing entity_id parameter" });
+
+      let query = supabase
+        .from("entity_relationships")
+        .select("*, from_entity:entities!entity_relationships_from_entity_id_fkey(*), to_entity:entities!entity_relationships_to_entity_id_fkey(*)")
+        .or(`from_entity_id.eq.${entityId},to_entity_id.eq.${entityId}`);
+
+      if (relType && VALID_RELATIONSHIP_TYPES.includes(relType)) query = query.eq("relationship_type", relType);
+
+      const { data, error } = await query;
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      return json(200, { data: data || [], count: (data || []).length });
+    }
+
+    // ============================================================
+    // COMMITMENTS API
+    // ============================================================
+
+    // ---- POST /commitments ----
+    if (req.method === "POST" && pathname.endsWith("/commitments") && !pathname.includes("/commitments/")) {
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") return json(400, { error: "invalid JSON body" });
+
+      const ownerId = String(body.owner_id || "").trim();
+      const title = String(body.title || "").trim();
+      if (!ownerId) return json(400, { error: "missing owner_id" });
+      if (!title) return json(400, { error: "missing title" });
+      if (title.length > 500) return json(400, { error: "title too long" });
+
+      const rawStatus = String(body.status || "open").trim();
+      const rawPriority = String(body.priority || "medium").trim();
+
+      const payload: Record<string, unknown> = {
+        owner_id: ownerId,
+        title,
+        description: body.description ? String(body.description).trim() : null,
+        status: VALID_COMMITMENT_STATUS.includes(rawStatus) ? rawStatus : "open",
+        priority: VALID_COMMITMENT_PRIORITY.includes(rawPriority) ? rawPriority : "medium",
+        due_at: body.due_at || null,
+        assigned_entity_id: body.assigned_entity_id || null,
+        counterparty_entity_id: body.counterparty_entity_id || null,
+        project_entity_id: body.project_entity_id || null,
+        source_learning_id: body.source_learning_id || null,
+        metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
+      };
+
+      const { data, error } = await supabase.from("commitments").insert(payload).select("*").single();
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      console.log(`[agent-vault] Created commitment id=${data.id} title=${title}`);
+      return json(200, { data });
+    }
+
+    // ---- PATCH /commitments/:id ----
+    const commitmentPatchMatch = pathname.match(/\/commitments\/([a-f0-9-]{36})$/);
+    if (req.method === "PATCH" && commitmentPatchMatch) {
+      const id = commitmentPatchMatch[1];
+      const body = await req.json().catch(() => null);
+      if (!body || typeof body !== "object") return json(400, { error: "invalid JSON body" });
+
+      const update: Record<string, unknown> = {};
+      for (const key of ["title", "description"]) {
+        if (key in body) update[key] = body[key] === null ? null : String(body[key]).trim();
+      }
+      if ("status" in body) {
+        const v = String(body.status).trim();
+        if (VALID_COMMITMENT_STATUS.includes(v)) update.status = v;
+      }
+      if ("priority" in body) {
+        const v = String(body.priority).trim();
+        if (VALID_COMMITMENT_PRIORITY.includes(v)) update.priority = v;
+      }
+      if ("due_at" in body) update.due_at = body.due_at || null;
+      for (const key of ["assigned_entity_id", "counterparty_entity_id", "project_entity_id", "source_learning_id"]) {
+        if (key in body) update[key] = body[key] || null;
+      }
+      if ("metadata" in body && body.metadata && typeof body.metadata === "object") update.metadata = body.metadata;
+
+      if (Object.keys(update).length === 0) return json(400, { error: "no valid fields to update" });
+
+      const { data, error } = await supabase.from("commitments").update(update).eq("id", id).select("*").maybeSingle();
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      if (!data) return json(404, { error: "not_found", id });
+      return json(200, { data });
+    }
+
+    // ---- GET /commitments ----
+    if (req.method === "GET" && pathname.endsWith("/commitments")) {
+      const status = (url.searchParams.get("status") || "").trim();
+      const assignedId = (url.searchParams.get("assigned_entity_id") || "").trim();
+      const counterpartyId = (url.searchParams.get("counterparty_entity_id") || "").trim();
+      const projectId = (url.searchParams.get("project_entity_id") || "").trim();
+      const dueBefore = (url.searchParams.get("due_before") || "").trim();
+      const limit = clampInt(url.searchParams.get("limit"), 50, 1, 200);
+      const offset = clampInt(url.searchParams.get("offset"), 0, 0, 10000);
+
+      let query = supabase.from("commitments").select("*").order("due_at", { ascending: true, nullsFirst: false }).range(offset, offset + limit - 1);
+
+      if (status && VALID_COMMITMENT_STATUS.includes(status)) query = query.eq("status", status);
+      if (assignedId) query = query.eq("assigned_entity_id", assignedId);
+      if (counterpartyId) query = query.eq("counterparty_entity_id", counterpartyId);
+      if (projectId) query = query.eq("project_entity_id", projectId);
+      if (dueBefore) query = query.lte("due_at", dueBefore);
+
+      const { data, error } = await query;
+      if (error) return json(500, { error: "db_error", detail: error.message });
+      return json(200, { data: data || [], count: (data || []).length });
+    }
+
     // ---- 404 fallback ----
     return json(404, { error: "not_found", path: pathname });
 
-  } catch (e) {
+  } catch (e: unknown) {
     console.error("[agent-vault] Unexpected error:", e);
-    return json(500, { error: "server_error", detail: String(e?.message || e) });
+    return json(500, { error: "server_error", detail: String((e as Error)?.message || e) });
   }
 });
