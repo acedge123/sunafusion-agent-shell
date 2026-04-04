@@ -870,6 +870,235 @@ export type Database = {
         }
         Relationships: []
       }
+      wiki_artifacts: {
+        Row: {
+          artifact_type: string
+          body_json: Json
+          body_markdown: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          owner_id: string
+          source_run_id: string | null
+          title: string
+        }
+        Insert: {
+          artifact_type: string
+          body_json?: Json
+          body_markdown?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id: string
+          source_run_id?: string | null
+          title: string
+        }
+        Update: {
+          artifact_type?: string
+          body_json?: Json
+          body_markdown?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          source_run_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_artifacts_source_run_id_fkey"
+            columns: ["source_run_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_page_sources: {
+        Row: {
+          created_at: string
+          id: string
+          owner_id: string
+          page_id: string
+          role: string | null
+          source_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_id: string
+          page_id: string
+          role?: string | null
+          source_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_id?: string
+          page_id?: string
+          role?: string | null
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_page_sources_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wiki_page_sources_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_pages: {
+        Row: {
+          body_markdown: string
+          created_at: string
+          id: string
+          metadata: Json
+          owner_id: string
+          page_type: string
+          slug: string
+          source_count: number
+          status: string
+          summary: string | null
+          title: string
+          updated_at: string
+          updated_from_run_id: string | null
+        }
+        Insert: {
+          body_markdown?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id: string
+          page_type: string
+          slug: string
+          source_count?: number
+          status?: string
+          summary?: string | null
+          title: string
+          updated_at?: string
+          updated_from_run_id?: string | null
+        }
+        Update: {
+          body_markdown?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          page_type?: string
+          slug?: string
+          source_count?: number
+          status?: string
+          summary?: string | null
+          title?: string
+          updated_at?: string
+          updated_from_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wiki_pages_updated_from_run_id_fkey"
+            columns: ["updated_from_run_id"]
+            isOneToOne: false
+            referencedRelation: "wiki_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wiki_runs: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          input: Json
+          output: Json
+          owner_id: string
+          run_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          input?: Json
+          output?: Json
+          owner_id: string
+          run_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          input?: Json
+          output?: Json
+          owner_id?: string
+          run_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wiki_sources: {
+        Row: {
+          external_id: string | null
+          id: string
+          ingested_at: string
+          metadata: Json
+          owner_id: string
+          raw_json: Json
+          raw_markdown: string | null
+          raw_text: string | null
+          source_date: string | null
+          source_type: string
+          source_url: string | null
+          status: string
+          tags: string[]
+          title: string | null
+        }
+        Insert: {
+          external_id?: string | null
+          id?: string
+          ingested_at?: string
+          metadata?: Json
+          owner_id: string
+          raw_json?: Json
+          raw_markdown?: string | null
+          raw_text?: string | null
+          source_date?: string | null
+          source_type: string
+          source_url?: string | null
+          status?: string
+          tags?: string[]
+          title?: string | null
+        }
+        Update: {
+          external_id?: string | null
+          id?: string
+          ingested_at?: string
+          metadata?: Json
+          owner_id?: string
+          raw_json?: Json
+          raw_markdown?: string | null
+          raw_text?: string | null
+          source_date?: string | null
+          source_type?: string
+          source_url?: string | null
+          status?: string
+          tags?: string[]
+          title?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
