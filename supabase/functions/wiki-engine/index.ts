@@ -83,6 +83,7 @@ Deno.serve(async (req) => {
 
     // ─── SOURCES ─────────────────────────────────────────────
     if (segments[0] === "sources") {
+      if (method === "POST" && segments.length === 2 && segments[1] === "batch") return handleBatchCreateSources(req, sb);
       if (method === "POST" && segments.length === 1) return handleCreateSource(req, sb);
       if (method === "GET" && segments.length === 1) return handleListSources(url, sb);
     }
