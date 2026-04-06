@@ -151,7 +151,47 @@ async function handleCreateSource(req: Request, sb: ReturnType<typeof createClie
   return json({ source, run }, 201);
 }
 
-async function handleListSources(url: URL, sb: ReturnType<typeof createClient>) {
+async function handleBatchCreateSources(req: Request, sb: ReturnType<typeof createClient>) {
+  const body = await req.json();
+  const sources = Array.isArray(body) ? body : body.sources;
+  if (!Array.isArray(sources) || sources.length === 0) return err("Expected array of sources");
+  if (sources.length > 200) return err("Max 200 sources per batch");
+
+  const validTypes = ["url", "tweet", "note", "article", "paper", "chat", "manual"];
+  const rows = sources.map((s: any) => ({
+    owner_id: s.owner_id,
+    source_type: s.source_type,
+    title: s.title ?? null,
+    source_url: s.source_url ?? null,
+    external_id: s.external_id ?? null,
+    raw_text: s.raw_text ?? null,
+    raw_markdown: s.raw_markdown ?? null,
+    raw_json: s.raw_json ?? {},
+    source_date: s.source_date ?? null,
+    tags: s.tags ?? [],
+    metadata: s.metadata ?? {},
+  }));
+
+  // Validate
+  for (const r of rows) {
+    if (!r.owner_id || !r.source_type) return err("Each source needs owner_id and source_type");
+    if (!validTypes.includes(r.source_type)) return err(`Invalid source_type: ${r.source_type}`);
+  }
+
+  const { data, error: insertErr } = await sb.from("wiki_sources").upsert(rows, { onConflict: "id", ignoreDuplicates: true }).select("id");
+  if (insertErr) return err(insertErr.message, 500);
+
+  // Create a single ingest run for the batch
+  const owner_id = rows[0].owner_id;
+  await sb.from("wiki_runs").insert({
+    owner_id, run_type: "ingest", status: "done",
+    input: { batch: true, count: rows.length },
+    output: { inserted: data?.length ?? 0 },
+  });
+
+  return json({ inserted: data?.length ?? 0, total: rows.length }, 201);
+}
+
   const status = url.searchParams.get("status");
   const source_type = url.searchParams.get("source_type");
   const tag = url.searchParams.get("tag");
