@@ -1,38 +1,35 @@
 
 
-# Fix Wiki Route Redirect Issue
+# Batch Import Twitter Bookmarks into Wiki Sources
 
-## Root Cause
+## What this does
 
-The `/wiki` route is wrapped in `<RequireAdmin>`, which redirects:
-- To `/auth` if not logged in
-- To `/` (home page, which looks like a chat launcher) if logged in but not admin
+Runs a one-time script that reads your 190 Twitter bookmarks from the uploaded JSONL file and inserts them directly into the `wiki_sources` table as `tweet`-type sources, owned by your user ID (`0a7ef2f0-c841-4cbc-9b8b-b7b4545b9edf`).
 
-Since your user (`0a7ef2f0-c841-4cbc-9b8b-b7b4545b9ed`) likely doesn't have an `admin` role in the `user_roles` table, you're being bounced to the home page.
-
-## Options
-
-**Option A: Remove admin restriction from Wiki (recommended if Wiki is for all logged-in users)**
-- Change `<RequireAdmin><Wiki /></RequireAdmin>` to just `<Wiki />` (or a simpler `<RequireAuth>` wrapper)
-
-**Option B: Add your user as admin in the database**
-- Insert a row into `user_roles`: `user_id = '0a7ef2f0-c841-4cbc-9b8b-b7b4545b9ed'`, `role = 'admin'`
-- This keeps the admin gate but grants you access
-
-**Option C: Both — add admin role now, and later decide if Wiki should be public**
-
-## Recommended: Option B
-
-Since Learnings is also admin-gated, keeping Wiki admin-only is consistent. We just need to ensure your user has the admin role.
+Each bookmark becomes a wiki source with:
+- **source_type**: `tweet`
+- **title**: `@authorHandle: first 80 chars of tweet text`
+- **source_url**: the tweet URL
+- **external_id**: the tweet ID (for deduplication)
+- **raw_text**: full tweet text
+- **raw_json**: complete bookmark JSON (author info, engagement stats, media, etc.)
+- **source_date**: the tweet's `postedAt` timestamp
+- **tags**: auto-generated from author handle + `bookmark` tag
+- **status**: `raw` (ready for future compilation into wiki pages)
 
 ## Steps
 
-1. Create a migration that inserts your user into `user_roles` with `role = 'admin'`
-2. No code changes needed — the routing and guard logic are correct
+1. **Copy the uploaded file** to a working directory
+2. **Run a Python script** that:
+   - Parses each JSONL line
+   - Maps fields to `wiki_sources` columns
+   - Uses `psql` to batch-insert all 190 rows with `ON CONFLICT` on `external_id` to skip duplicates
+3. **Report** how many rows were inserted
 
-## Files Modified
+## Technical details
 
-| File | Change |
-|------|--------|
-| New migration | `INSERT INTO user_roles (user_id, role) VALUES ('0a7ef2f0-c841-4cbc-9b8b-b7b4545b9ed', 'admin')` |
+- Uses `psql` with service-role access (already configured in sandbox) to bypass RLS
+- Owner ID: `0a7ef2f0-c841-4cbc-9b8b-b7b4545b9edf`
+- No schema changes needed -- `wiki_sources` already has all required columns
+- After import, bookmarks will appear in the Wiki > Sources tab in the UI
 
