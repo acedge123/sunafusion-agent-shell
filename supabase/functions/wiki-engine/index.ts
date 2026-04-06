@@ -28,12 +28,15 @@ function slugify(text: string): string {
 async function authenticate(req: Request): Promise<{ ok: boolean; userId?: string }> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.replace(/^Bearer\s+/i, "");
+  const apikey = req.headers.get("apikey") ?? "";
 
-  // Check static agent key or service_role key
+  // Check static agent key or service_role key against both headers
   const expected = Deno.env.get("AGENT_EDGE_KEY");
-  if (expected && token === expected) return { ok: true };
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (serviceKey && token === serviceKey) return { ok: true };
+  for (const t of [token, apikey]) {
+    if (expected && t === expected) return { ok: true };
+    if (serviceKey && t === serviceKey) return { ok: true };
+  }
 
   // Try Supabase JWT
   if (token) {
