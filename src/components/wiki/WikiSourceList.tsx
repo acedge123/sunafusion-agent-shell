@@ -13,14 +13,14 @@ interface Props {
   onCompile: (sourceId: string) => Promise<void>;
 }
 
-const SOURCE_TYPES = ["", "url", "tweet", "note", "article", "paper", "chat", "manual"];
-const STATUSES = ["", "raw", "normalized", "compiled", "rejected"];
+const SOURCE_TYPES = ["url", "tweet", "note", "article", "paper", "chat", "manual"];
+const STATUSES = ["raw", "normalized", "compiled", "rejected"];
 
 export default function WikiSourceList({ sources, loading, onFetch, onCompile }: Props) {
-  const [typeFilter, setTypeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  useEffect(() => { onFetch(statusFilter || undefined, typeFilter || undefined); }, [typeFilter, statusFilter]);
+  useEffect(() => { onFetch(statusFilter === "all" ? undefined : statusFilter, typeFilter === "all" ? undefined : typeFilter); }, [typeFilter, statusFilter]);
 
   return (
     <div className="space-y-4">
@@ -28,15 +28,15 @@ export default function WikiSourceList({ sources, loading, onFetch, onCompile }:
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-36"><SelectValue placeholder="All types" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All types</SelectItem>
-            {SOURCE_TYPES.filter(Boolean).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            <SelectItem value="all">All types</SelectItem>
+            {SOURCE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-36"><SelectValue placeholder="All statuses" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All statuses</SelectItem>
-            {STATUSES.filter(Boolean).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            <SelectItem value="all">All statuses</SelectItem>
+            {STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

@@ -13,15 +13,15 @@ interface Props {
   onSelect: (page: WikiPage) => void;
 }
 
-const PAGE_TYPES = ["", "topic", "source_note", "entity", "index", "brief", "overview"];
+const PAGE_TYPES = ["topic", "source_note", "entity", "index", "brief", "overview"];
 
 export default function WikiPageList({ pages, loading, onFetch, onSelect }: Props) {
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
 
-  useEffect(() => { onFetch(typeFilter || undefined, search || undefined); }, [typeFilter]);
+  useEffect(() => { onFetch(typeFilter === "all" ? undefined : typeFilter, search || undefined); }, [typeFilter]);
 
-  const handleSearch = () => onFetch(typeFilter || undefined, search || undefined);
+  const handleSearch = () => onFetch(typeFilter === "all" ? undefined : typeFilter, search || undefined);
 
   return (
     <div className="space-y-4">
@@ -39,8 +39,8 @@ export default function WikiPageList({ pages, loading, onFetch, onSelect }: Prop
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-40"><SelectValue placeholder="All types" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All types</SelectItem>
-            {PAGE_TYPES.filter(Boolean).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            <SelectItem value="all">All types</SelectItem>
+            {PAGE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

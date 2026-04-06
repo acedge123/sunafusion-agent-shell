@@ -24,12 +24,26 @@ function slugify(text: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
-/** Authenticate via AGENT_EDGE_KEY bearer token */
-function authenticate(req: Request): boolean {
+/** Authenticate via AGENT_EDGE_KEY bearer token OR valid Supabase JWT */
+async function authenticate(req: Request): Promise<{ ok: boolean; userId?: string }> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.replace(/^Bearer\s+/i, "");
+
+  // Check static agent key first
   const expected = Deno.env.get("AGENT_EDGE_KEY");
-  return !!expected && token === expected;
+  if (expected && token === expected) return { ok: true };
+
+  // Try Supabase JWT
+  if (token) {
+    const sb = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!
+    );
+    const { data: { user }, error } = await sb.auth.getUser(token);
+    if (!error && user) return { ok: true, userId: user.id };
+  }
+
+  return { ok: false };
 }
 
 function getServiceClient() {
