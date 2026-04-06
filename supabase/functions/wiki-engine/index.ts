@@ -30,12 +30,14 @@ async function authenticate(req: Request): Promise<{ ok: boolean; userId?: strin
   const token = auth.replace(/^Bearer\s+/i, "");
   const apikey = req.headers.get("apikey") ?? "";
 
-  // Check static agent key or service_role key against both headers
+  // Check static agent key, service_role key, or anon key against both headers
   const expected = Deno.env.get("AGENT_EDGE_KEY");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   for (const t of [token, apikey]) {
     if (expected && t === expected) return { ok: true };
     if (serviceKey && t === serviceKey) return { ok: true };
+    if (anonKey && t === anonKey) return { ok: true };
   }
 
   // Try Supabase JWT
