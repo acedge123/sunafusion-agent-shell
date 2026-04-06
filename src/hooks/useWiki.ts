@@ -1,15 +1,18 @@
 import { useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const WIKI_BASE = `https://nljlsqgldgmxlbylqazg.supabase.co/functions/v1/wiki-engine`;
 
 async function wikiRequest(path: string, options: RequestInit = {}) {
-  const edgeKey = import.meta.env.VITE_AGENT_EDGE_KEY || "";
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? "";
   const res = await fetch(`${WIKI_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${edgeKey}`,
+      Authorization: `Bearer ${token}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
       ...(options.headers || {}),
     },
   });
