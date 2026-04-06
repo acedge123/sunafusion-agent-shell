@@ -83,12 +83,6 @@ Deno.serve(async (req) => {
     return json({ status: "ok", system: "wiki-engine", ts: new Date().toISOString() });
   }
 
-  // Batch import - temporarily no auth for one-time import
-  if (method === "POST" && segments[0] === "sources" && segments[1] === "batch") {
-    const sb = getServiceClient();
-    return handleBatchCreateSources(req, sb);
-  }
-
   const authResult = await authenticate(req);
   if (!authResult.ok) {
     return err("Unauthorized", 401);
