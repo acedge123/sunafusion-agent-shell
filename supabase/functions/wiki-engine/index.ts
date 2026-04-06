@@ -75,7 +75,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const authResult = await authenticate(req);
-  if (!authResult.ok) return err("Unauthorized", 401);
+  if (!authResult.ok) {
+    console.log("Auth failed. Headers:", Object.fromEntries(req.headers.entries()));
+    console.log("AGENT_EDGE_KEY set:", !!Deno.env.get("AGENT_EDGE_KEY"));
+    console.log("SERVICE_ROLE set:", !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+    console.log("ANON_KEY set:", !!Deno.env.get("SUPABASE_ANON_KEY"));
+    return err("Unauthorized", 401);
+  }
 
   const url = new URL(req.url);
   const { segments } = parseRoute(url);
