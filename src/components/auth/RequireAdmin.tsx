@@ -4,12 +4,10 @@ import { useIsAdmin } from "@/hooks/useRole";
 import { Loader2 } from "lucide-react";
 
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const { isAdmin, loading } = useIsAdmin();
+  const { user, loading: authLoading } = useAuth();
+  const { isAdmin, loading: roleLoading } = useIsAdmin();
 
-  if (!user) return <Navigate to="/auth" replace />;
-
-  if (loading) {
+  if (authLoading || roleLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -17,6 +15,7 @@ export function RequireAdmin({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (!user) return <Navigate to="/auth" replace />;
   if (!isAdmin) return <Navigate to="/" replace />;
 
   return <>{children}</>;
