@@ -74,26 +74,23 @@ function parseRoute(url: URL): { segments: string[]; method: string } {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const authResult = await authenticate(req);
-  if (!authResult.ok) {
-    console.log("Auth failed. Headers:", Object.fromEntries(req.headers.entries()));
-    console.log("AGENT_EDGE_KEY set:", !!Deno.env.get("AGENT_EDGE_KEY"));
-    console.log("SERVICE_ROLE set:", !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
-    console.log("ANON_KEY set:", !!Deno.env.get("SUPABASE_ANON_KEY"));
-    return err("Unauthorized", 401);
-  }
-
   const url = new URL(req.url);
   const { segments } = parseRoute(url);
   const method = req.method;
+
+  // Health check doesn't require auth
+  if (method === "GET" && segments[0] === "health") {
+    return json({ status: "ok", system: "wiki-engine", ts: new Date().toISOString() });
+  }
+
+  const authResult = await authenticate(req);
+  if (!authResult.ok) {
+    return err("Unauthorized", 401);
+  }
+
   const sb = getServiceClient();
 
   try {
-    // GET /health
-    if (method === "GET" && segments[0] === "health") {
-      return json({ status: "ok", system: "wiki-engine", ts: new Date().toISOString() });
-    }
-
     // ─── SOURCES ─────────────────────────────────────────────
     if (segments[0] === "sources") {
       if (method === "POST" && segments.length === 2 && segments[1] === "batch") return handleBatchCreateSources(req, sb);
