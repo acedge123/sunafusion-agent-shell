@@ -67,7 +67,8 @@ function parseRoute(url: URL): { segments: string[]; method: string } {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  if (!authenticate(req)) return err("Unauthorized", 401);
+  const authResult = await authenticate(req);
+  if (!authResult.ok) return err("Unauthorized", 401);
 
   const url = new URL(req.url);
   const { segments } = parseRoute(url);
