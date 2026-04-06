@@ -192,6 +192,7 @@ async function handleBatchCreateSources(req: Request, sb: ReturnType<typeof crea
   return json({ inserted: data?.length ?? 0, total: rows.length }, 201);
 }
 
+async function handleListSources(url: URL, sb: ReturnType<typeof createClient>) {
   const status = url.searchParams.get("status");
   const source_type = url.searchParams.get("source_type");
   const tag = url.searchParams.get("tag");
