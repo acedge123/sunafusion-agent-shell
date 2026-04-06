@@ -28,10 +28,17 @@ function slugify(text: string): string {
 async function authenticate(req: Request): Promise<{ ok: boolean; userId?: string }> {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.replace(/^Bearer\s+/i, "");
+  const apikey = req.headers.get("apikey") ?? "";
 
-  // Check static agent key first
+  // Check static agent key, service_role key, or anon key against both headers
   const expected = Deno.env.get("AGENT_EDGE_KEY");
-  if (expected && token === expected) return { ok: true };
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  for (const t of [token, apikey]) {
+    if (expected && t === expected) return { ok: true };
+    if (serviceKey && t === serviceKey) return { ok: true };
+    if (anonKey && t === anonKey) return { ok: true };
+  }
 
   // Try Supabase JWT
   if (token) {
@@ -67,22 +74,27 @@ function parseRoute(url: URL): { segments: string[]; method: string } {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const authResult = await authenticate(req);
-  if (!authResult.ok) return err("Unauthorized", 401);
-
   const url = new URL(req.url);
   const { segments } = parseRoute(url);
   const method = req.method;
+
+  // Health check doesn't require auth
+  if (method === "GET" && segments[0] === "health") {
+    return json({ status: "ok", system: "wiki-engine", ts: new Date().toISOString() });
+  }
+
+  const authResult = await authenticate(req);
+  if (!authResult.ok) {
+    return err("Unauthorized", 401);
+  }
+
   const sb = getServiceClient();
 
   try {
-    // GET /health
-    if (method === "GET" && segments[0] === "health") {
-      return json({ status: "ok", system: "wiki-engine", ts: new Date().toISOString() });
-    }
-
     // ─── SOURCES ─────────────────────────────────────────────
     if (segments[0] === "sources") {
+      if (method === "POST" && segments.length === 2 && segments[1] === "batch") return handleBatchCreateSources(req, sb);
+      if (method === "POST" && segments.length === 1) return handleCreateSource(req, sb);
       if (method === "POST" && segments.length === 1) return handleCreateSource(req, sb);
       if (method === "GET" && segments.length === 1) return handleListSources(url, sb);
     }
@@ -148,6 +160,47 @@ async function handleCreateSource(req: Request, sb: ReturnType<typeof createClie
   }).select().single();
 
   return json({ source, run }, 201);
+}
+
+async function handleBatchCreateSources(req: Request, sb: ReturnType<typeof createClient>) {
+  const body = await req.json();
+  const sources = Array.isArray(body) ? body : body.sources;
+  if (!Array.isArray(sources) || sources.length === 0) return err("Expected array of sources");
+  if (sources.length > 200) return err("Max 200 sources per batch");
+
+  const validTypes = ["url", "tweet", "note", "article", "paper", "chat", "manual"];
+  const rows = sources.map((s: any) => ({
+    owner_id: s.owner_id,
+    source_type: s.source_type,
+    title: s.title ?? null,
+    source_url: s.source_url ?? null,
+    external_id: s.external_id ?? null,
+    raw_text: s.raw_text ?? null,
+    raw_markdown: s.raw_markdown ?? null,
+    raw_json: s.raw_json ?? {},
+    source_date: s.source_date ?? null,
+    tags: s.tags ?? [],
+    metadata: s.metadata ?? {},
+  }));
+
+  // Validate
+  for (const r of rows) {
+    if (!r.owner_id || !r.source_type) return err("Each source needs owner_id and source_type");
+    if (!validTypes.includes(r.source_type)) return err(`Invalid source_type: ${r.source_type}`);
+  }
+
+  const { data, error: insertErr } = await sb.from("wiki_sources").upsert(rows, { onConflict: "id", ignoreDuplicates: true }).select("id");
+  if (insertErr) return err(insertErr.message, 500);
+
+  // Create a single ingest run for the batch
+  const owner_id = rows[0].owner_id;
+  await sb.from("wiki_runs").insert({
+    owner_id, run_type: "ingest", status: "done",
+    input: { batch: true, count: rows.length },
+    output: { inserted: data?.length ?? 0 },
+  });
+
+  return json({ inserted: data?.length ?? 0, total: rows.length }, 201);
 }
 
 async function handleListSources(url: URL, sb: ReturnType<typeof createClient>) {
