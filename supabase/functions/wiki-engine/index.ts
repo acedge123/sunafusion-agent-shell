@@ -40,14 +40,18 @@ async function authenticate(req: Request): Promise<{ ok: boolean; userId?: strin
     if (anonKey && t === anonKey) return { ok: true };
   }
 
-  // Try Supabase JWT
+  // Try Supabase JWT via getClaims (supported under signing-keys system)
   if (token) {
-    const sb = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!
-    );
-    const { data: { user }, error } = await sb.auth.getUser(token);
-    if (!error && user) return { ok: true, userId: user.id };
+    try {
+      const sb = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!
+      );
+      const { data, error } = await sb.auth.getClaims(token);
+      if (!error && data?.claims?.sub) return { ok: true, userId: data.claims.sub as string };
+    } catch (e) {
+      console.error("getClaims failed:", e);
+    }
   }
 
   return { ok: false };
