@@ -25,15 +25,24 @@ function slugify(text: string): string {
 }
 
 /** Authenticate via AGENT_EDGE_KEY bearer token OR valid Supabase JWT */
+function normalizeSecret(value: string | null): string {
+  let v = (value ?? "").trim();
+  v = v.replace(/^Bearer\s+/i, "").trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1).trim();
+  }
+  return v;
+}
+
 async function authenticate(req: Request): Promise<{ ok: boolean; userId?: string }> {
   const auth = req.headers.get("authorization") ?? "";
-  const token = auth.replace(/^Bearer\s+/i, "");
-  const apikey = req.headers.get("apikey") ?? "";
+  const token = normalizeSecret(auth);
+  const apikey = normalizeSecret(req.headers.get("apikey"));
 
   // Check static agent key, service_role key, or anon key against both headers
-  const expected = Deno.env.get("AGENT_EDGE_KEY");
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const expected = normalizeSecret(Deno.env.get("AGENT_EDGE_KEY"));
+  const serviceKey = normalizeSecret(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+  const anonKey = normalizeSecret(Deno.env.get("SUPABASE_ANON_KEY"));
   for (const t of [token, apikey]) {
     if (expected && t === expected) return { ok: true };
     if (serviceKey && t === serviceKey) return { ok: true };
@@ -54,6 +63,14 @@ async function authenticate(req: Request): Promise<{ ok: boolean; userId?: strin
     }
   }
 
+  console.warn("wiki-engine auth rejected", {
+    hasBearer: Boolean(token),
+    bearerLength: token.length,
+    hasApiKey: Boolean(apikey),
+    apiKeyLength: apikey.length,
+    hasAgentKey: Boolean(expected),
+    agentKeyLength: expected.length,
+  });
   return { ok: false };
 }
 
