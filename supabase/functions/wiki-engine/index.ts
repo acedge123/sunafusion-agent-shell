@@ -39,14 +39,13 @@ async function authenticate(req: Request): Promise<{ ok: boolean; userId?: strin
   const token = normalizeSecret(auth);
   const apikey = normalizeSecret(req.headers.get("apikey"));
 
-  // Check static agent key, service_role key, or anon key against both headers
+  // Only the dedicated agent bearer token is accepted as a static credential.
+  // Anon and service-role keys must NOT grant access (anon is public; service-role
+  // is reserved for server-side use and would bypass the wiki ownership boundary).
   const expected = normalizeSecret(Deno.env.get("AGENT_EDGE_KEY"));
-  const serviceKey = normalizeSecret(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
-  const anonKey = normalizeSecret(Deno.env.get("SUPABASE_ANON_KEY"));
-  for (const t of [token, apikey]) {
-    if (expected && t === expected) return { ok: true };
-    if (serviceKey && t === serviceKey) return { ok: true };
-    if (anonKey && t === anonKey) return { ok: true };
+  if (expected) {
+    if (token && token === expected) return { ok: true };
+    if (apikey && apikey === expected) return { ok: true };
   }
 
   // Try Supabase JWT via getClaims (supported under signing-keys system)
