@@ -31,6 +31,11 @@ function normalizeSecret(value: string | null): string {
   if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
     v = v.slice(1, -1).trim();
   }
+  if (v.length % 2 === 0) {
+    const half = v.length / 2;
+    const first = v.slice(0, half);
+    if (first && first === v.slice(half)) return first;
+  }
   return v;
 }
 
