@@ -21,6 +21,20 @@ function clampInt(v: string | null, dflt: number, min: number, max: number): num
   return Math.max(min, Math.min(max, n));
 }
 
+function normalizeSecret(value: string | null): string {
+  let v = (value ?? "").trim();
+  v = v.replace(/^Bearer\s+/i, "").trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1).trim();
+  }
+  if (v.length % 2 === 0) {
+    const half = v.length / 2;
+    const first = v.slice(0, half);
+    if (first && first === v.slice(half)) return first;
+  }
+  return v;
+}
+
 // Shared validation constants
 const VALID_KINDS = ['general', 'composio_trigger', 'chat_response', 'chat_query', 'research_summary', 'github_push_summary', 'email_summary', 'memory', 'decision', 'code_change', 'image_generation', 'db_query_result', 'person', 'project', 'runbook', 'incident', 'integration', 'playbook', 'gotcha', 'reference', 'research'];
 const VALID_VISIBILITY = ['private', 'family', 'public'];
@@ -246,11 +260,20 @@ serve(async (req) => {
     }
 
     // ---- Auth gate (shared secret) ----
-    const expectedKey = Deno.env.get("AGENT_EDGE_KEY");
-    const providedKey = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const expectedKey = normalizeSecret(Deno.env.get("AGENT_EDGE_KEY"));
+    const providedKey = normalizeSecret(authHeader);
+    const providedApiKey = normalizeSecret(req.headers.get("apikey"));
 
-    if (!providedKey || providedKey !== expectedKey) {
-      console.log("[agent-vault] Unauthorized request attempt");
+    if (!expectedKey || (providedKey !== expectedKey && providedApiKey !== expectedKey)) {
+      console.log("[agent-vault] Unauthorized request attempt", {
+        path: pathname,
+        hasBearer: Boolean(providedKey),
+        bearerLength: providedKey.length,
+        hasApiKey: Boolean(providedApiKey),
+        apiKeyLength: providedApiKey.length,
+        hasAgentKey: Boolean(expectedKey),
+        agentKeyLength: expectedKey.length,
+      });
       return json(401, { error: "unauthorized" });
     }
 
